@@ -1,0 +1,2256 @@
+;--------------------------------------------------------------------------------------------------------
+;-
+;- Name:            rfs.asm
+;- Created:         October 2018
+;- Author(s):       Philip Smart
+;- Description:     Sharp MZ series Rom Filing System.
+;-                  This assembly language program is written to utilise the banked flashroms added with
+;-                  the MZ-80A RFS hardware upgrade.
+;-
+;- Credits:         
+;- Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+;-
+;- History:         October 2018 - Merged 2 utilities to create this compilation.
+;-
+;--------------------------------------------------------------------------------------------------------
+;- This source file is free software: you can redistribute it and-or modify
+;- it under the terms of the GNU General Public License as published
+;- by the Free Software Foundation, either version 3 of the License, or
+;- (at your option) any later version.
+;-
+;- This source file is distributed in the hope that it will be useful,
+;- but WITHOUT ANY WARRANTY; without even the implied warranty of
+;- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;- GNU General Public License for more details.
+;-
+;- You should have received a copy of the GNU General Public License
+;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
+;--------------------------------------------------------------------------------------------------------
+
+           ; Bring in additional resources.
+           INCLUDE "Macros.asm"
+
+;-----------------------------------------------
+; Function entry points in the SA-1510 Monitor.
+;-----------------------------------------------
+GETL:      EQU      00003h
+LETNL:     EQU      00006h
+NL:        EQU      00009h
+PRNTS:     EQU      0000Ch
+PRNT:      EQU      00012h
+MSG:       EQU      00015h
+MSGX:      EQU      00018h
+GETKY      EQU      0001Bh
+BRKEY      EQU      0001Eh
+?WRI       EQU      00021h
+?WRD       EQU      00024h
+?RDI       EQU      00027h
+?RDD       EQU      0002Ah
+?VRFY      EQU      0002Dh
+?TMST      EQU      00033h
+MONIT:     EQU      00000h
+ST1:       EQU      00095h
+MSGE1      EQU      00118h
+HLHEX      EQU      00410h
+_2HEX      EQU      0041Fh
+?KEY       EQU      008CAh
+PRNT3      EQU      0096Ch
+MSG?2      EQU      000F7h
+?ADCN      EQU      00BB9h
+?BLNK      EQU      00DA6h
+?DPCT      EQU      00DDCh
+PRTHL:     EQU      003BAh
+PRTHX:     EQU      003C3h
+DPCT:      EQU      00DDCh
+DLY12:     EQU      00DA7h
+DLY12A:    EQU      00DAAh
+?RSTR1:    EQU      00EE6h
+
+;-----------------------------------------------
+; Memory mapped ports in hardware.
+;-----------------------------------------------
+KEYPA:     EQU      0E000h
+KEYPB:     EQU      0E001h
+KEYPC:     EQU      0E002h
+KEYPF:     EQU      0E003h
+CSTR:      EQU      0E002h
+CSTPT:     EQU      0E003h
+CONT0:     EQU      0E004h
+CONT1:     EQU      0E005h
+CONT2:     EQU      0E006h
+CONTF:     EQU      0E007h
+SUNDG:     EQU      0E008h
+TEMP:      EQU      0E008h
+RFSBK1:    EQU      0EFFCh
+RFSBK2:    EQU      0EFFDh
+RFSRST1:   EQU      0EFFEh
+RFSRST2:   EQU      0EFFFh
+
+;-----------------------------------------------
+; Rom File System Header (MZF)
+;-----------------------------------------------
+RFS_ATRB:  EQU      00000h                                               ; Code Type, 01 = Machine Code.
+RFS_NAME:  EQU      00001h                                               ; Title/Name (17 bytes).
+RFS_SIZE:  EQU      00012h                                               ; Size of program.
+RFS_DTADR: EQU      00014h                                               ; Load address of program.
+RFS_EXADR: EQU      00016h                                               ; Exec address of program.
+RFS_COMNT: EQU      00018h                                               ; COMMENT
+
+;-----------------------------------------------
+; Entry/compilation start points.
+;-----------------------------------------------
+TPSTART:   EQU      010F0h
+MEMSTART:  EQU      01200h
+MSTART:    EQU      0E800h
+
+;-----------------------------------------------
+; ROM Banks, 0-3 are reserved for alternative
+;            Monitor versions in MROM bank,
+;            0-7 are reserved for RFS code in the
+;            User ROM bank.
+;-----------------------------------------------
+ROMBANK0   EQU      0
+ROMBANK1   EQU      1
+ROMBANK2   EQU      2
+ROMBANK3   EQU      3
+ROMBANK4   EQU      4
+ROMBANK5   EQU      5
+ROMBANK6   EQU      6
+ROMBANK7   EQU      7
+
+;BRKCD      EQU      00
+;NTFECD     EQU      40
+;HDERCD     EQU      41
+;WPRTCD     EQU      46
+;QNTRCD     EQU      50
+;NFSECD     EQU      53
+;UNFMCD     EQU      54
+
+;NAMSIZ     EQU      011h
+OBJCD      EQU      001h
+
+;-----------------------------------------------
+; Common character definitions.
+;-----------------------------------------------
+SCROLL     EQU      01H            ;Set scrool direction UP.
+BELL       EQU      07H
+SPACE      EQU      20H
+TAB        EQU      09H            ;TAB ACROSS (8 SPACES FOR SD-BOARD)
+CR         EQU      0DH
+LF         EQU      0AH
+FF         EQU      0CH
+ESC        EQU      1BH
+DELETE     EQU      7FH
+BACKS      EQU      08H
+SOH        EQU      1            ; For XModem etc.
+EOT        EQU      4
+ACK        EQU      6
+NAK        EQU      15H
+
+;-----------------------------------------------
+;    SA-1510 MONITOR WORK AREA (MZ80A)
+;-----------------------------------------------
+STACK:     EQU      010F0H
+;
+           ORG      STACK
+;
+SPV:
+IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
+ATRB:      DS       virtual 1                                            ; ATTRIBUTE
+NAME:      DS       virtual 17                                           ; FILE NAME
+SIZE:      DS       virtual 2                                            ; BYTESIZE
+DTADR:     DS       virtual 2                                            ; DATA ADDRESS
+EXADR:     DS       virtual 2                                            ; EXECUTION ADDRESS
+COMNT:     DS       virtual 92                                           ; COMMENT
+SWPW:      DS       virtual 10                                           ; SWEEP WORK
+KDATW:     DS       virtual 2                                            ; KEY WORK
+KANAF:     DS       virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
+DSPXY:     DS       virtual 2                                            ; DISPLAY COORDINATES
+MANG:      DS       virtual 6                                            ; COLUMN MANAGEMENT
+MANGE:     DS       virtual 1                                            ; COLUMN MANAGEMENT END
+PBIAS:     DS       virtual 1                                            ; PAGE BIAS
+ROLTOP:    DS       virtual 1                                            ; ROLL TOP BIAS
+MGPNT:     DS       virtual 1                                            ; COLUMN MANAG. POINTER
+PAGETP:    DS       virtual 2                                            ; PAGE TOP
+ROLEND:    DS       virtual 1                                            ; ROLL END
+           DS       virtual 14                                           ; BIAS
+FLASH:     DS       virtual 1                                            ; FLASHING DATA
+SFTLK:     DS       virtual 1                                            ; SHIFT LOCK
+REVFLG:    DS       virtual 1                                            ; REVERSE FLAG
+SPAGE:     DS       virtual 1                                            ; PAGE CHANGE
+FLSDT:     DS       virtual 1                                            ; CURSOR DATA
+STRGF:     DS       virtual 1                                            ; STRING FLAG
+DPRNT:     DS       virtual 1                                            ; TAB COUNTER
+TMCNT:     DS       virtual 2                                            ; TAPE MARK COUNTER
+SUMDT:     DS       virtual 2                                            ; CHECK SUM DATA
+CSMDT:     DS       virtual 2                                            ; FOR COMPARE SUM DATA
+AMPM:      DS       virtual 1                                            ; AMPM DATA
+TIMFG:     DS       virtual 1                                            ; TIME FLAG
+SWRK:      DS       virtual 1                                            ; KEY SOUND FLAG
+TEMPW:     DS       virtual 1                                            ; TEMPO WORK
+ONTYO:     DS       virtual 1                                            ; ONTYO WORK
+OCTV:      DS       virtual 1                                            ; OCTAVE WORK
+RATIO:     DS       virtual 2                                            ; ONPU RATIO
+BUFER:     DS       virtual 81                                           ; GET LINE BUFFER
+ROMBK0:    DS       virtual 1                                            ; CURRENT MROM BANK 
+TMPADR:    DS       virtual 2                                            ; TEMPORARY ADDRESS STORAGE
+TMPOFS:    DS       virtual 2                                            ; TEMPORARY OFFSET
+; Quickdisk work area
+;QDPA       EQU      01130h                                               ; QD code 1
+;QDPB       EQU      01131h                                               ; QD code 2
+;QDPC       EQU      01132h                                               ; QD header startaddress
+;QDPE       EQU      01134h                                               ; QD header length
+;QDCPA      EQU      0113Bh                                               ; QD error flag
+;HDPT       EQU      0113Ch                                               ; QD new headpoint possition
+;HDPT0      EQU      0113Dh                                               ; QD actual headpoint possition
+;FNUPS      EQU      0113Eh
+;FNUPF      EQU      01140h
+;FNA        EQU      01141h                                               ; File Number A (actual file number)
+;FNB        EQU      01142h                                               ; File Number B (next file number)
+;MTF        EQU      01143h                                               ; QD motor flag
+;RTYF       EQU      01144h
+;SYNCF      EQU      01146h                                               ; SyncFlags
+;RETSP      EQU      01147h
+;BUFER      EQU      011A3h
+;QDIRBF     EQU      0CD90h
+
+
+
+;SPV:
+;IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
+;ATRB:      DS       virtual 1                                            ; Code Type, 01 = Machine Code.
+;NAME:      DS       virtual 17                                           ; Title/Name (17 bytes).
+;SIZE:      DS       virtual 2                                            ; Size of program.
+;DTADR:     DS       virtual 2                                            ; Load address of program.
+;EXADR:     DS       virtual 2                                            ; Exec address of program.
+;COMNT:     DS       virtual 104                                          ; COMMENT
+;KANAF:     DS       virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
+;DSPXY:     DS       virtual 2                                            ; DISPLAY COORDINATES
+;MANG:      DS       virtual 27                                           ; COLUMN MANAGEMENT
+;FLASH:     DS       virtual 1                                            ; FLASHING DATA
+;FLPST:     DS       virtual 2                                            ; FLASHING POSITION
+;FLSST:     DS       virtual 1                                            ; FLASHING STATUS
+;FLSDT:     DS       virtual 1                                            ; CURSOR DATA
+;STRGF:     DS       virtual 1                                            ; STRING FLAG
+;DPRNT:     DS       virtual 1                                            ; TAB COUNTER
+;TMCNT:     DS       virtual 2                                            ; TAPE MARK COUNTER
+;SUMDT:     DS       virtual 2                                            ; CHECK SUM DATA
+;CSMDT:     DS       virtual 2                                            ; FOR COMPARE SUM DATA
+;AMPM:      DS       virtual 1                                            ; AMPM DATA
+;TIMFG:     DS       virtual 1                                            ; TIME FLAG
+;SWRK:      DS       virtual 1                                            ; KEY SOUND FLAG
+;TEMPW:     DS       virtual 1                                            ; TEMPO WORK
+;ONTYO:     DS       virtual 1                                            ; ONTYO WORK
+;OCTV:      DS       virtual 1                                            ; OCTAVE WORK
+;RATIO:     DS       virtual 2                                            ; ONPU RATIO
+                                                                         ; QD command table
+
+           ;======================================
+           ;
+           ; USER ROM BANK 0
+           ;
+           ;======================================
+           ORG      0E800h
+
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS:     NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW0to0:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to1:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to2:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to3:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to4:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to5:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to6:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW0_0
+BKSW0to7:  PUSH     AF
+           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW0_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET0                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET0:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ;
+           ; Replacement command processor in place of the SA1510 command processor.
+           ;
+MONITOR:
+           LD       A,0C4h      ; Move cursor left to overwrite part of SA-1510 monitor banner.
+           LD       E,004h      ; 2 times.
+SIGNON1:   CALL      DPCT
+           DEC      E
+           JR       NZ,SIGNON1
+           LD       DE,MSGSON                                                ; Sign on message,
+           RST      018h
+
+ST1X:      CALL     NL                                                       ; Command line monitor extension.
+           LD       A,'*'
+           CALL     PRNT
+           LD       DE,BUFER
+           CALL     GETL
+ST2X:
+           LD       A,(DE)
+           INC      DE
+           CP       00Dh
+           JR       Z,ST1X
+           CP       'J'                                                      ; JUMP
+           JR       Z,GOTOX
+           CP       'L'                                                      ; Load CMT
+           JR       Z,LOADX
+           CP       'F'                                                      ; Floppy boot
+           JR       Z,FDCK
+           CP       'B'                                                      ; Bell
+           JP       Z,SGX
+           CP       'P'                                                      ; Printer test
+           JP       Z,PTESTX
+           CP       'M'                                                      ; Memory correction
+           JP       Z,MCORX
+           CP       'S'                                                      ; Save CMT
+           JP       Z,SAVEX
+           CP       'V'                                                      ; Verify
+           JP       Z,VRFYX
+           CP       'D'                                                      ; Dump memory
+           JP       Z,DUMPX
+           CP       'I'                                                      ; List ROM directory.
+           JP       Z,DIRROM 
+           LD       HL, MEMTEST                                              ; Function to call if we have a match.
+           CP       'R'
+           CALL     Z,BKSW0to3                                               ; Call function in bank 3.
+           LD       HL, TIMERTST                                             ; Function to call if we have a match.
+           CP       'T'
+           CALL     Z,BKSW0to3                                               ; Timer test.
+           CP       '1'
+           JP       Z,RFS
+ST1X1:     JR       ST2X
+
+FDCK:
+           LD       A,(DE)
+           CP       00Dh
+           JR       NZ,ST1X1
+           CALL     LEB22
+           CALL     Z,0F006h
+           JR       ST1X1
+?ERX:
+           CP       002h
+           JR       Z,ST1X1
+           CALL     NL
+           LD       DE,MSGE1                                                 ; 'CHECK SUM ER.'
+           RST      018h
+           JR       ST1X1
+BGETLX:
+           EX       (SP),HL
+           POP      BC
+           LD       DE,BUFER
+           CALL     GETL
+           LD       A,(DE)
+           CP       01Bh
+           JR       Z,ST1X1
+           JP       (HL)
+
+HEXIYX:
+           EX       (SP),IY
+           POP      AF
+           CALL     HLHEX
+           JR       C,ST1X1
+           JP       (IY)
+
+GOTOX:
+           CALL     HEXIYX
+           JP       (HL)
+
+               
+LOADX:
+LOADX1:    LD       A,(DE)
+           CP       000h
+           JR       Z, LOADXTAPE
+           CP       00Dh
+           JR       Z, LOADXTAPE
+           CP       ' '
+           JR       Z,LOADX2
+           EX       DE,HL                              ; Filename pointer stored in HL
+           JP       LOADROM                            ; Attempt to load from ROM.
+
+LOADX2:    INC      DE
+           JR       LOADX1
+
+LOADXTAPE: CALL     ?RDI
+           JR       C,?ERX
+           CALL     NL
+           LD       DE,MSG?2                                                 ; 'LOADING '
+           RST      018h
+           LD       DE,NAME
+           RST      018h
+           XOR      A
+           LD       (BUFER),A
+           LD       HL,(DTADR)
+           LD       A,H
+           OR       L
+           JR       NZ,LE941
+           LD       HL,(EXADR)
+           LD       A,H
+           OR       L
+           JR       NZ,LE941
+           LD       A,0FFh
+           LD       (BUFER),A
+           LD       HL,01200h
+           LD       (DTADR),HL
+LE941:
+           CALL     ?RDD
+           JR       C,?ERX
+           LD       A,(BUFER)
+           CP       0FFh
+           JR       Z,LE954
+           LD       BC,00100h
+           LD       HL,(EXADR)
+           JP       (HL)
+LE954:
+           OUT      (0E0h),A
+           LD       HL,01200h
+           LD       DE,00000h
+           LD       BC,(SIZE)
+           LDIR
+           LD       BC,00100h
+           JP       00000h
+
+PTESTX:
+           LD       A,(DE)
+           CP       '&'                                                      ; plotter test
+           JR       NZ,PTST1X
+PTST0X:
+           INC      DE
+           LD       A,(DE)
+           CP       'L'                                                      ; 40 in 1 line
+           JR       Z,.LPTX
+           CP       'S'                                                      ; 80 in 1 line
+           JR       Z,..LPTX
+           CP       'C'                                                      ; Pen change
+           JR       Z,PENX
+           CP       'G'                                                      ; Graph mode
+           JR       Z,PLOTX
+           CP       'T'                                                      ; Test
+           JR       Z,PTRNX
+;
+PTST1X:
+           CALL     PMSGX
+ST1X2:
+           JP       ST1X1
+.LPTX:
+           LD       DE,LLPT                                                  ; 01-09-09-0B-0D
+           JR       PTST1X
+..LPTX:
+           LD       DE,SLPT                                                  ; 01-09-09-09-0D
+           JR       PTST1X
+PTRNX:
+           LD       A,004h                                                   ; Test pattern
+           JR       LE999
+PLOTX:
+           LD       A,002h                                                   ; Graph mode
+LE999:
+           CALL     LPRNTX
+           JR       PTST0X
+PENX:
+           LD       A,01Dh                                                   ; 1 change code (text mode)
+           JR       LE999
+;
+;
+;       1 char print to $LPT
+;
+;        in: ACC print data
+;
+;
+LPRNTX:
+           LD       C,000h                                                   ; RDAX test
+           LD       B,A                                                      ; print data store
+           CALL     RDAX
+           LD       A,B
+           OUT      (0FFh),A                                                 ; data out
+           LD       A,080h                                                   ; RDP high
+           OUT      (0FEh),A
+           LD       C,001h                                                   ; RDA test
+           CALL     RDAX
+           XOR      A                                                        ; RDP low
+           OUT      (0FEh),A
+           RET
+;
+;       $LPT msg.
+;       in: DE data low address
+;       0D msg. end
+;
+PMSGX:
+           PUSH     DE
+           PUSH     BC
+           PUSH     AF
+PMSGX1:
+           LD       A,(DE)                                                   ; ACC = data
+           CALL     LPRNTX
+           LD       A,(DE)
+           INC      DE
+           CP       00Dh                                                     ; end ?
+           JR       NZ,PMSGX1
+           POP      AF
+           POP      BC
+           POP      DE
+           RET
+;
+;       RDA check
+;
+;       BRKEY in to monitor return
+;       in: C RDA code
+;
+RDAX:
+           IN       A,(0FEh)
+           AND      00Dh
+           CP       C
+           RET      Z
+           CALL     BRKEY
+           JR       NZ,RDAX
+           LD       SP,ATRB
+           JR       ST1X2
+;
+;       Memory correction
+;       command 'M'
+;
+MCORX:
+           CALL     HEXIYX                                                   ; correction address
+MCORX1:
+           CALL     NLPHL                                                    ; corr. adr. print
+           CALL     SPHEX                                                    ; ACC ASCII display
+           CALL     PRNTS                                                    ; space print
+           CALL     BGETLX                                                   ; get data & check data
+           CALL     HLHEX                                                    ; HLASCII(DE)
+           JR       C,MCRX3
+           CALL     DOT4DE                                                   ; INC DE * 4
+           INC      DE
+           CALL     _2HEX                                                    ; data check
+           JR       C,MCORX1
+           CP       (HL)
+           JR       NZ,MCORX1
+           INC      DE
+           LD       A,(DE)
+           CP       00Dh                                                     ; not correction
+           JR       Z,MCRX2
+           CALL     _2HEX                                                    ; ACCHL(ASCII)
+           JR       C,MCORX1
+           LD       (HL),A                                                   ; data correct
+MCRX2:
+           INC      HL
+           JR       MCORX1
+MCRX3:
+           LD       H,B                                                      ; memory address
+           LD       L,C
+           JR       MCORX1
+;
+;       Programm save
+;
+;       cmd. 'S'
+;
+SAVEX:
+           CALL     HEXIYX                                                   ; Start address
+           LD       (DTADR),HL                                               ; data adress buffer
+           LD       B,H
+           LD       C,L
+           CALL     DOT4DE
+           CALL     HEXIYX                                                   ; End address
+           SBC      HL,BC                                                    ; byte size
+           INC      HL
+           LD       (SIZE),HL                                                ; byte size buffer
+           CALL     DOT4DE
+           CALL     HEXIYX                                                   ; execute address
+           LD       (EXADR),HL                                               ; buffer
+           CALL     NL
+           LD       DE,MSGSV                                                 ; 'FILENAME? '
+           RST      018h
+           CALL     BGETLX                                                   ; filename input
+           CALL     DOT4DE
+           CALL     DOT4DE
+           LD       HL,NAME                                                  ; name buffer
+SAVX1:
+           INC      DE
+           LD       A,(DE)
+           LD       (HL),A                                                   ; filename trans.
+           INC      HL
+           CP       00Dh                                                     ; end code
+           JR       NZ,SAVX1
+           LD       A,OBJCD                                                  ; attribute: OBJ
+           LD       (ATRB),A
+           CALL     ?WRI
+?ERX1:
+           JP       C,?ERX
+           CALL     ?WRD                                                     ; data
+           JR       C,?ERX1
+           CALL     NL
+           LD       DE,MSGOK                                                 ; 'OK!'
+           RST      018h
+LEA5B:
+           JP       ST1X
+
+VRFYX:
+           CALL     ?VRFY
+           JP       C,?ERX
+           LD       DE,MSGOK                                                 ; 'OK!'
+           RST      018h
+           JR       LEA5B
+
+SGX:
+           LD       A,(SWRK)
+           RRA
+           CCF
+           RLA
+           LD       (SWRK),A
+LEA76:
+           JR       LEA5B
+
+DUMPX:
+           CALL     HEXIYX
+           CALL     DOT4DE
+           PUSH     HL
+           CALL     HLHEX
+           POP      DE
+           JR       C,LEAD6
+LEA85:
+           EX       DE,HL
+LEA86:
+           LD       B,008h
+           LD       C,017h
+           CALL     NLPHL
+LEA8D:
+           CALL     SPHEX
+           INC      HL
+           PUSH     AF
+           LD       A,(DSPXY)
+           ADD      A,C
+           LD       (DSPXY),A
+           POP      AF
+           CP       020h
+           JR       NC,LEAA0
+           LD       A,02Eh
+LEAA0:
+           CALL     ?ADCN
+           CALL     PRNT3
+           LD       A,(DSPXY)
+           INC      C
+           SUB      C
+           LD       (DSPXY),A
+           DEC      C
+           DEC      C
+           DEC      C
+           PUSH     HL
+           SBC      HL,DE
+           POP      HL
+           JR       Z,LEAD3
+           LD       A,0F8h
+           LD       (0E000h),A
+           NOP
+           LD       A,(0E001h)
+           CP       0FEh
+           JR       NZ,LEAC7
+           CALL     ?BLNK
+LEAC7:
+           DJNZ     LEA8D
+LEAC9:
+           CALL     ?KEY
+           OR       A
+           JR       Z,LEAC9
+           CALL     BRKEY
+           DB       020h
+LEAD3:
+           DB       0B2h
+      
+           JR       LEA76
+LEAD6:
+           LD       HL,000A0h
+           ADD      HL,DE
+           JR       LEA85
+
+FNINP:
+           CALL     NL
+           LD       DE,MSGSV                                                 ; 'FILENAME? '
+           RST      018h
+           LD       DE,BUFER
+           CALL     GETL
+           LD       A,(DE)
+           CP       #1B
+           JR       NZ,LEAF3
+           LD       HL,ST1X
+           EX       (SP),HL
+           RET
+
+LEAF3:
+           LD       B,000h
+           LD       DE,011ADh
+           LD       HL,BUFER
+           LD       A,(DE)
+           CP       00Dh
+           JR       Z,LEB20
+LEB00:
+           CP       020h
+           JR       NZ,LEB08
+           INC      DE
+           LD       A,(DE)
+           JR       LEB00
+LEB08:
+           CP       022h
+           JR       Z,LEB14
+LEB0C:
+           LD       (HL),A
+           INC      HL
+           INC      B
+           LD       A,011h
+           CP       B
+           JR       Z,FNINP
+LEB14:
+           INC      DE
+           LD       A,(DE)
+           CP       022h
+           JR       Z,LEB1E
+           CP       00Dh
+           JR       NZ,LEB0C
+LEB1E:
+           LD       A,00dh
+LEB20:
+           LD       (HL),A
+           RET
+
+LEB22:
+           LD       A,(0F000h)
+           OR       A
+           RET
+
+        ;    INCREMENT DE REG.
+
+DOT4DE:    INC      DE
+           INC      DE
+           INC      DE
+           INC      DE
+           RET     
+
+        ;    SPACE PRINT AND DISP ACC
+        ;    INPUT:HL=DISP. ADR.
+
+SPHEX:     CALL     PRNTS                                                    ; SPACE PRINT
+           LD       A,(HL)
+           CALL     PRTHX                                                    ; DSP OF ACC (ASCII)
+           LD       A,(HL)
+           RET   
+                  
+           ;    NEW LINE AND PRINT HL REG (ASCII)
+
+NLPHL:     CALL     NL
+           CALL     PRTHL
+           RET  
+
+           ; Comparing Strings
+           ; IN    HL     Address of string1.
+           ;       DE     Address of string2.
+           ;       BC     Max bytes to compare, 0x00 or 0x0d will early terminate.
+           ; OUT   zero   Set if string1 = string2, reset if string1 != string2.
+           ;       carry  Set if string1 > string2, reset if string1 <= string2.
+
+CMPSTRING: PUSH     HL
+           PUSH     DE
+
+CMPSTR1:   LD       A, (DE)          ; Compare bytes.
+           CP       000h             ; Check for end of string.
+           JR       Z,  CMPSTR3
+           CP       00Dh
+           JR       Z,  CMPSTR3
+           CPI                       ; Compare bytes.
+           JR       NZ, CMPSTR2      ; If (HL) != (DE), abort.
+           INC      DE               ; Update pointer.
+           JP       PE, CMPSTR1      ; Next byte if BC not zero.
+
+CMPSTR2:   DEC      HL
+           CP       (HL)            ; Compare again to affect carry.
+           POP      DE
+           POP      HL
+           RET
+
+CMPSTR3:   LD       A, (HL)
+           CP       000h             ; Check for end of string.
+           JR       Z, CMPSTR4
+           CP       00Dh
+           JR       Z, CMPSTR4
+           SCF                       ; String 1 greater than string 2
+
+CMPSTR4:   POP      DE
+           POP      HL
+           RET
+
+           ; IN   HL   Address of source string, length-prefixed.
+           ;      DE   Address of destination string, length-prefixed.
+           ;      B    Start index. 1 = first character.
+           ;      C    Length of substring to return.
+           ;
+           ; OUT  carry    Set if an error condition happened:
+           ;                 If B is zero, then uses index of 1.
+           ;                 If index > source length, an empty string is returned.
+           ;                 If index + return length > source length, returns all
+           ;                 characters from index to end-of-string.
+    
+SUBSTRING: PUSH     DE        ; It would be convenient to keep DE pointing to
+                     ; the start of the destination string
+           OR       A         ; Boolean OR resets carry
+           PUSH     AF        ; Save carry
+           LD       A, B       ; Is index beyond source length?
+           CP       (HL)
+           DEC      A         ; Decrement A so NC can be used
+           JR       NC,SUBST3
+
+           ADD      A, C       ; If index+len is > 255, error
+           JR       C, SUBST1
+           INC      A         ; Increment A so C can be used
+           CP       (HL)      ; If index+len is beyond source length, then error
+           JR       C, SUBST2
+
+SUBST1:    POP      AF        ; Set carry flag
+           SCF
+           PUSH     AF
+           LD       A, (HL)    ; Get source length
+           SUB      B         ; Subtract start index
+           INC      A         ; Compensate
+           LD       C, A       ; New size of string
+
+SUBST2: LD       A, C       ; Size of sting to get
+           LD       (DE), A    ; Save length index
+           INC      DE        ; To body of string
+           LD       A, B       ; Get index
+           LD       B, 0       ; Zero-extend BC for LDIR
+
+           ADD      A, L       ; This is a sneaky way to add A to HL
+           LD       L, A       ; without using up another 16-bit register
+           ADC      A, H       ;
+           SUB      L         ;
+           LD       H, A       ;
+
+           LDIR             ; Copy substring over
+           POP      AF        ; Restore flags
+           POP      DE        ; Restore destination
+           RET
+
+SUBST3:    XOR      A         ; Set a length index of zero
+           LD       (DE), A
+           POP      AF        ; Clean off stack and set carry
+           POP      DE
+           SCF
+           RET
+
+           ; IN  HL       Address of string to look in, length prefixed.
+           ;     DE       Address of string to find, length prefixed.
+           ;
+           ; OUT
+           ;  If found:
+           ;     A        Offset into look-up string where the target string was found.
+           ;              The first byte (ignoring length prefix) is offset 1.
+           ;     carry    Reset.
+           ;
+           ;  If not found:
+           ;     A    = 0
+           ;     carry    Set.
+           
+INDEX:     LD       A, (DE)    ; Abort if string to find is too big
+           CP       (HL)
+           INC      A
+           JR       NC, IDXABORT
+
+           DEC      A         ; Save length of string to find
+           LD       IXL, A
+
+           LD       B, 0       ; Put length of string to search in BC
+           LD       C, (HL)
+
+           INC      HL        ; Advance pointers
+           INC      DE
+           PUSH     HL        ; Save start of search string
+
+IDXRST:    PUSH     DE        ; Save start of key string
+
+           LD       A, IXL     ; Initialize matched characters counter
+           LD       IXH, A
+
+           LD       A, (DE)    ; Get a character to match
+           CPIR             ; Look for it
+           JR       NZ, IDXNF    ; Abort if not found
+
+IDXLOOP:   DEC      IXH       ; Update counter and see if done
+           JR       Z, IDXFOUND
+
+           INC      DE        ; Get next character in key string
+           LD       A, (DE) 
+           CPI              ; See if it matches next char in master
+           JR       Z, IDXLOOP
+           JP       PO, IDXNF    ; Abort if we ran out of characters
+
+           POP      DE        ; If a mismatch, restart from the beginning
+           JR       IDXRST
+
+IDXNF:     POP      DE        ; Clean stack
+           POP      HL
+
+IDXABORT:  XOR      A         ; Report failure
+           SCF
+           RET
+
+IDXFOUND:  POP      DE
+           POP      BC        ; BC = address of master
+
+           XOR      A         ; Put size of key string in DE
+           LD       D, A
+           LD       E, IXL
+
+           SBC      HL, DE     ; Find index
+           SBC      HL, BC    
+           LD       A, L
+           INC      A
+           RET
+
+           ; IN   HL      Address of string to be inserted
+           ;      DE      Address of string to receive insertion
+           ;      C       Index. Start of string is 0
+           ; OUT
+           ;  If successful:
+           ;      carry   Reset
+           ;      HL      Input DE
+           ;  If unsuccessful:
+           ;      carry   Set. If new string length is > 255.
+           ;
+           ; Notes        If index > string length, string is appended.
+           ;              Data after the string is destroyed.
+
+STRINSERT: LD       A, (DE)    
+           LD       B, A
+
+           INC      A
+           CP       C
+           JR       NC, STRINSERT1
+           LD       C, B
+
+STRINSERT1:DEC      A
+           ADD      A, (HL)
+           RET      C
+           LD       (DE), A    ; Update length
+
+           PUSH     DE        ; Make room
+           PUSH     HL
+           LD       A, (HL)
+           INC      C
+
+           LD       H, 0
+           LD       L, C
+           ADD      HL, DE
+
+           LD       D, H
+           LD       E, L
+           PUSH     AF
+           ADD      A, E
+           LD       E, A
+           ADC      A, D
+           SUB      E
+           LD       D, A
+           POP      AF
+
+           LD       B, 0
+           LD       C, A
+           PUSH     HL
+           LDIR
+
+           POP      DE        ; Copy string over
+           POP      HL
+           LD       C, (HL)
+           INC      HL
+           LDIR
+           POP      HL
+           RET
+
+           ; IN  HL       Address of string.
+           ;     B        Index of first character to delete. First character is 0.
+           ;     C        Number of characters to kill.
+           ; OUT
+           ;  If successful:
+           ;     carry    Reset
+           ;  If unsuccessful:
+           ;     carry    Set
+           ;
+           ; Notes        If B > string length, then error.
+           ;              If B + C > string length, deletion
+           ;              stops at end of string.
+
+STRDELETE: LD       A, B       ; See if index is too big
+           CP       (HL)
+           CCF              ; Flip for error
+           RET      C
+
+           ADD      A, C       ; See if too many chars on chopping block
+           CP       (HL)
+           JR       C, STRDELETE1
+
+           INC      B         ; Set index as length
+           LD       (HL), B
+           RET
+
+STRDELETE1:PUSH     HL
+           LD       A, (HL)
+           SUB      C
+           LD       (HL), A
+           INC      HL
+ 
+           LD       E, C
+           LD       C, B
+           LD       B, 0
+           ADD      HL, BC
+
+           SUB      C
+           LD       C, E
+           LD       D, H
+           LD       E, L
+           ADD      HL, BC
+           LD       C, A
+           LDIR
+
+           POP      HL
+           RET
+
+           ; IN    HL       Address of first string.
+           ;       DE       Address of second string.
+           ; OUT
+           ;  If successful:
+           ;       carry    Reset
+           ;  If unsuccessful:
+           ;       carry    Set
+           ;
+           ; Notes        If new string lenght is > 255, error.
+           ;        HL is saved.
+
+CONCAT:    LD       A, (DE)     ; Combine lengths
+           ADD      A, (HL)
+           RET      C
+           LD       C, (HL)
+           LD       (HL), A
+
+           LD       B, 0
+           INC      C
+           PUSH     HL
+           ADD      HL, BC
+           EX       DE, HL
+           LD       C, (HL)
+           INC      HL
+           LDIR
+
+           POP      HL
+           RET
+
+
+;
+;====================================
+;
+; ROM File System Commands
+;
+;====================================
+
+DIRROM:    LD       DE,MSGDIRLST                ; Print out header.
+           RST      018h
+           CALL     NL
+           ;
+           DI                                   ; Disable interrupts as we are switching out the main rom.
+           LD       A,ROMBANK0
+           LD       (ROMBK0),A
+           ;
+           ; Scan MROM Bank (0)
+           ;
+           LD       B,4                         ; First 4 pages are reserved in MROM bank.
+           LD       C,1                         ; File numbering start.
+DIRROM1:   LD       A,B
+           INC      B
+           LD       (RFSBK1), A                 ; Select bank.
+           PUSH     BC                          ; Preserve bank count.
+
+           LD       A,(RFS_ATRB)                ; Checks to confirm this is an MZF header.
+           CP       001h
+           JR       NZ, DIRROM2
+
+           LD       DE,RFS_NAME
+           LD       HL,NAME
+           LD       C,17                        ; Maximum of 17 characters, including terminator in filename.
+DIRROM1A:  LD       A,(DE)
+           LD       (HL),A
+           CP       00Dh                        ; If we find a terminator then this indicates potentially a valid name.
+           JR       Z, DIRROM1B
+           CP       020h
+           JR       C, DIRROM2                  ; Less than Space, cant be a valid filename so this is not an MZF header.
+           CP       07Fh
+           JR       NC, DIRROM2                 ; DEL or > 0x7F, cant be a valid filename so this is not an MZF header.
+           INC      DE
+           INC      HL
+           DEC      C
+           LD       A,C
+           OR       A
+           JR       NZ,DIRROM1A
+           JR       DIRROM2                     ; No end of string terminator, this cant be a valid filename.
+
+DIRROM1B:  LD       A,(ROMBK0)                  ; Valid filename so print it out. Ensure we have the correct MROM bank selected
+           LD       (RFSBK1), A                 ; prior to using print.
+           POP      BC                          ; Need to get file numbering count.
+           LD       A, C                        ; Print out file number and increment.
+           CALL     PRTHX
+           LD       A, '.'
+           CALL     PRNT
+           INC      C
+           PUSH     BC
+           LD       DE,NAME                     ; Print out filename.
+           RST      018h
+           CALL     NL
+
+DIRROM2:   POP      BC
+           LD       A,B
+           CP       000h
+           JR       NZ, DIRROM1
+           LD       A,(ROMBK0)
+           LD       (RFSBK1), A                 ; Set the MROM bank back to original.
+           EI                                   ; No need to block interrupts now as MROM bank restored.
+
+           ;
+           ; Scan User Bank (0)
+           ;
+           ; Select Bank 3 and call function.
+
+           JP       ST1X
+
+
+           ; Load Program from ROM
+           ; IN    HL     Name of program to load.
+           ; OUT   zero   Set if string1 = string2, reset if string1 != string2.
+           ;       carry  Set if string1 > string2, reset if string1 <= string2.
+;
+LOADROM:   DI
+           LD       BC, 128                     ; First bank has an offset of 128 bytes before useable data.
+           LD       (TMPOFS), BC
+           ;
+           ; Scan MROM Bank (0)
+           ;
+           LD       B,4                         ; First 4 pages are reserved.
+LROM1:     LD       A,B
+           INC      B
+           LD       (RFSBK1), A                 ; Select bank.
+           ;
+           ; Compare 
+           ;
+           PUSH     HL
+           LD       DE,RFS_NAME
+           CALL     CMPSTRING
+           POP      HL
+           JR       Z,LROM2A                    ; Found a match so load it.
+           LD       A,B
+           OR       A
+           JR       NZ, LROM1
+           LD       A,(ROMBK0)
+           LD       (RFSBK1), A                 ; Set the MROM bank back to original.
+           EI                                   ; No need to block interrupts now as MROM bank restored.
+           ;
+;           ; Scan USER Bank (1)
+;           LD       B,4                         ; First 4 pages are reserved.
+;LROM2:     LD       A,B
+;           INC      B
+;;           LD       (RFSBK2), A                 ; Select bank.
+;           ;
+;           LD       A,B
+;           OR       A
+;           JR       NZ, LROM2
+           ;
+           LD       DE,MSGNOTFND                ; Not found
+           RST      018h
+           JP       ST1X                        ; No program of given name found, so show error and exit
+
+
+LROM2A:    LD       E, B                        ; A contains bank number + 1.
+           LD       BC, (RFS_SIZE)
+           LD       HL, (RFS_EXADR)
+           PUSH     HL                          ; Execution address.
+           LD       HL, (RFS_DTADR)
+           LD       (TMPADR),HL
+
+LROM3:     PUSH     DE                          ; Save bank
+           PUSH     BC
+           LD       HL,4096
+           LD       DE,(TMPOFS)
+           SBC      HL,DE
+           EX       DE,HL
+           LD       H,B
+           LD       L,C                         ; Get current byte count to load
+           SBC      HL,DE                       ; Subtract to get remainder.
+           JR       NC,LROM4                    ; If carry set then result is negative so use original BC value.
+           POP      BC
+           LD       HL, 0
+           JR       LROM5
+LROM4:     POP      DE                          ; Waste original BC
+LROM5:     PUSH     HL                          ; HL is the remainder count, BC contains the count to read next. 
+           LD       HL,(TMPOFS)                 ; Any offset to start of bank data.
+           LD       DE,00000h                   ; Start of bank data.
+           ADD      HL,DE
+           EX       DE,HL                       ; DE contains start address to read from.
+           LD       HL,(TMPADR)                 ; Get address to store data from bank into.
+           EX       DE,HL
+LROM6:     LD       A,(HL)
+           INC      HL
+           EX       DE,HL
+           LD       (HL),A
+           INC      HL
+           EX       DE,HL
+           DEC      BC
+           LD       A,B
+           OR       C
+           JR       NZ,LROM6                    ; Copy BC bytes from the bank. 
+           EX       DE,HL
+           LD       (TMPADR),HL                 ; Save the next address for further data.
+           POP      BC
+           POP      DE
+           DEC      BC
+           LD       BC, 0                       ; Successive bank reads have no offset.
+           LD       (TMPOFS), BC
+           LD       A,B
+           OR       C
+           JR       NZ,LROM2A                   ; If we have more data to fetch, switch to next bank and retrieve.
+           ;
+           LD       A,(ROMBK0)
+           LD       (RFSBK1), A                 ; Set the MROM bank back to original.
+           EI                                   ; No need to block interrupts now as MROM bank restored.
+
+           RET                                  ; Execution address pushed on stack, retrieve to execute.       
+
+;
+;
+;
+;
+
+
+RFS:       NOP                                                              ; Marker to indicate autoexec ROM code.
+           LD       HL,011FDh
+           LD       (TMPADR),HL
+           LD       BC,4
+           LD       E,4
+RFS1:      LD       HL,RFSBK1
+           LD       A,E
+           INC      E
+           LD       (HL),A
+RFS2:      PUSH     BC
+           PUSH     DE
+           LD       BC,4096
+           LD       HL,(TMPADR)
+           LD       DE,00000h
+           EX       DE,HL
+RFS3:      LD       A,(HL)
+           INC      HL
+           EX       DE,HL
+           LD       (HL),A
+           INC      HL
+           EX       DE,HL
+           DEC      BC
+           LD       A,B
+           OR       C
+           JR       NZ,RFS3
+           EX       DE,HL
+           LD       (TMPADR),HL
+           POP      DE
+           POP      BC
+           DEC      BC
+           LD       A,B
+           OR       C
+           JR       NZ,RFS1
+           LD       HL,RFSBK1
+           LD       (HL),0
+           JP       01200h
+
+;======================================
+;
+;       Quick disk directory command
+;
+;======================================
+;
+
+;
+;======================================
+;
+;       Message table
+;
+;======================================
+;
+MSGSON:    DB       " RFS (1.0) **",00Dh
+MSGOK:     DB       "OK!"
+MSGNOTFND: DB       "NOT FOUND", 00Dh
+MSGDIRLST: DB       "ROM DIRECTORY:", 00Dh
+MSGTRM:    DB       00Dh
+DIRMSG:    DB       "DIRECTORY OF QD:",00Dh
+MSGQ01:    DB       "    OBJ   ",00Dh
+MSGQ02:    DB       "    BTX   ",00Dh
+MSGQ03:    DB       "    BSD   ",00Dh
+MSGQ04:    DB       "    BRD   ",00Dh
+MSGQ05:    DB       "    RB    ",00Dh
+MSGQ07:    DB       "    LIB   ",00Dh
+MSGQ10:    DB       "    SYS   ",00Dh
+MSGQ11:    DB       "    GR    ",00Dh
+MSGQ??:    DB       "    ???   ",00Dh
+MSGLOAD:   DB       "Not yet implemented", 00Dh
+MSGDIR:    DB       "Not yet implemented", 00Dh
+MSGSV:     DB       "FILENAME? "
+           DB       0DH
+
+
+
+        ;    40 CHA. IN 1 LINE CODE (DATA)
+
+LLPT:      DB       01H                                                       ; TEXT MODE
+           DB       09H
+           DB       09H
+           DB       0BH
+           DB       0DH
+
+        ;    80 CHA. 1 LINE CODE (DATA)
+
+SLPT:      DB       01H                                                       ; TEXT MODE
+           DB       09H
+           DB       09H
+           DB       09H
+           DB       0DH
+
+
+;
+;
+; BREAK CHECK
+;
+;BRKC:
+;           LD       A,0E8h
+;           LD       (0E000h),A
+;           NOP
+;           LD       A,(0E001h)
+;           AND      081h
+;           RET      NZ
+;           LD       SP,(RETSP)
+;           SCF
+;           RET
+;                  
+;           LD       L,#41
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+MEND:
+
+
+           ;======================================
+           ;
+           ; USER ROM BANK 1
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS1:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW1to0:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to1:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to2:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to3:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to4:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to5:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to6:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to7:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW1_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET1                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET1:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+
+           ;======================================
+           ;
+           ; USER ROM BANK 2
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS2:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW2to0:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to1:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to2:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to3:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to4:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to5:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to6:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW2_0
+BKSW2to7:  PUSH     AF
+           LD       A, ROMBANK2                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW2_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET2                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET2:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+
+           ;======================================
+           ;
+           ; USER ROM BANK 3
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS3:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW3to0:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to1:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to2:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to3:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to4:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to5:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to6:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW3_0
+BKSW3to7:  PUSH     AF
+           LD       A, ROMBANK3                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW3_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET3                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET3:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+
+
+MEMTEST:   LD       B,240       ; Number of loops
+LOOP:      LD       HL,MEMSTART ; Start of checked memory,
+           LD       D,0CFh      ; End memory check CF00
+LOOP1:     LD       A,000h
+           CP       L
+           JR       NZ,LOOP1b
+           CALL     PRTHL       ; Print HL as 4digit hex.
+           LD       A,0C4h      ; Move cursor left.
+           LD       E,004h      ; 4 times.
+LOOP1a:    CALL     DPCT
+           DEC      E
+           JR       NZ,LOOP1a
+LOOP1b:    INC      HL
+           LD       A,H
+           CP       D           ; Have we reached end of memory.
+           JR       Z,LOOP3     ; Yes, exit.
+           LD       A,(HL)      ; Read memory location under test, ie. 0.
+           CPL                  ; Subtract, ie. FF - A, ie FF - 0 = FF.
+           LD       (HL),A      ; Write it back, ie. FF.
+           SUB      (HL)        ; Subtract written memory value from A, ie. should be 0.
+           JR       NZ,LOOP2    ; Not zero, we have an error.
+           LD       A,(HL)      ; Reread memory location, ie. FF
+           CPL                  ; Subtract FF - FF
+           LD       (HL),A      ; Write 0
+           SUB      (HL)        ; Subtract 0
+           JR       Z,LOOP1     ; Loop if the same, ie. 0
+LOOP2:     LD       A,16h
+           CALL     PRNT        ; Print A
+           CALL     PRTHX       ; Print HL as 4 digit hex.
+           CALL     PRNTS       ; Print space.
+           XOR      A
+           LD       (HL),A
+           LD       A,(HL)      ; Get into A the failing bits.
+           CALL     PRTHX       ; Print A as 2 digit hex.
+           CALL     PRNTS       ; Print space.
+           LD       A,0FFh      ; Repeat but first load FF into memory
+           LD       (HL),A
+           LD       A,(HL)
+           CALL     PRTHX       ; Print A as 2 digit hex.
+           NOP
+           JR       LOOP4
+
+LOOP3:     CALL     PRTHL
+           LD       DE,OKCHECK
+           CALL     MSG          ; Print check message in DE
+           LD       A,B          ; Print loop count.
+           CALL     PRTHX
+           LD       DE,OKMSG
+           CALL     MSG          ; Print ok message in DE
+           CALL     NL
+           DEC      B
+           JR       NZ,LOOP
+           LD       DE,DONEMSG
+           CALL     MSG          ; Print check message in DE
+           JP       ST1X
+
+LOOP4:     LD       B,09h
+           CALL     PRNTS        ; Print space.
+           XOR      A            ; Zero A
+           SCF                   ; Set Carry
+LOOP5:     PUSH     AF           ; Store A and Flags
+           LD       (HL),A       ; Store 0 to bad location.
+           LD       A,(HL)       ; Read back
+           CALL     PRTHX        ; Print A as 2 digit hex.
+           CALL     PRNTS        ; Print space
+           POP      AF           ; Get back A (ie. 0 + C)
+           RLA                   ; Rotate left A. Bit LSB becomes Carry (ie. 1 first instance), Carry becomes MSB
+           DJNZ     LOOP5        ; Loop if not zero, ie. print out all bit locations written and read to memory to locate bad bit.
+           XOR      A            ; Zero A, clears flags.
+           LD       A,80h
+           LD       B,08h
+LOOP6:     PUSH     AF           ; Repeat above but AND memory location with original A (ie. 80) 
+           LD       C,A          ; Basically walk through all the bits to find which one is stuck.
+           LD       (HL),A
+           LD       A,(HL)
+           AND      C
+           NOP
+           JR       Z,LOOP8      ; If zero then print out the bit number
+           NOP
+           NOP
+           LD       A,C
+           CPL
+           LD       (HL),A
+           LD       A,(HL)
+           AND      C
+           JR       NZ,LOOP8     ; As above, if the compliment doesnt yield zero, print out the bit number.
+LOOP7:     POP      AF
+           RRCA
+           NOP
+           DJNZ     LOOP6
+           JP       ST1X
+
+LOOP8:     CALL     LETNL        ; New line.
+           LD       DE,BITMSG    ; BIT message
+           CALL     MSG          ; Print message in DE
+           LD       A,B
+           DEC      A
+           CALL     PRTHX        ; Print A as 2 digit hex, ie. BIT number.
+           CALL     LETNL        ; New line
+           LD       DE,BANKMSG   ; BANK message
+           CALL     MSG          ; Print message in DE
+           LD       A,H
+           CP       50h          ; 'P'
+           JR       NC,LOOP9     ; Work out bank number, 1, 2 or 3.
+           LD       A,01h
+           JR       LOOP11
+
+LOOP9:     CP       90h
+           JR       NC,LOOP10
+           LD       A,02h
+           JR       LOOP11
+
+LOOP10:    LD       A,03h
+LOOP11:    CALL     PRTHX        ; Print A as 2 digit hex, ie. BANK number.
+           JR       LOOP7
+
+DLY1S:     PUSH     AF
+           PUSH     BC
+           LD       C,10
+L0324:     CALL     DLY12
+           DEC      C
+           JR       NZ,L0324
+           POP      BC
+           POP      AF
+           RET
+
+           ; Test the 8253 Timer, configure it as per the monitor and display the read back values.
+TIMERTST:  CALL     NL
+           LD       DE,MSG_TIMERTST
+           CALL     MSG
+           CALL     NL
+           LD       DE,MSG_TIMERVAL
+           CALL     MSG
+           LD       A,01h
+           LD       DE,8000h
+           CALL     TIMERTST1
+NDE:       JP       NDE
+           JP       ST1X
+TIMERTST1: DI      
+           PUSH     BC
+           PUSH     DE
+           PUSH     HL
+           LD       (AMPM),A
+           LD       A,0F0H
+           LD       (TIMFG),A
+ABCD:      LD       HL,0A8C0H
+           XOR      A
+           SBC      HL,DE
+           PUSH     HL
+           INC      HL
+           EX       DE,HL
+
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),0B0H   ; 10110000 Control Counter 2 10, Write 2 bytes 11, 000 Interrupt on Terminal Count, 0 16 bit binary
+           LD       (HL),074H   ; 01110100 Control Counter 1 01, Write 2 bytes 11, 010 Rate Generator, 0 16 bit binary
+           LD       (HL),030H   ; 00110100 Control Counter 1 01, Write 2 bytes 11, 010 interrupt on Terminal Count, 0 16 bit binary
+
+           LD       HL,CONT2    ; Counter 2
+           LD       (HL),E
+           LD       (HL),D
+
+           LD       HL,CONT1    ; Counter 1
+           LD       (HL),00AH
+           LD       (HL),000H
+
+           LD       HL,CONT0    ; Counter 0
+           LD       (HL),00CH
+           LD       (HL),0C0H
+
+;           LD       HL,CONT2    ; Counter 2
+;           LD       C,(HL)
+;           LD       A,(HL)
+;           CP       D
+;           JP       NZ,L0323                
+;           LD       A,C
+;           CP       E
+;           JP       Z,CDEF                
+           ;
+
+L0323:     PUSH     AF
+           PUSH     BC
+           PUSH     DE
+           PUSH     HL
+           ;
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),080H
+           LD       HL,CONT2    ; Counter 2
+           LD       C,(HL)
+           LD       A,(HL)
+           CALL     PRTHX
+           LD       A,C
+           CALL     PRTHX
+           ;
+           CALL     PRNTS
+           ;CALL     DLY1S
+           ;
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),040H
+           LD       HL,CONT1    ; Counter 1
+           LD       C,(HL)
+           LD       A,(HL)
+           CALL     PRTHX
+           LD       A,C
+           CALL     PRTHX
+           ;
+           CALL     PRNTS
+           ;CALL     DLY1S
+           ;
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),000H
+           LD       HL,CONT0    ; Counter 0
+           LD       C,(HL)
+           LD       A,(HL)
+           CALL     PRTHX
+           LD       A,C
+           CALL     PRTHX
+           ;
+           ;CALL     DLY1S
+           ;
+           LD       A,0C4h      ; Move cursor left.
+           LD       E,0Eh      ; 4 times.
+L0330:     CALL     DPCT
+           DEC      E
+           JR       NZ,L0330
+           ;
+;           LD       C,20
+;L0324:     CALL     DLY12
+;           DEC      C
+;           JR       NZ,L0324
+           ;
+           POP      HL
+           POP      DE
+           POP      BC
+           POP      AF
+           ;
+           LD       HL,CONT2    ; Counter 2
+           LD       C,(HL)
+           LD       A,(HL)
+           CP       D
+           JP       NZ,L0323                
+           LD       A,C
+           CP       E
+           JP       NZ,L0323                
+           ;
+           ;
+           PUSH     AF
+           PUSH     BC
+           PUSH     DE
+           PUSH     HL
+           CALL     NL
+           CALL     NL
+           CALL     NL
+           LD       DE,MSG_TIMERVAL2
+           CALL     MSG
+           POP      HL
+           POP      DE
+           POP      BC
+           POP      AF
+
+           ;
+CDEF:      POP      DE
+           LD       HL,CONT1
+           LD       (HL),00CH
+           LD       (HL),07BH
+           INC      HL
+
+L0336:     PUSH     AF
+           PUSH     BC
+           PUSH     DE
+           PUSH     HL
+           ;
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),080H
+           LD       HL,CONT2    ; Counter 2
+           LD       C,(HL)
+           LD       A,(HL)
+           CALL     PRTHX
+           LD       A,C
+           CALL     PRTHX
+           ;
+           CALL     PRNTS
+           CALL     DLY1S
+           ;
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),040H
+           LD       HL,CONT1    ; Counter 1
+           LD       C,(HL)
+           LD       A,(HL)
+           CALL     PRTHX
+           LD       A,C
+           CALL     PRTHX
+           ;
+           CALL     PRNTS
+           CALL     DLY1S
+           ;
+           LD       HL,CONTF    ; Control Register
+           LD       (HL),000H
+           LD       HL,CONT0    ; Counter 0
+           LD       C,(HL)
+           LD       A,(HL)
+           CALL     PRTHX
+           LD       A,C
+           CALL     PRTHX
+           ;
+           CALL     DLY1S
+           ;
+           LD       A,0C4h      ; Move cursor left.
+           LD       E,0Eh      ; 4 times.
+L0340:     CALL     DPCT
+           DEC      E
+           JR       NZ,L0340
+           ;
+           POP      HL
+           POP      DE
+           POP      BC
+           POP      AF
+
+           LD       HL,CONT2    ; Counter 2
+           LD       C,(HL)
+           LD       A,(HL)
+           CP       D
+           JR       NZ,L0336                
+           LD       A,C
+           CP       E
+           JR       NZ,L0336                
+           CALL     NL
+           LD       DE,MSG_TIMERVAL3
+           CALL     MSG
+           POP      HL
+           POP      DE
+           POP      BC
+           EI      
+           RET   
+
+OKCHECK:   DB       ", CHECK: ", 0Dh
+OKMSG:     DB       " OK.", 0Dh
+DONEMSG:   DB       11h
+           DB       "RAM TEST COMPLETE.", 0Dh
+           
+BITMSG:    DB       " BIT:  ", 0Dh
+BANKMSG:   DB       " BANK: ", 0Dh
+MSG_TIMERTST:
+           DB       "8253 TIMER TEST", 0Dh, 00h
+MSG_TIMERVAL:
+           DB       "READ VALUE 1: ", 0Dh, 00h
+MSG_TIMERVAL2:
+           DB       "READ VALUE 2: ", 0Dh, 00h
+MSG_TIMERVAL3:
+           DB       "READ DONE.", 0Dh, 00h
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+
+
+           ;======================================
+           ;
+           ; USER ROM BANK 4
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS4:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW4to0:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to1:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to2:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to3:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to4:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to5:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to6:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW4_0
+BKSW4to7:  PUSH     AF
+           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW4_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET4                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET4:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+           ;======================================
+           ;
+           ; USER ROM BANK 5
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS5:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW5to0:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to1:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to2:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to3:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to4:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to5:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to6:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW5_0
+BKSW5to7:  PUSH     AF
+           LD       A, ROMBANK5                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW5_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET5                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET5:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+           ;======================================
+           ;
+           ; USER ROM BANK 6
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS6:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW6to0:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to1:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to2:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to3:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to4:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to5:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to6:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW6_0
+BKSW6to7:  PUSH     AF
+           LD       A, ROMBANK6                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW6_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET6                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET6:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ALIGN    0EFFFh
+           DB       0FFh
+
+
+           ;======================================
+           ;
+           ; USER ROM BANK 7
+           ;
+           ;======================================
+           ORG      0E800h
+
+           ;--------------------------------
+           ; Common code spanning all banks.
+           ;--------------------------------
+ROMFS7:    NOP
+           LD       A, ROMBANK0                                              ; Ensure all banks are at default on
+           OUT      (RFSBK1),A                                               ; start up.
+           OUT      (RFSBK2),A
+           JP       MONITOR
+
+           ;
+           ; Bank switching code, allows a call to code in another bank.
+           ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;
+BKSW7to0:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK0                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to1:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK1                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to2:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK2                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to3:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to4:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to5:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to6:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW7_0
+BKSW7to7:  PUSH     AF
+           LD       A, ROMBANK7                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
+           ;
+BKSW7_0:   PUSH     BC                                                       ; Save BC for caller.
+           LD       BC, BKSWRET7                                             ; Place bank switchers return address on stack.
+           PUSH     BC
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           JP       (HL)                                                     ; Jump to required function.
+BKSWRET7:  POP      BC
+           POP      AF                                                       ; Get bank which called us.
+           LD       (RFSBK2), A                                              ; Return to that bank.
+           POP      AF
+           RET                                                               ; Return to caller.
+
+           ALIGN    0EFFFh
+           DB       0FFh
