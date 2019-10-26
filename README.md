@@ -44,7 +44,7 @@ L< RFS number - as seen in the I command output ><br/>
 L< program name ><br/>
 (Using lower case 'l' in place of 'L' doesnt auto execute the program once loaded into memory)  
   
-If the 40/80 column card is installed, typing '4' switches to 40 Column disolay, typeing '8' switches to 80 Column display.
+If the 40/80 column card is installed, typing '4' switches to 40 Column display, typing '8' switches to 80 Column display.
 
 ##### 
 
