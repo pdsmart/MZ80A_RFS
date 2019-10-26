@@ -25,7 +25,7 @@ The Rom Filing System replaces the Monitor ROM and User ROM by lifters onto a da
 The necessary software has been written and can be found in software/asm, in the files:-
 rfs.asm  rfs_bank1.asm  rfs_bank2.asm  rfs_bank3.asm  rfs_bank4.asm  rfs_bank5.asm  rfs_bank6.asm  rfs_bank7.asm  rfs_mrom.asm
 
-rfs.asm and rfs_bank<x>.asm for the User ROM software which is invoked by the original Monitor ROM on startup. This provide the RFS file system and additional MZ700/800 style utilities. The way the code is structured, a call can be made from one bank to another thus providing almost 16K program space in the User ROM slot.
+rfs.asm and all the rfs_bank< x >.asm are for the User ROM software which is invoked by the original Monitor ROM on startup. This provide the RFS file system and additional MZ700/800 style utilities. The way the code is structured, a call can be made from one bank to another thus providing almost 16K program space in the User ROM slot.
   
 rfs_mrom.asm is located in the 3rd bank of the Monitor ROM (bank 1 = original SA1510 ROM, bank 2 = 80 column modified SA1510 ROM) and provides utilities needed by the Rom Filing System.
 
