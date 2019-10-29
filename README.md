@@ -80,6 +80,13 @@ The supported commands can be found in the table below:
 | S       | <start addr> <end addr> <exec addr> | Save a block of memory to tape\. You will be prompted to enter the filename\.                                                                                                                           |
 | T       | n/a                                 | Test the 8253 timer\.                                                                                                                                                                                   |
 | V       | n/a                                 | Verify a file just written to tape with the original data stored in memory                                                                                                                              |
+#### To Do
+1) Remake the PCB to use standard DIP Flash RAM packages.<br/>
+2) Add Mux to allow Z80 writing into the Monitor ROM Flash.<br/>
+3) Add a coded latch such that it is possible to write to the Flash RAM (didnt originally consider writing to the Flash RAM) without upsetting the page register.<br/>
+4) Write routines such that any files (ie. Basic) can be stored in the RFS and retrieved by an application such as Basic. Currently the stored files are only accessible to the Monitor.<br/>
+5) Write routines which allow storing/saving of files into the RFS via the Flash RAM writing mechanism (needs 3 fixing first).<br/>
+
 
 ### Images of the RFS Daughter Board
 ##### 
