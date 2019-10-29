@@ -41,7 +41,7 @@ The necessary software to alow bank paging and the Rom Filing System additions h
 
 rfs.asm and all the rfs_bank< x >.asm are for the User ROM software which is invoked by the original Monitor ROM on startup. The functionality in these files provides the RFS file system and additional MZ700/800 style utilities. The way the code is structured, a call can be made from one bank to another without issue (stack and execution point manipulation is taken care of) thus providing almost 16K program space in the User ROM slot.
   
-rfs_mrom.asm is located in the 3rd bank (bank 2) of the Monitor ROM (bank 0 = original SA1510 ROM, bank 1 = 80 column modified SA1510 ROM) and provides utilities needed by the Rom Filing System. Thes utilities are specifically needed for scanning and loading MZF files stored in the User ROM Flash RAM (because code executing in the User ROM cant page itself out to scan the remainder of the ROM).
+rfs_mrom.asm is located in the 3rd bank (bank 2) of the Monitor ROM (bank 0 = original SA1510 ROM, bank 1 = 80 column modified SA1510 ROM) and provides utilities needed by the Rom Filing System. These utilities are specifically needed for scanning and loading MZF files stored in the User ROM Flash RAM (because code executing in the User ROM cant page itself out to scan the remainder of the ROM).
 
 The two shell scripts software/proc_mzf.sh and software/make_roms.sh are simple shell scripts used to convert MZF files into a ROM images. proc_mzf.sh takes a set of MZF files and pads them to the desired sector size, ie. 256 bytes. make_roms.sh is a manually coded shell script to enable copying of required software and MZF files into a ROM image suitable for flashing into the Flash RAM's
 
@@ -92,7 +92,7 @@ The supported commands can be found in the table below:
 ##### 
 
 ![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9625.jpg)
-The topside without the Flash RAM's being sited. The first PCB was inteded to use a Skinny DIP device but I ordered the wrong part so had to make an adapter to fan out the Skinny DIP footprint to a standard DIP footprint.
+The topside without the Flash RAM's being sited. The first PCB was intended to use a Skinny DIP device but I ordered the wrong part so had to make an adapter to fan out the Skinny DIP footprint to a standard DIP footprint.
 
 ![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9626.jpg)
 The underside has 2x28pin adapters such that the board plugs into the original Monitor/User ROM sockets. This keeps the upgrade reversible and doesnt change the original motherboard.
