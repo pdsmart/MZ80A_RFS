@@ -53,9 +53,9 @@ The procedure to build a ROM is:-<br/>
 3. Build the ROM using the software/make_roms.sh - before using you need to create your own section of MZF files by listing the files with ls -l then converting them into a set of ROM256_USER variables for programs that will go into the User Socket Flash RAM and ROM256_MROM variables for programs that will go into the Monitor Socket Flash RAM.<br/>
   
 Upon boot, the typical SA1510 signon banner will be appended with "+ RFS" if all works well. You can then issue MZ700/MZ800 monitor commands or I to list Rom Filing System contents. To Load a program from the Rom Filing System, type:-<br/>
-L< RFS number - as seen in the I command output ><br/>
+L\<RFS number - as seen in the I command output ><br/>
   or<br/>
-L< program name ><br/>
+L\<program name ><br/>
 (Using lower case 'l' in place of 'L' doesnt auto execute the program once loaded into memory)  
   
 If the 40/80 column card is installed, typing '4' switches to 40 Column display, typing '8' switches to 80 Column display.
@@ -74,7 +74,7 @@ The supported commands can be found in the table below:
 | J       | \<address>                           | Jump \(start execution\) at location \<address>\.                                                                                                                                                        |
 | L       | \<name> or \<file number>             | Load file into memory from Tape or Rom Filing System\. If a \<name> or \<file number> is given, the RFS is searched, if no parameter is given then the first program encountered on tape will be loaded\. |
 | l       | \<name> or \<file number>             | Same as above but once the program is loaded it will not be executed\. Control will return to the monitor\.                                                                                             |
-| M       | \<address>                           | Edit and change memory locations starting at <address>\.                                                                                                                                                |
+| M       | \<address>                           | Edit and change memory locations starting at \<address>\.                                                                                                                                                |
 | P       | n/a                                 | Run a connected printer test\.                                                                                                                                                                          |
 | R       | n/a                                 | Run a memory test on the main memory\.                                                                                                                                                                  |
 | S       | \<start addr> \<end addr> \<exec addr> | Save a block of memory to tape\. You will be prompted to enter the filename\.                                                                                                                           |
