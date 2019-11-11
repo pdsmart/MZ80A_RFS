@@ -92,9 +92,13 @@ The supported commands can be found in the table below:
 
 ![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9784.jpg)
 Issuing the 'I' command to list the Rom directory contents. Note the hex number followed by the MZF filename. The hex number can be used as a quick way to reference a file.
+![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9789.jpg)
+Directory listing in 80 Character mode.
 
 ![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9788.jpg)
 Issuing a Load command to load Basic SA-5510 using the short hex number abbreviation.
+![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9790.jpg)
+Load command in 80 character mode.
 
 
 ### Images of the RFS Daughter Board
