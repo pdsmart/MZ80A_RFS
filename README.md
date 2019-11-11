@@ -87,6 +87,15 @@ The supported commands can be found in the table below:
 4) Write routines such that any files (ie. Basic) can be stored in the RFS and retrieved by an application such as Basic. Currently the stored files are only accessible to the Monitor.<br/>
 5) Write routines which allow storing/saving of files into the RFS via the Flash RAM writing mechanism (needs 3 fixing first).<br/>
 
+### Images of the RFS Command Output
+##### 
+
+![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9784.jpg)
+Issuing the 'I' command to list the Rom directory contents. Note the hex number followed by the MZF filename. The hex number can be used as a quick way to reference a file.
+
+![alt text](https://github.com/pdsmart/MZ80A_RFS/blob/master/docs/IMG_9784.jpg)
+Issuing a Load command to load Basic SA-5510 using the short hex number abbreviation.
+
 
 ### Images of the RFS Daughter Board
 ##### 
