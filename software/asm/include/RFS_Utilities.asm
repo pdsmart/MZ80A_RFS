@@ -8,7 +8,7 @@
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         September 2018 - Merged 2 utilities to create this compilation.
 ;-
@@ -98,7 +98,7 @@ SUBST1:    POP      AF        ; Set carry flag
            INC      A         ; Compensate
            LD       C, A       ; New size of string
 
-SUBST2: LD       A, C       ; Size of sting to get
+SUBST2:    LD       A, C       ; Size of sting to get
            LD       (DE), A    ; Save length index
            INC      DE        ; To body of string
            LD       A, B       ; Get index

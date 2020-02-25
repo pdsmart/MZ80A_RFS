@@ -28,15 +28,19 @@
 ## along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #########################################################################################################
 
-TOOLDIR=../../tools
-JARDIR=../../tools
+ROOTDIR=../../MZ80A_RFS
+TOOLDIR=${ROOTDIR}/software/tools
+JARDIR=${ROOTDIR}/software/tools
 ASM=glass.jar
-BUILDROMLIST="rfs rfs_mrom IPL monitor_SA1510 monitor_80c_SA1510 monitor_mz-1r12 quickdisk_mz-1e05 quickdisk_mz-1e14 monitor_1Z-013A monitor_80c_1Z-013A"
-BUILDMZFLIST="hi-ramcheck sharpmz-test"
-ASMDIR=../software/asm
-INCDIR=../software/asm/include
-ROMDIR=../software/roms
-MZFDIR=../software/mzf
+#BUILDROMLIST="MZ80AFI rfs rfs_mrom IPL monitor_SA1510 monitor_80c_SA1510 monitor_mz-1r12 quickdisk_mz-1e05 quickdisk_mz-1e14 monitor_1Z-013A monitor_80c_1Z-013A"
+BUILDROMLIST="monitor_SA1510_hiload monitor_80c_SA1510_hiload monitor_80c_SA1510 MZ80AFI monitor_SA1510 monitor_80c_SA1510"
+#BUILDMZFLIST="hi-ramcheck sharpmz-test"
+BUILDMZFLIST="sharpmz-test"
+ASMDIR=${ROOTDIR}/software/asm
+ASMTMPDIR=${ROOTDIR}/software/tmp
+INCDIR=${ROOTDIR}/software/asm/include
+ROMDIR=${ROOTDIR}/software/roms
+MZFDIR=${ROOTDIR}/software/MZF
 
 # Go through list and build image.
 #
@@ -45,8 +49,8 @@ do
     echo "Assembling: $f..."
 
     # Assemble the source.
-    echo "java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMDIR}/${f}.obj ${ASMDIR}/${f}.sym"
-    java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMDIR}/${f}.obj ${ASMDIR}/${f}.sym -I ${INCDIR}
+    echo "java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMTMPDIR}/${f}.obj ${ASMTMPDIR}/${f}.sym"
+    java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMTMPDIR}/${f}.obj ${ASMTMPDIR}/${f}.sym -I ${INCDIR}
 
     # On successful compile, perform post actions else go onto next build.
     #
@@ -55,10 +59,10 @@ do
         # The object file is binary, no need to link, copy according to build group.
         if [[ ${BUILDROMLIST} = *"${f}"* ]]; then
             echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
-            cp ${ASMDIR}/${f}.obj ${ROMDIR}/${f}.rom
+            cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
         else
             echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
-            cp ${ASMDIR}/${f}.obj ${MZFDIR}/${f}.mzf
+            cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf
         fi
     fi
 done

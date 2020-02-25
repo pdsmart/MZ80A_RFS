@@ -75,31 +75,12 @@ BKSW4to3:  PUSH     AF
            LD       A, ROMBANK4                                              ; Calling bank (ie. us).
            PUSH     AF
            LD       A, ROMBANK3                                              ; Required bank to call.
-           JR       BKSW4_0
-BKSW4to4:  PUSH     AF
-           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK4                                              ; Required bank to call.
-           JR       BKSW4_0
-BKSW4to5:  PUSH     AF
-           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK5                                              ; Required bank to call.
-           JR       BKSW4_0
-BKSW4to6:  PUSH     AF
-           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK6                                              ; Required bank to call.
-           JR       BKSW4_0
-BKSW4to7:  PUSH     AF
-           LD       A, ROMBANK4                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK7                                              ; Required bank to call.
            ;
 BKSW4_0:   PUSH     BC                                                       ; Save BC for caller.
            LD       BC, BKSWRET4                                             ; Place bank switchers return address on stack.
            PUSH     BC
            LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           LD       (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
            JP       (HL)                                                     ; Jump to required function.
 BKSWRET4:  POP      BC
            POP      AF                                                       ; Get bank which called us.

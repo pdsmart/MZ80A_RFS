@@ -1,11 +1,11 @@
 #!/bin/bash
 #########################################################################################################
 ##
-## Name:            assemble_roms.sh
+## Name:            assemble_rfs.sh
 ## Created:         August 2018
 ## Author(s):       Philip Smart
-## Description:     Sharp MZ series ROM assembly tool
-##                  This script takes Sharp MZ ROMS in assembler format and compiles/assembles them
+## Description:     Sharp MZ series RFS ROM assembly tool
+##                  This script takes Sharp MZ RFS ROMS in assembler format and compiles/assembles them
 ##                  into a ROM file using the GLASS Z80 assembler.
 ##
 ## Credits:         
@@ -28,15 +28,17 @@
 ## along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #########################################################################################################
 
-TOOLDIR=../../tools
-JARDIR=../../tools
+ROOTDIR=../../MZ80A_RFS
+TOOLDIR=${ROOTDIR}/software/tools
+JARDIR=${ROOTDIR}/software/tools
 ASM=glass.jar
 BUILDROMLIST="rfs rfs_mrom"
 BUILDMZFLIST=""
-ASMDIR=../software/asm
-INCDIR=../software/asm/include
-ROMDIR=../software/roms
-MZFDIR=../software/mzf
+ASMDIR=${ROOTDIR}/software/asm
+ASMTMPDIR=${ROOTDIR}/software/tmp
+INCDIR=${ROOTDIR}/software/asm/include
+ROMDIR=${ROOTDIR}/software/roms
+MZFDIR=${ROOTDIR}/software/MZB
 
 # Go through list and build image.
 #
@@ -45,8 +47,8 @@ do
     echo "Assembling: $f..."
 
     # Assemble the source.
-    echo "java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMDIR}/${f}.obj ${ASMDIR}/${f}.sym"
-    java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMDIR}/${f}.obj ${ASMDIR}/${f}.sym -I ${INCDIR}
+    echo "java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMTMPDIR}/${f}.obj ${ASMTMPDIR}/${f}.sym"
+    java -jar ${JARDIR}/${ASM} ${ASMDIR}/${f}.asm ${ASMTMPDIR}/${f}.obj ${ASMTMPDIR}/${f}.sym -I ${INCDIR}
 
     # On successful compile, perform post actions else go onto next build.
     #
@@ -55,10 +57,10 @@ do
         # The object file is binary, no need to link, copy according to build group.
         if [[ ${BUILDROMLIST} = *"${f}"* ]]; then
             echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
-            cp ${ASMDIR}/${f}.obj ${ROMDIR}/${f}.rom
+            cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
         else
             echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
-            cp ${ASMDIR}/${f}.obj ${MZFDIR}/${f}.mzf
+            cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf
         fi
     fi
 done

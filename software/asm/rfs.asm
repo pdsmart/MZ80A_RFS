@@ -80,31 +80,12 @@ BKSW0to3:  PUSH     AF
            LD       A, ROMBANK0                                              ; Calling bank (ie. us).
            PUSH     AF
            LD       A, ROMBANK3                                              ; Required bank to call.
-           JR       BKSW0_0
-BKSW0to4:  PUSH     AF
-           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK4                                              ; Required bank to call.
-           JR       BKSW0_0
-BKSW0to5:  PUSH     AF
-           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK5                                              ; Required bank to call.
-           JR       BKSW0_0
-BKSW0to6:  PUSH     AF
-           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK6                                              ; Required bank to call.
-           JR       BKSW0_0
-BKSW0to7:  PUSH     AF
-           LD       A, ROMBANK0                                              ; Calling bank (ie. us).
-           PUSH     AF
-           LD       A, ROMBANK7                                              ; Required bank to call.
            ;
 BKSW0_0:   PUSH     BC                                                       ; Save BC for caller.
            LD       BC, BKSWRET0                                             ; Place bank switchers return address on stack.
            PUSH     BC
            LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           LD       (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
            JP       (HL)                                                     ; Jump to required function.
 BKSWRET0:  POP      BC
            POP      AF                                                       ; Get bank which called us.
@@ -125,11 +106,11 @@ PRTMZF:    JP       _PRTMZF
            ; Replacement command processor in place of the SA1510 command processor.
            ;
 MONITOR:   LD       A, (ROMBK1)
-           CP       0
-           JR       Z, SET40CHAR
            CP       1
            JR       Z, SET80CHAR
-           JR       SIGNON
+           CP       0
+           JR       NZ, SIGNON
+           ;
 SET40CHAR: LD       A, 0                                                     ; Using MROM in Bank 0 = 40 char mode.
            LD       (DSPCTL), A
            LD       A, 0
@@ -177,8 +158,16 @@ ST2X:      LD       A,(DE)
            CP       'D'                                                      ; Dump memory
            JP       Z,DUMPX
            ;
-           CP       'F'                                                      ; Floppy boot
+           LD       HL, FLOPPY                                               ; Function to call if we have a match.
+           CP       'F'
+           CALL     Z,BKSW0to1                                               ; Floppy boot (F).
+           ;
+           CP       0AAh                                                     ; Original Floppy boot (f)
            JR       Z,FDCK
+           ;
+           LD       HL, HELP                                                 ; Function to call if we have a match.
+           CP       'H'
+           CALL     Z,BKSW0to2                                               ; Help screen.
            ;
            CP       'I'                                                      ; List ROM directory.
            JP       Z,DIRROM 
@@ -212,13 +201,13 @@ ST2X:      LD       A,(DE)
            CP       'V'                                                      ; Verify
            JP       Z,VRFYX
            ;
+           CP       'X'                                                      ; Exchange to hi load rom so DRAM = 0000:0CFFF
+           JP       Z,HIROM
+           ;
 ST1X1:     JR       ST2X
 
-FDCK:      LD       A,(DE)
-           CP       00Dh
-           JR       NZ,ST1X1
-           CALL     LEB22
-           CALL     Z,0F006h
+FDCK:      CALL     LEB22                                                    ; Check to see if the Floppy ROM is present, exit if it isnt.
+           CALL     Z,0F000h
            JR       ST1X1
 ?ERX:      CP       002h
            JR       Z,ST1X1
@@ -615,6 +604,12 @@ SLPT:      DB       01H                         ; TEXT MODE
 ; Screen Width Commands
 ;
 ;====================================
+
+HIROM:     LD       A, (MEMSW)                  ; Swap ROM into high range slot.
+           LD       A, ROMBANK2
+           LD       (ROMBK1),A                  ; Save bank being enabled.
+           LD       (RFSBK1),A                  ; Switch to the hiload rom in bank 2.
+           JP       0C000H
 
 SETMODE40: LD       A, ROMBANK0                 ; Switch to 40Char monitor.
            LD       (ROMBK1),A
@@ -1056,7 +1051,7 @@ LROMLOAD5: POP      HL                          ; Retrieve execute flag.
 ;
 ;======================================
 ;
-MSGSON:    DB       "+ RFS ", 0ABh, "1.0 **",00Dh
+MSGSON:    DB       "+ RFS ", 0ABh, "1.1 **",00Dh
 MSGOK:     DB       "OK!"
 MSGNOTFND: DB       "NOT FOUND", 00Dh
 MSGDIRLST: DB       "ROM DIRECTORY:", 00Dh
@@ -1091,7 +1086,7 @@ MEND:
            INCLUDE  "rfs_bank1.asm"
            INCLUDE  "rfs_bank2.asm"
            INCLUDE  "rfs_bank3.asm"
-           INCLUDE  "rfs_bank4.asm"
-           INCLUDE  "rfs_bank5.asm"
-           INCLUDE  "rfs_bank6.asm"
-           INCLUDE  "rfs_bank7.asm"
+           ;INCLUDE  "rfs_bank4.asm"
+           ;INCLUDE  "rfs_bank5.asm"
+           ;INCLUDE  "rfs_bank6.asm"
+           ;INCLUDE  "rfs_bank7.asm"

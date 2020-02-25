@@ -42,10 +42,10 @@ START:  LD      SP,STACK
         CALL    ?CLER                   ; Clear 256 bytes from NAME 10F1h to 11F0h
         LD      A,016H
         CALL    PRNT
-        IF      MODE80C = 0             ; For 80 char mode we need a hook to setup SPAGE mode.
-          LD    A,021H                  ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
+        IF      MODE80C = 0
+          LD    A,007H                  ; Black background, white characters. Bit 7 is clear as a write to bit 7 @ DFFFH selects 40Char mode.
         ELSE
-          LD    A,094H                  ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
+          LD    A,017H                  ; Blue background, white characters in colour mode. Bit 7 is set as a write to bit 7 @ DFFFH selects 80Char mode.
         ENDIF
         LD      HL,ARAM
         JR      STRT1                   
@@ -925,7 +925,7 @@ TVF3:   CALL    RBYTE
         JR      TVF1                   
 
         ; PRINT '00'
-GETLD:  LD      DE,009FCH
+GETLD:  LD      DE,DBLZERO
         RST     018H
         JP      AUTO2
 
@@ -1344,7 +1344,7 @@ MSGX2:  JP      Z,?RSTR1
 ?GET:   PUSH    BC
         PUSH    HL
         LD      B,009H
-        LD      HL,01165H
+        LD      HL,SWPW + 1
         CALL    ?CLRFF
         POP     HL
         POP     BC
@@ -1485,7 +1485,7 @@ L098C:  SUB     00AH
         POP     BC
         RET     
 
-DLY3:  NEG     
+DLY3:   NEG     
         NEG     
         LD      A,02AH
         JP      L0762
@@ -1496,7 +1496,8 @@ L09AB:  ADD     A,C
         XOR     A
         RET     
 
-        DJNZ    PRNT4A                   
+        DB      010H
+??KEY:  PUSH    BC
         PUSH    DE
         PUSH    HL
         CALL    ?SAVE
@@ -1546,7 +1547,7 @@ AUTCK:  LD      HL,KDATW
         INC     (HL)
         RET     
 
-        DB      030H
+DBLZERO:DB      030H
         DB      030H
         DB      00DH
 

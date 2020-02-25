@@ -7,7 +7,7 @@
 ;-                  Definitions for the RFS including SA1510 locations.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         September 2019 - Initial version.
 ;-
@@ -26,9 +26,9 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
-;-----------------------------------------------
-; Function entry points in the SA-1510 Monitor.
-;-----------------------------------------------
+;-------------------------------------------------------
+; Function entry points in the standard SA-1510 Monitor.
+;-------------------------------------------------------
 GETL:      EQU      00003h
 LETNL:     EQU      00006h
 NL:        EQU      00009h
@@ -43,12 +43,15 @@ BRKEY      EQU      0001Eh
 ?RDI       EQU      00027h
 ?RDD       EQU      0002Ah
 ?VRFY      EQU      0002Dh
+MELDY      EQU      00030h
 ?TMST      EQU      00033h
 MONIT:     EQU      00000h
+SS:        EQU      00089h
 ST1:       EQU      00095h
 MSGE1      EQU      00118h
 HLHEX      EQU      00410h
 _2HEX      EQU      0041Fh
+?MODE:     EQU      0074DH
 ?KEY       EQU      008CAh
 PRNT3      EQU      0096Ch
 MSG?2      EQU      000F7h
@@ -58,6 +61,7 @@ MSG?2      EQU      000F7h
 ?DPCT      EQU      00DDCh
 PRTHL:     EQU      003BAh
 PRTHX:     EQU      003C3h
+HEX:       EQU      003F9h
 DPCT:      EQU      00DDCh
 DLY12:     EQU      00DA7h
 DLY12A:    EQU      00DAAh
@@ -159,6 +163,7 @@ SOH        EQU      1            ; For XModem etc.
 EOT        EQU      4
 ACK        EQU      6
 NAK        EQU      15H
+NUL        EQU      00H
 
 ;-----------------------------------------------
 ;    SA-1510 MONITOR WORK AREA (MZ80A)
@@ -207,15 +212,16 @@ RATIO:     DS       virtual 2                                            ; ONPU 
 BUFER:     DS       virtual 81                                           ; GET LINE BUFFER
 
 ; Starting 1000H - Generally unused bytes not cleared by the monitor.
-ROMBK1:    EQU      01000H                                               ; CURRENT MROM BANK 
-ROMBK2:    EQU      01001H                                               ; CURRENT USERROM BANK 
-WRKROMBK1: EQU      01002H                                               ; WORKING MROM BANK 
-WRKROMBK2: EQU      01003H                                               ; WORKING USERROM BANK 
-SCRNMODE:  EQU      01004H                                               ; Mode of screen, 0 = 40 char, 1 = 80 char.
-TMPADR:    EQU      01010H                                               ; TEMPORARY ADDRESS STORAGE
-TMPSIZE:   EQU      01012H                                               ; TEMPORARY SIZE
-TMPCNT:    EQU      01014H                                               ; TEMPOARY COUNTER
-TMPLINECNT:EQU      01016H                                               ; Temporary counter for displayed lines.
+ROMBK1:    EQU      01016H                                               ; CURRENT MROM BANK 
+ROMBK2:    EQU      01017H                                               ; CURRENT USERROM BANK 
+WRKROMBK1: EQU      01018H                                               ; WORKING MROM BANK 
+WRKROMBK2: EQU      01019H                                               ; WORKING USERROM BANK 
+SCRNMODE:  EQU      0101AH                                               ; Mode of screen, 0 = 40 char, 1 = 80 char.
+TMPADR:    EQU      0101BH                                               ; TEMPORARY ADDRESS STORAGE
+TMPSIZE:   EQU      0101DH                                               ; TEMPORARY SIZE
+TMPCNT:    EQU      0101FH                                               ; TEMPORARY COUNTER
+TMPLINECNT:EQU      01021H                                               ; Temporary counter for displayed lines.
+TMPSTACKP: EQU      01023H                                               ; Temporary stack pointer save.
 ; Quickdisk work area
 ;QDPA       EQU      01130h                                               ; QD code 1
 ;QDPB       EQU      01131h                                               ; QD code 2
@@ -264,4 +270,3 @@ TMPLINECNT:EQU      01016H                                               ; Tempo
 ;ONTYO:     DS       virtual 1                                            ; ONTYO WORK
 ;OCTV:      DS       virtual 1                                            ; OCTAVE WORK
 ;RATIO:     DS       virtual 2                                            ; ONPU RATIO
-                                                                         ; QD command table

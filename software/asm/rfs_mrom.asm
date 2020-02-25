@@ -75,15 +75,16 @@ RATIO:     DS       virtual 2                                            ; ONPU 
 BUFER:     DS       virtual 81                                           ; GET LINE BUFFER
 
 ; Starting 1000H - Generally unused bytes not cleared by the monitor.
-ROMBK1:    EQU      01000H                                               ; CURRENT MROM BANK 
-ROMBK2:    EQU      01001H                                               ; CURRENT USERROM BANK 
-WRKROMBK1: EQU      01002H                                               ; WORKING MROM BANK 
-WRKROMBK2: EQU      01003H                                               ; WORKING USERROM BANK 
-SCRNMODE:  EQU      01004H                                               ; Screen Mode
-TMPADR:    EQU      01010H                                               ; TEMPORARY ADDRESS STORAGE
-TMPSIZE:   EQU      01012H                                               ; TEMPORARY SIZE
-TMPCNT:    EQU      01014H                                               ; TEMPOARY COUNTER
-TMPLINECNT:EQU      01016H                                               ; Temporary counter for displayed lines.
+ROMBK1:    EQU      01016H                                               ; CURRENT MROM BANK 
+ROMBK2:    EQU      01017H                                               ; CURRENT USERROM BANK 
+WRKROMBK1: EQU      01018H                                               ; WORKING MROM BANK 
+WRKROMBK2: EQU      01019H                                               ; WORKING USERROM BANK 
+SCRNMODE:  EQU      0101AH                                               ; Screen Mode
+TMPADR:    EQU      0101BH                                               ; TEMPORARY ADDRESS STORAGE
+TMPSIZE:   EQU      0101DH                                               ; TEMPORARY SIZE
+TMPCNT:    EQU      0101FH                                               ; TEMPOARY COUNTER
+TMPLINECNT:EQU      01021H                                               ; Temporary counter for displayed lines.
+TMPSTACKP: EQU      01023H                                               ; Temporary stack pointer save.
 
         ;    EQU TABLE I/O REPORT
 
