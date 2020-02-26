@@ -1663,20 +1663,6 @@ READHST3:   POP     HL
 WRITEHST:   PUSH    BC
             PUSH    HL
             CALL    DSKWRITE
-;            PUSH    AF
-;
-;            LD      BC,512
-;            LD      DE,HSTBUF
-;INV:        LD      A, (DE)                                              ; source character
-;            CPL                                                          ; Change to positive values.
-;            LD      (DE), A                                              ; to dest
-;            INC     DE
-;            DEC     BC                                                   ; loop 128 times
-;            LD      A,B
-;            OR      C
-;            JR      NZ, INV
-;
-;            POP     AF
             POP     HL
             POP     BC
             RET
@@ -1988,21 +1974,6 @@ CHECKTIMER: PUSH    AF
             EI     
 CHKTIM1:    POP     AF
             RET     
-
-
-;NXTSECTOR:  PUSH    HL
-;            LD      HL,SECTORNO
-;            LD      A,(SECPERTRK)
-;            CP      (HL)                                                 ; Check to see if we move to a new head, ie. max sectors per physical track reached.
-;            POP     HL
-;            JR      NZ,NXTSEC2                                           
-;            LD      A,(TRACKNO)                                          ; NB. Track number is 16bit, FDC only uses lower 8bit and assumes little endian read.
-;            INC     A
-;            LD      (TRACKNO),A                                          ; Increment only updates the lower byte.
-;            LD      A,001H
-;            LD      (SECTORNO),A
-;NXTSEC2:    RET     
-
 
             ; Seek to programmed track.
 SEEK:       LD      A,01BH                                               ; Seek command, load head, verify stepping 6ms.
