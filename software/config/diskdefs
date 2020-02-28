@@ -1,0 +1,77 @@
+
+# 320K Disk for the MZ80A - Same format as the MZ800
+# but implements a cylinder in uniform manner (ie. 1 cyl
+# = 1 track x 2(heads) where as the MZ800 implements as 
+# 160 tracks, 80 x Head 1 0->79 then 80 x Head 2 80->159.
+diskdef MZ80A-A
+  seclen 256
+  tracks 40
+  sectrk 32
+  blocksize 2048
+  maxdir 64
+  skew 0
+  boottrk 1
+  os 2.2
+end
+
+# A standard format 1.44Mb Floppy format for the MZ80A
+diskdef MZ80A-1440
+  seclen 512
+  tracks 80
+  sectrk 36
+  blocksize 2048
+  maxdir 128
+  skew 0
+  boottrk 0
+  os 2.2
+end
+
+# A standard format 720K Floppy format for the MZ80A.
+diskdef MZ80A-720
+  seclen 256
+  tracks 80
+  sectrk 36
+  blocksize 2048
+  maxdir 128
+  skew 0
+  boottrk 0
+  os 2.2
+end
+
+# A 240K Rom Filing System ROM Drive image.
+diskdef MZ80A-RFS
+  seclen 128
+  tracks 15
+  sectrk 128
+  blocksize 1024
+  maxdir 32
+  skew 0
+  boottrk 0
+  os 2.2
+end
+
+# Definition for the MZ800 CP/M Boot Disk. The reserved
+# track is in inverted data format but this is skipped in
+# CPM Tools.
+diskdef MZ800-BOOT
+  seclen 256
+  tracks 80
+  sectrk 16
+  blocksize 2048
+  maxdir 64
+  skew 0
+  boottrk 1
+  os 2.2
+end
+
+# Definition for the MZ800 CP/M Data disk. No reserved tracks.
+diskdef MZ800-DATA
+  seclen 256
+  tracks 80
+  sectrk 16
+  blocksize 2048
+  maxdir 64
+  skew 0ones, 1
+  boottrk 0
+  os 2.2
+end
