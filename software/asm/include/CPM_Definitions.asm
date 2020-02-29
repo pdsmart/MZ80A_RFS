@@ -288,6 +288,8 @@ TMPCNT      DS      virtual 2                                            ; TEMPO
 CPMROMLOC:  DS      virtual 2                                            ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Image.
 CPMROMDRV0: DS      virtual 2                                            ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 0.
 CPMROMDRV1: DS      virtual 2                                            ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 1.
+DISKMAP:    DS      virtual NDISKS                                       ; Disk map of CPM logical to physical controller disk.
+FDCDISK:    DS      virtual 1                                            ; Physical disk number.
 SECPERTRK:  DS      virtual 1                                            ; Sectors per track for 1 head.
 SECPERHEAD: DS      virtual 1                                            ; Sectors per head.
 SECTORCNT:  DS      virtual 1                                            ; Sector size as a count of how many sectors make 512 bytes.

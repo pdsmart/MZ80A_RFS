@@ -370,6 +370,7 @@ SELDSK_:    LD      (SPSAVE),SP                                          ; The o
             XOR     A                                                    ; No, set disk 0 as current disk
 SELDSK0:    LD      (CDISK),A                                            ; Setup drive.
             CALL    SETDRVCFG                                
+          ; CALL    SELDRIVE
             LD      A,(DISKTYPE)
             CP      1
             JR      Z,SELROMDSK
@@ -601,12 +602,6 @@ STRT3:      LD      HL,NUMBERBUF
             LD      (IOBYT),A
             LD      (CDISK),A            
             ;
-            CALL    DSKINIT
-            CALL    SELDRIVE
-            ;
-           ;LD      A,001H
-           ;LD      (INVFDCDATA),A                                       ; Default is to invert (positive logic) data from FDC.
-            ;
             JR      CPMINIT
             
             ;-------------------------------------------------------------------------------
@@ -625,7 +620,8 @@ WINIT:      ; Reload the CCP and BDOS from ROM.
             LD      A,ROMBANK5
             LD      (RFSBK2),A    
             ;
-CPMINIT:    XOR     A                                                    ; 0 to accumulator
+CPMINIT:    CALL    DSKINIT                                              ; Initialise the disk subsystem.
+            XOR     A                                                    ; 0 to accumulator
             LD      (HSTACT),A                                           ; Host buffer inactive
             LD      (UNACNT),A                                           ; Clear unalloc count
             ; CP/M init
@@ -650,7 +646,7 @@ CPMINIT:    XOR     A                                                    ; 0 to 
             LD      A, (CDISK)                                           ; No, set disk 0 (previous user)
             AND     0F0H
             LD      (CDISK), A                                           ; Save User/Disk    
-WBTDSKOK2:  AND     00FH
+WBTDSKOK2:  CALL    SETDRVMAP                                            ; Refresh the map of physical floppies to CPM drive number.
             CALL    SETDRVCFG
             LD      A,(DISKTYPE)
             OR      A
@@ -1682,6 +1678,65 @@ DSKINIT:    XOR     A
             LD      (MTROFFTIMER),A                                      ; Clear the down counter for motor off.
             RET
 
+            ; Function to create a mapping table between a CPM disk and a physical disk.
+SETDRVMAP:  PUSH    HL
+            PUSH    DE
+            PUSH    BC
+            ; Zero out the map.
+            LD      B,NDISKS
+            LD      HL,DISKMAP
+            LD      A,0FFH
+SETDRVMAP1: LD      (HL),A
+            INC     HL
+            DJNZ    SETDRVMAP1
+            LD      HL,DISKMAP                                           ; Place in the Map for next drive.
+            ; Now go through each disk from the Disk Parameter Base list.
+            LD      B,0                                                  ; Disk number count = CDISK.
+            LD      C,0                                                  ; Physical disk number.
+SETDRVMAP2: LD      A,B
+            CP      NDISKS
+            JR      Z,SETDRVMAP3
+            INC     B
+            PUSH    HL
+            PUSH    BC
+            ; For the Disk in A, find the parameter table.
+            RLC     A                                                    ; *2
+            RLC     A                                                    ; *4
+            RLC     A                                                    ; *8
+            RLC     A                                                    ; *16
+            LD      HL,CPMDPBASE                                         ; Base of disk description block.
+            LD      B,0
+            LD      C,A 
+            ADD     HL,BC                                                ; HL contains address of actual selected disk block.
+            LD      C,10
+            ADD     HL,BC                                                ; HL contains address of pointer to disk parameter block.
+            LD      E,(HL)
+            INC     HL
+            LD      D,(HL)                                               ; DE contains address of disk parameter block.
+            EX      DE,HL
+            LD      A,(HL)
+            LD      E,A
+            LD      BC,15
+            ADD     HL,BC                                                ; Move to configuuration byte which identifies the disk type.
+            ;
+            POP     BC
+            BIT     4,(HL)                                               ; Disk type = FDC
+            POP     HL
+            JR      NZ,SETDRVMAP4                                        ; Loop to next drive if it isnt an FDC controlled disk.
+            LD      A,C
+            INC     C
+            LD      (HL),A
+   ;    SCF
+   ;    CCF
+   ;    CALL DEBUG
+SETDRVMAP4: INC     HL
+            JR      SETDRVMAP2
+            ;
+SETDRVMAP3: POP     BC
+            POP     DE
+            POP     HL
+            RET
+
             ; Function to setup the drive parameters according to the CFG byte in the disk parameter block.
 SETDRVCFG:  PUSH    HL
             PUSH    DE
@@ -1758,11 +1813,23 @@ SETDRV3:    LD      (ROMDRV),A
             POP     HL
             RET
 
-            ; Select fdc drive (make active) based on value in CDISK.
-SELDRIVE:   LD      A,(MOTON)                                            ; motor on flag
+            ; Select fdc drive (make active) based on value in DISKMAP[CDISK].
+SELDRIVE:   LD      A,(CDISK)
+            LD      HL,DISKMAP
+            LD      C,A
+            LD      B,0
+            ADD     HL,BC
+            LD      A,(HL)                                               ; Get the physical number after mapping from the CDISK.
+            CP      0FFH
+            RET     Z                                                    ; This isnt a physical disk, no need to perform any actions, exit.
+            LD      (FDCDISK),A
+       ;SCF
+       ;CCF
+       ;CALL DEBUG
+            LD      A,(MOTON)                                            ; motor on flag
             RRCA                                                         ; motor off?
             CALL    NC,DSKMTRON                                          ; yes, set motor on and wait
-            LD      A,(CDISK)                                            ; drive no
+            LD      A,(FDCDISK)                                          ; select drive no
             OR      084H                                                     
             OUT     (FDC_MOTOR),A                                        ; Motor on for drive 0-3
             XOR     A                                                        
@@ -1775,15 +1842,14 @@ SELDRV2:    DEC     HL
             IN      A,(FDC_STR)                                          ; Status register.
             CPL                                                              
             RLCA                                                             
-            JR      C,SELDRV2                                            ; Wait on motor off (bit 7)
-            LD      A,(CDISK)                                            ; Drive number
-            AND     00Fh                                                 ; Only want the drive number.
+            JR      C,SELDRV2                                            ; Wait on Drive Ready Bit (bit 7)
+            LD      A,(FDCDISK)                                          ; Drive number
             LD      C,A
             LD      HL,TRK0FD1                                           ; 1 track 0 flag for each drive
             LD      B,000H                                                   
             ADD     HL,BC                                                ; Compute related flag 1002/1003/1004/1005
             BIT     0,(HL)                                                   
-            JR      NZ,SELDRV3                                           ; 
+            JR      NZ,SELDRV3                                           ; If the drive hasnt been intialised to track 0, intialise and set flag.
             CALL    DSKSEEKTK0                                           ; Seek track 0.
             SET     0,(HL)                                               ; Set bit 0 of trk 0 flag
 SELDRV3:    CALL    SETDRVCFG
@@ -1857,17 +1923,6 @@ WRITEDATA:  OUTI
                                                                          ; data ready, jumps to IY.
             DEC     D
             JP      NZ,0F3FEH                                            ; If we havent read all sectors to form a 512 byte block, go for next sector.
-
-            ;LD      IX, 0F3FEH                                           ; As above.
-        ;   PUSH    HL
-        ;   LD      HL,SECTORNO
-        ;   INC     (HL)                                                 ; Increment current sector number
-        ;   LD      A,(SECPERTRK)
-          ;  CP      (HL)                                                 ; Check to see if we have reached the limit of max sectors per physical track reached.
-        ;   POP     HL
-          ;  JR      Z,NXTTRACK                                           ; Sector limit? Need to loop to next track.
-          ;  DEC     D
-          ;  JR      NZ,STRTDATWR
             JR      DATASTOP      
 
             ; Read disk starting at the first logical sector in param block 1009/100A
@@ -1921,9 +1976,9 @@ DATASTOP:   LD      A,0D8H                                               ; Force
             IN      A,(FDC_STR)                                          ; Check for errors.
             CPL     
             AND     0FFH
-    ;   SCF
-    ;   CCF
-    ;   CALL DEBUG
+       ;SCF
+       ;CCF
+       ;CALL DEBUG
             JR      NZ,SEEKRETRY   
 UPDSECTOR:  PUSH    HL
             LD      A,(SECTORCNT)
@@ -2180,6 +2235,11 @@ DEBUG:      IF ENADEBUG = 1
             CALL    MONPRTSTR
             LD      A, (CDISK)
             CALL    ?PRTHX
+
+            LD      DE, FDCDRVMSG
+            CALL    MONPRTSTR
+            LD      A, (FDCDISK)
+            CALL    ?PRTHX
            
             LD      DE, SEKTRKMSG
             CALL    MONPRTSTR
@@ -2263,17 +2323,18 @@ SKIPDUMP:   POP     HL
             POP     AF
             RET
            
-DRVMSG:     DB      "DRV=", 000H
-SEKTRKMSG:  DB      ",S=", 000H
-HSTTRKMSG:  DB      ",H=", 000H
-UNATRKMSG:  DB      ",U=", 000H
-CTLTRKMSG:  DB      ",C=", 000H
-DMAMSG:     DB      ",D=", 000H
-INFOMSG:    DB      "AF=", NUL
-INFOMSG2:   DB      ",BC=", 000H
-INFOMSG3:   DB      ",DE=", 000H
-INFOMSG4:   DB      ",HL=", 000H
-INFOMSG5:   DB      ",SP=", 000H
+DRVMSG:     DB      "DRV=",  000H
+FDCDRVMSG:  DB      ",FDC=", 000H
+SEKTRKMSG:  DB      ",S=",   000H
+HSTTRKMSG:  DB      ",H=",   000H
+UNATRKMSG:  DB      ",U=",   000H
+CTLTRKMSG:  DB      ",C=",   000H
+DMAMSG:     DB      ",D=",   000H
+INFOMSG:    DB      "AF=",   NUL
+INFOMSG2:   DB      ",BC=",  000H
+INFOMSG3:   DB      ",DE=",  000H
+INFOMSG4:   DB      ",HL=",  000H
+INFOMSG5:   DB      ",SP=",  000H
             ENDIF
 
 KTBL:       DB      022H

@@ -206,7 +206,9 @@ L098C:      SUB     00AH
 
 ?PRTS:      LD      A,020H
 ?PRNT:      CP      00DH
-            JR      Z,?LTNL                 
+            JR      Z,?NL                 
+            CP      00AH
+            JR      Z,?NL                 
             PUSH    BC
             LD      C,A
             LD      B,A
