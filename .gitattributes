@@ -1,0 +1,8 @@
+*.cpp linguist-detectable=true
+*.c linguist-detectable=true
+*.asm linguist-detectable=true
+*.pl linguist-detectable=true
+*.sh linguist-detectable=true
+*.css linguist-detectable=false
+*.js linguist-detectable=false
+*.java linguist-detectable=true
