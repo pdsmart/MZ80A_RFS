@@ -6,3 +6,4 @@
 *.css linguist-detectable=false
 *.js linguist-detectable=false
 *.java linguist-detectable=true
+software/CPM filter=lfs diff=lfs merge=lfs -text
