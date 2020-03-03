@@ -41,22 +41,26 @@ FD1M44_SECTORS=36
 FD1M44_GAP3=78
 FD1M44_INTERLEAVE=4
 
-SOURCEDIRS="CPM[0-9][0-9]_* CPM_MC_5 CPM_MC_C? CPM_MC_D? CPM_MC_E? CPM_MC_F?"
+SOURCEDIRS="CPM[0-9][0-9]_* CPM_MC_5 CPM_MC_C? CPM_MC_D? CPM_MC_E? CPM_MC_F? CPM[0-9][0-9]_MZ800*"
 
 echo "Creating CPM Disks from all the directories in:$CPM_PATH} matching this filter:${SOURCEDIRS}.."
 (cd ${CPM_PATH}
  for src in ${SOURCEDIRS}
  do
+     # Place size of disk in the name, useful when using the Floppy Emulator.
+     NEWDSKNAME=`echo ${src} | sed 's/_/_1M44_/'`
+
      # Copy a blank image to create the new disk.
-     cp ${CPM_PATH}/BLANKFD/BLANK_1M44.RAW ${FD1M44_PATH}/RAW/${src}.RAW;
+     cp ${CPM_PATH}/BLANKFD/BLANK_1M44.RAW ${FD1M44_PATH}/RAW/${NEWDSKNAME}.RAW;
  
      # Copy the CPM files from the linux filesystem into the CPM Disk under the CPM filesystem.
-     cpmcp -f MZ80A-1440 ${FD1M44_PATH}/RAW/${src}.RAW ${CPM_PATH}/${src}/*.* 0:
+     cpmcp -f MZ80A-1440 ${FD1M44_PATH}/RAW/${NEWDSKNAME}.RAW ${CPM_PATH}/${src}/*.* 0:
  
      # Convert the raw image into an Extended DSK format suitable for writing to a Floppy or using with the Lotharek HxC Floppy Emulator.
-     samdisk copy ${FD1M44_PATH}/RAW/${src}.RAW ${FD1M44_PATH}/DSK/${src}.DSK --cyls=${FD1M44_CYLS} --head=${FD1M44_HEADS} --gap3=${FD1M44_GAP3} --sectors=${FD1M44_SECTORS} --interleave=${FD1M44_INTERLEAVE}
+     samdisk copy ${FD1M44_PATH}/RAW/${NEWDSKNAME}.RAW ${FD1M44_PATH}/DSK/${NEWDSKNAME}.DSK --cyls=${FD1M44_CYLS} --head=${FD1M44_HEADS} --gap3=${FD1M44_GAP3} --sectors=${FD1M44_SECTORS} --interleave=${FD1M44_INTERLEAVE}
  done
 )
+ ls ${FD1M44_PATH}/DSK/
  echo "Done, all EDSK images can be found in:${FD1M44_PATH}."
 
 exit 0
