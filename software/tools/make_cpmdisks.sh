@@ -7,9 +7,10 @@
 ## Description:     Script to build CPM Disks for the MZ80A
 ##                  This is a very basic script to assemble all the CPM source disks into a format
 ##                  which can be read by the MZ80A version of CPM.
-##                  The source are composed of directories of actual disks assembled from the original
-##                  CPM applications of packaged by people on the internet.
-
+##                  The source is composed of directories of actual original CPM disk contents which have
+##                  been assembled or copied from original floppies by people on the internet.
+##                  Credit goes to Grant Searle for the CPM_MC series of disks which can be found on his
+##                  multicomputer project and to the various CPM archives on the net.
 ## Credits:         
 ## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
 ##
