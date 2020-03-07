@@ -35,12 +35,20 @@ MZB_PATH=${ROOTDIR}/software/MZB
 ROM_PATH=${ROOTDIR}/software/roms/
 SECTORSIZE=256
 
+# Place the RFS rom into the User ROM at the beginning as it contains all the banked pages.
 echo "cat ${ROM_PATH}/rfs.rom > /tmp/user.rom"
 cat ${ROM_PATH}/rfs.rom ${ROM_PATH}/cbios_bank1.rom ${ROM_PATH}/cbios_bank2.rom ${ROM_PATH}/cbios_bank3.rom ${ROM_PATH}/cbios_bank4.rom > /tmp/user.rom
-# CPM RFS Disk currently only in User ROM.
-#cat ${MZB_PATH}/cpm22.${SECTORSIZE}.bin >> /tmp/user.rom
-cat ${MZB_PATH}/CPM_RFS_1.${SECTORSIZE}.bin >> /tmp/user.rom
 
+# CPM RFS Disks currently only in User ROM.
+for f in 1 2
+do
+    if [ -f ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin ]; then
+        echo "cat ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin >> /tmp/user.rom"
+        cat ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin >> /tmp/user.rom
+    fi
+done
+
+# Place the monitor roms into the MROM at the beginning for banked page usage.
 echo "cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom > /tmp/mrom.rom"
 cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom > /tmp/mrom.rom
 GENROM=0
@@ -266,7 +274,7 @@ do
         if (( ${GENROM} == 0 )); then
             cat /tmp/user.rom "${f}" > /tmp/tmp.size
             FILESIZE=$(stat -c%s "/tmp/tmp.size")
-            if (( ${FILESIZE} < 512000 )); then
+            if (( ${FILESIZE} < 524288 )); then
                 echo "Adding $f to User Rom"
                 cat "${f}" >> /tmp/user.rom
             else
@@ -275,7 +283,7 @@ do
         else
             cat /tmp/mrom.rom "${f}" > /tmp/tmp.size
             FILESIZE=$(stat -c%s "/tmp/tmp.size")
-            if (( ${FILESIZE} < 512000 )); then
+            if (( ${FILESIZE} < 524288 )); then
                 echo "Adding $f to Monitor Rom"
                 cat "${f}" >> /tmp/mrom.rom
             else

@@ -210,7 +210,7 @@ GOCPM:      JP      CCP                                                  ; Start
             ;  might want to include a time-out on a line-feed or carriage return, if the  
             ;  console device requires some time interval at the end of the line (such as  
             ;  a TI Silent 700 terminal). You can filter out control characters that cause 
-            ;  the console device to react in a strange way (CTRL-Z causes the Lear-       
+            ;  the console device to react in a strange way (CTRL_Z causes the Lear-       
             ;  Siegler terminal to clear the screen, for example).                         
             ;-------------------------------------------------------------------------------
 CONOUT_:    LD      (SPSAVE),SP                                          ; The original monitor routines and the enhancements can use
@@ -251,7 +251,7 @@ CONST_:     LD      (SPSAVE),SP                                          ; The o
             ;                                                                              
             ;  The next character is read from the currently assigned reader device into   
             ;  register A with zero parity (high-order bit must be zero); an end-of-file   
-            ;  condition is reported by returning an ASCII CTRL-Z(1AH).                    
+            ;  condition is reported by returning an ASCII CTRL_Z(1AH).                    
             ;-------------------------------------------------------------------------------
 READER_:    LD      A, 01AH                                              ; Reader not implemented.
             RET
@@ -449,7 +449,7 @@ SECTRN_:    LD      H,B
             ;  attempt at least 10 retries to see if the error is recoverable. When an     
             ;  error is reported the BDOS prints the message BDOS ERR ON x: BAD SECTOR.    
             ;  The operator then has the option of pressing a carriage return to ignore    
-            ;  the error, or CTRL-C to abort.                                              
+            ;  the error, or CTRL_C to abort.                                              
             ;-------------------------------------------------------------------------------
             ;
             ; Code for blocking and deblocking algorithm
@@ -847,12 +847,11 @@ GETKY3:     CALL    ?KEY
             JR      Z,GETKY3                 
             CALL    ?LOAD
             ;
-?PRCKEY:    ;PUSH    AF
-            ;CALL    PRTHX
-            ;POP     AF
-            CP      0CDH                                          ; CR
+?PRCKEY:    ;PUSH   AF
+            ;CALL   ?PRTHX
+            ;POP    AF
+            CP      CR                                            ; CR
             JR      NZ,?PRCKY1
-            LD      A,CR
             JR      ?PRCKYE
 ?PRCKY1:    CP      0C9H                                          ; GRAPH -> ALPHA
             JR      NZ,?PRCKY2
@@ -870,19 +869,19 @@ GETKY3:     CALL    ?KEY
 ?PRCKY4:    CP      0C6H                                          ; CLR
             JR      NZ,?PRCKY5
             JR      GETKY2
-?PRCKY5:    CP      0C8H                                          ; INST
+?PRCKY5:    CP      0C8H                                          ; INSERT
             JR      NZ,?PRCKY6
             JR      GETKY2
-?PRCKY6:    CP      0E7H                                          ; 00
+?PRCKY6:    CP      DBLZERO                                       ; 00
             JR      NZ,?PRCKY7
-            LD      A,020H
+            LD      A,'0'
             LD      (KEYBUF),A                                    ; Place a character into the keybuffer so we double up on 0
             JR      ?PRCKYX
 ?PRCKY7:    
-?PRCKYX:    CALL    ?DACN                                         ; Convert to ASCII ready for return of key value.
-?PRCKYE:    ;PUSH    AF
-            ;CALL    PRTHX
-            ;POP     AF
+?PRCKYX:    ;CALL    ?DACN                                         ; Convert to ASCII ready for return of key value.
+?PRCKYE:    ;PUSH   AF
+            ;CALL   ?PRTHX
+            ;POP    AF
             RET
 
 CLR8Z:      XOR     A
@@ -1341,8 +1340,7 @@ LROMLOAD5:  PUSH    AF
             ; Calculate offset into the ROM of the required sector.
             ; The sector size is 128 bytes due to the MZF header creating a 128 byte offset. Larger sector
             ; sizes will need to see the math enhanced to cater for the offset.
-ROMREAD:    PUSH    AF
-            LD      DE,(HSTTRK)                                          ; To cater for larger RFS images in the future we use the full 16bit track number.
+ROMREAD:    LD      DE,(HSTTRK)                                          ; To cater for larger RFS images in the future we use the full 16bit track number.
             LD      (TRACKNO),DE
             LD      A, BANKSPERTRACK * SECTORSPERBANK
             LD      B,8 
@@ -1362,10 +1360,10 @@ ROMREAD3:   DJNZ    ROMREAD2
             LD      D,0
             ADD     HL,DE                                                ; Add the number of sectors.
             ; HL contains the number of sectors for the given tracks and sector.
-            POP     AF
             PUSH    HL
-            CP      3
-            JR      Z,ROMREAD3A
+            LD      A,(ROMDRV)
+            OR      A
+            JR      NZ,ROMREAD3A
             LD      BC,(CPMROMDRV0)
             JR      ROMREAD3B
 ROMREAD3A:  LD      BC,(CPMROMDRV1)
@@ -2337,144 +2335,163 @@ INFOMSG4:   DB      ",HL=",  000H
 INFOMSG5:   DB      ",SP=",  000H
             ENDIF
 
-KTBL:       DB      022H
-            DB      021H
-            DB      017H
-            DB      011H
-            DB      001H
-            DB      0C7H
-            DB      000H
-            DB      01AH
-            DB      024H
-            DB      023H
-            DB      012H
-            DB      005H
-            DB      004H
-            DB      013H
-            DB      018H
-            DB      003H
-            DB      026H
-            DB      025H
-            DB      019H
-            DB      014H
-            DB      007H
-            DB      006H
-            DB      016H
-            DB      002H
-            DB      028H
-            DB      027H
-            DB      009H
-            DB      015H
-            DB      00AH
-            DB      008H
-            DB      00EH
-            DB      000H
-            DB      020H
-            DB      029H
-            DB      010H
-            DB      00FH
-            DB      00CH
-            DB      00BH
-            DB      02FH
-            DB      00DH
-            DB      0BEH
-            DB      02AH
-            DB      052H
-            DB      055H
-            DB      04FH
-            DB      02CH
-            DB      02DH
-            DB      02EH
-            DB      0C5H
-            DB      059H
-            DB      0C3H
-            DB      0C2H
-            DB      0CDH
-            DB      054H
-            DB      000H
-            DB      049H
-            DB      028H
-            DB      027H
-            DB      025H
-            DB      024H
-            DB      022H
-            DB      021H
-            DB      0E7H
-            DB      020H
-            DB      06AH
-            DB      029H
-            DB      02AH
-            DB      026H
-            DB      000H
-            DB      023H
-            DB      000H
-            DB      02EH
+KTBL:       ; Strobe 0
+            DB      '2'
+            DB      '1'
+            DB      'W'
+            DB      'Q'
+            DB      'A'
+            DB      DELETE
+            DB      NULL
+            DB      'Z'
+            ; Strobe 1
+            DB      '4'
+            DB      '3'
+            DB      'R'
+            DB      'E'
+            DB      'D'
+            DB      'S'
+            DB      'X'
+            DB      'C'
+            ; Strobe 2
+            DB      '6'
+            DB      '5'
+            DB      'Y'
+            DB      'T'
+            DB      'G'
+            DB      'F'
+            DB      'V'
+            DB      'B'
+            ; Strobe 3
+            DB      '8'
+            DB      '7'
+            DB      'I'
+            DB      'U'
+            DB      'J'
+            DB      'H'
+            DB      'N'
+            DB      SPACE
+            ; Strobe 4
+            DB      '0'
+            DB      '9'
+            DB      'P'
+            DB      'O'
+            DB      'L'
+            DB      'K'
+            DB      ','
+            DB      'M'
+            ; Strobe 5
+            DB      '^'
+            DB      '-'
+            DB      '['
+            DB      '@'
+            DB      ':'
+            DB      ';'
+            DB      '/'
+            DB      '.'
+            ; Strobe 6
+            DB      HOME
+            DB      '\\'
+            DB      CURSRIGHT
+            DB      CURSLEFT
+            DB      CR
+            DB      'J'
+            DB      NULL
+            DB      '?'
+            ; Strobe 7
+            DB      '8'
+            DB      '7'
+            DB      '5'
+            DB      '4'
+            DB      '2'
+            DB      '1'
+            DB      DBLZERO
+            DB      '0'
+            ; Strobe 8
+            DB      '*'
+            DB      '9'
+            DB      '-'
+            DB      '6'
+            DB      NULL
+            DB      '3'
+            DB      NULL
+            DB      ','
 
-KTBLS:      DB      062H
-            DB      061H
-            DB      097H
-            DB      091H
-            DB      081H
-            DB      0C8H
-            DB      000H
-            DB      09AH
-            DB      064H
-            DB      063H
-            DB      092H
-            DB      085H
-            DB      084H
-            DB      093H
-            DB      098H
-            DB      083H
-            DB      066H
-            DB      065H
-            DB      099H
-            DB      094H
-            DB      087H
-            DB      086H
-            DB      096H
-            DB      082H
-            DB      068H
-            DB      067H
-            DB      089H
-            DB      095H
-            DB      08AH
-            DB      088H
-            DB      08EH
-            DB      000H
-            DB      0BFH
-            DB      069H
-            DB      090H
-            DB      08FH
-            DB      08CH
-            DB      08BH
-            DB      051H
-            DB      08DH
-            DB      0A5H
-            DB      02BH
-            DB      0BCH
-            DB      0A4H
-            DB      06BH
-            DB      06AH
-            DB      045H
-            DB      057H
-            DB      0C6H
-            DB      080H
-            DB      0C4H
-            DB      0C1H
-            DB      0CDH
-            DB      040H
-            DB      000H
-            DB      050H
+KTBLS:      ; Strobe 0
+            DB      '"'
+            DB      '!'
+            DB      'w'
+            DB      'q'
+            DB      'a'
+            DB      INSERT
+            DB      NULL
+            DB      'z'
+            ; Strobe 1
+            DB      '$'
+            DB      '#'
+            DB      'r'
+            DB      'e'
+            DB      'd'
+            DB      's'
+            DB      'x'
+            DB      'c'
+            ; Strobe 2
+            DB      '&'
+            DB      '%'
+            DB      'y'
+            DB      't'
+            DB      'g'
+            DB      'f'
+            DB      'v'
+            DB      'b'
+            ; Strobe 3
+            DB      '('
+            DB      '\''
+            DB      'i'
+            DB      'u'
+            DB      'j'
+            DB      'h'
+            DB      'n'
+            DB      SPACE
+            ; Strobe 4
+            DB      '-'
+            DB      ')'
+            DB      'p'
+            DB      'o'
+            DB      'l'
+            DB      'k'
+            DB      '<'
+            DB      'm'
+            ; Strobe 5
+            DB      '~'
+            DB      '='
+            DB      '{'
+            DB      '`'
+            DB      '*'
+            DB      '+'
+            DB      '<'
+            DB      '>'
+            ; Strobe 6
+            DB      CLR
+            DB      '|'
+            DB      CURSLEFT
+            DB      CURSDOWN
+            DB      CR
+            DB      '}'
+            DB      NULL
+            DB      '^'
 
-KTBLG:      DB      03EH
+KTBLG:      ; GRAPHIC MODE
+            ; Strobe 0
+            DB      03EH
             DB      037H
             DB      038H
             DB      03CH
             DB      053H
-            DB      0C7H
-            DB      000H
+            DB      DELETE
+            DB      NULL
             DB      076H
+            ; Strobe 1
             DB      07BH
             DB      07FH
             DB      030H
@@ -2483,6 +2500,7 @@ KTBLG:      DB      03EH
             DB      044H
             DB      06DH
             DB      0DEH
+            ; Strobe 2
             DB      05EH
             DB      03AH
             DB      075H
@@ -2491,6 +2509,7 @@ KTBLG:      DB      03EH
             DB      04AH
             DB      0DAH
             DB      06FH
+            ; Strobe 3
             DB      0BDH
             DB      01FH
             DB      07DH
@@ -2498,7 +2517,8 @@ KTBLG:      DB      03EH
             DB      05CH
             DB      072H
             DB      032H
-            DB      000H
+            DB      SPACE
+            ; Strobe 4
             DB      09CH
             DB      0A1H
             DB      0D6H
@@ -2507,6 +2527,7 @@ KTBLG:      DB      03EH
             DB      05BH
             DB      060H
             DB      01CH
+            ; Strobe 5
             DB      09EH
             DB      0D2H
             DB      0D8H
@@ -2515,23 +2536,27 @@ KTBLG:      DB      03EH
             DB      042H
             DB      0DBH
             DB      0B8H
-            DB      0C5H
+            ; Strobe 6
+            DB      HOME
             DB      0D4H
-            DB      0C3H
-            DB      0C2H
-            DB      0CDH
+            DB      CURSRIGHT
+            DB      CURSUP
+            DB      CR
             DB      04EH
-            DB      000H
+            DB      NULL
             DB      0BAH
 
-KTBLGS:     DB      036H
+KTBLGS:     ; GRAPHIC MODE AND SHIFT ON
+            ; Strobe 0
+            DB      036H
             DB      03FH
             DB      078H
             DB      07CH
             DB      046H
-            DB      0C8H
-            DB      000H
+            DB      INSERT
+            DB      NULL
             DB      077H
+            ; Strobe 1
             DB      03BH
             DB      07EH
             DB      070H
@@ -2540,6 +2565,7 @@ KTBLGS:     DB      036H
             DB      041H
             DB      0DDH
             DB      0D9H
+            ; Strobe 2
             DB      01EH
             DB      07AH
             DB      035H
@@ -2548,6 +2574,7 @@ KTBLGS:     DB      036H
             DB      043H
             DB      0A6H
             DB      06EH
+            ; Strobe 3
             DB      0A2H
             DB      05FH
             DB      03DH
@@ -2555,7 +2582,8 @@ KTBLGS:     DB      036H
             DB      05DH
             DB      073H
             DB      033H
-            DB      000H
+            DB      SPACE
+            ; Strobe 4
             DB      09DH
             DB      0A3H
             DB      0B1H
@@ -2564,6 +2592,7 @@ KTBLGS:     DB      036H
             DB      06CH
             DB      0D0H
             DB      01DH
+            ; Strobe 5
             DB      09FH
             DB      0D1H
             DB      0B3H
@@ -2572,69 +2601,78 @@ KTBLGS:     DB      036H
             DB      0B5H
             DB      01BH
             DB      0B9H
-            DB      0C6H
+            ; Strobe 6
+            DB      CLR
             DB      0D3H
-            DB      0C4H
-            DB      0C1H
-            DB      0CDH
+            DB      CURSLEFT
+            DB      CURSDOWN
+            DB      CR
             DB      0B7H
-            DB      000H
+            DB      NULL
             DB      0BBH
 
-KTBLC:      DB      0F0H
+KTBLC:      ; CTRL ON
+            ; Strobe 0
             DB      0F0H
-            DB      0E2H
-            DB      0C1H
-            DB      0E0H
+            DB      0F0H
+            DB      CTRL_W
+            DB      CTRL_Q
+            DB      CTRL_A
             DB      0F0H
             DB      000H
-            DB      0E5H
+            DB      CTRL_Z
+            ; Strobe 1
             DB      0F0H
             DB      0F0H
-            DB      0C2H
-            DB      0CFH
-            DB      0CEH
-            DB      0C3H
-            DB      0E3H
-            DB      0F3H
+            DB      CTRL_R
+            DB      CTRL_E
+            DB      CTRL_D
+            DB      CTRL_S
+            DB      CTRL_X
+            DB      CTRL_C
+            ; Strobe 2
             DB      0F0H
             DB      0F0H
-            DB      0E4H
-            DB      0C4H
-            DB      0F7H
-            DB      0F6H
-            DB      0C6H
-            DB      0F2H
+            DB      CTRL_Y
+            DB      CTRL_T
+            DB      CTRL_G
+            DB      CTRL_F
+            DB      CTRL_V
+            DB      CTRL_B
+            ; Strobe 3
             DB      0F0H
             DB      0F0H
-            DB      0F9H
-            DB      0C5H
-            DB      0FAH
-            DB      0F8H
-            DB      0FEH
+            DB      CTRL_I
+            DB      CTRL_U
+            DB      CTRL_J
+            DB      CTRL_H
+            DB      CTRL_N
+            DB      0F0H
+            ; Strobe 4
             DB      0F0H
             DB      0F0H
+            DB      CTRL_P
+            DB      CTRL_O
+            DB      CTRL_L
+            DB      CTRL_K
             DB      0F0H
-            DB      0E1H
-            DB      0FFH
-            DB      0FCH
-            DB      0FBH
-            DB      0F0H
-            DB      0FDH
-            DB      0EFH
-            DB      0F4H
-            DB      0E6H
-            DB      0CCH
-            DB      0F0H
-            DB      0F0H
-            DB      0F0H
-            DB      0F0H
-            DB      0F0H
-            DB      0EBH
+            DB      CTRL_M
+            ; Strobe 5
+            DB      CTRL_CAPPA
+            DB      CTRL_UNDSCR
+            DB      ESC
+            DB      CTRL_AT
             DB      0F0H
             DB      0F0H
             DB      0F0H
-            DB      0EEH
+            DB      0F0H
+            ; Strobe 6
+            DB      0F0H
+            DB      CTRL_SLASH
+            DB      0F0H
+            DB      0F0H
+            DB      0F0H
+            DB      CTRL_RB
             DB      0F0H
 
             ; SIGN ON BANNER
@@ -2705,6 +2743,7 @@ DPB0:       DW      64                                                   ; SPT -
                                                                          
 
 ; Rom Filing System File Image acting as a drive.
+; There are two definitions, 1 for each ROM drive, they can be identical but the CFG bit 5 will differ.
 DPB1:       DW      128                                                  ; SPT - 128 bytes sectors per track
             DB      3                                                    ; BSH - block shift factor
             DB      7                                                    ; BLM - block mask
@@ -2721,9 +2760,27 @@ DPB1:       DW      128                                                  ; SPT -
                                                                          ;       Bit 4:3 = Disk type, 00 = FDC, 10 = ROM, 11 = SD Card, 01 = Unused
                                                                          ;       Bit 5   = ROMFS Image, 0 = DRV0, 1 = DRV1
 
+; Rom Filing System File Image acting as a drive.
+; There are two definitions, 1 for each ROM drive, they can be identical but the CFG bit 5 will differ.
+DPB2:       DW      128                                                  ; SPT - 128 bytes sectors per track
+            DB      3                                                    ; BSH - block shift factor
+            DB      7                                                    ; BLM - block mask
+            DB      0                                                    ; EXM - Extent mask
+            DW      240                                                  ; DSM - Storage size (blocks - 1)
+            DW      31                                                   ; DRM - Number of directory entries - 1
+            DB      128                                                  ; AL0 - 1 bit set per directory block
+            DB      0                                                    ; AL1 -            "
+            DW      8                                                    ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
+            DW      0                                                    ; OFF - Reserved tracks
+            DB      48                                                   ; CFG - MZ80A Addition, configuration flag:
+                                                                         ;       Bit 1:0 = FDC: Sector Size, 00 = 128, 10 = 256, 11 = 512, 01 = Unused.
+                                                                         ;       Bit 2   = Invert, 1 = Invert data, 0 = Use data as read (on MB8866 this is inverted).
+                                                                         ;       Bit 4:3 = Disk type, 00 = FDC, 10 = ROM, 11 = SD Card, 01 = Unused
+                                                                         ;       Bit 5   = ROMFS Image, 0 = DRV0, 1 = DRV1
+
 
 ; 1.44MB Floppy
-DPB2:       DW      144                                                  ; SPT - 128 bytes sectors per track (= 36 sectors of 512 bytes)
+DPB3:       DW      144                                                  ; SPT - 128 bytes sectors per track (= 36 sectors of 512 bytes)
             DB      4                                                    ; BSH - block shift factor
             DB      15                                                   ; BLM - block mask
             DB      0                                                    ; EXM - Extent mask

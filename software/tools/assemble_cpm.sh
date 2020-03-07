@@ -33,18 +33,11 @@ JARDIR=${ROOTDIR}/software/tools
 ASM=glass.jar
 BUILDROMLIST="cbios cbios_bank1 cbios_bank2 cbios_bank3 cbios_bank4 cpm22"
 BUILDMZFLIST=""
-BUILDCPMLIST="cpm22 CPM_RFS_1"
 ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms                     # Compiled or source ROM files.
 MZFDIR=${ROOTDIR}/software/MZF                      # MZF Format source files.
-HDRDIR=${ROOTDIR}/software/hdr                      # MZF Header directory for building images.
-MZBDIR=${ROOTDIR}/software/MZB                      # MZF Binary sectored output files to go into ROMS.
-DISKSDIR=${ROOTDIR}/software/disks                  # MZF Binary sectored output files to go into ROMS.
-#BLOCKSIZELIST="256 512 1024 4096"                  # List of required output files in target RFS sector size.
-BLOCKSIZELIST="128 256"                             # List of required output files in target RFS sector size.
-MAXIMAGESIZE=524288                                 # Largest expected image size (generally 1 ROM less 16K Rom Banks).
 
 # Go through list and build images.
 #
@@ -70,46 +63,3 @@ do
         fi
     fi
 done
-
-# Create the CPM boot image and Drive images.
-echo "Building CPM images..."
-for f in ${BUILDCPMLIST}
-do
-    if [ -f "${ROMDIR}/${f}.rom" ]; then
-        CPMIMAGE="${ROMDIR}/${f}.rom"
-    elif [ -f "${DISKSDIR}/${f}.RAW" ]; then
-        CPMIMAGE="${DISKSDIR}/${f}.RAW"
-    fi
-
-    # Building is just a matter of concatenating together the heaader and the rom image.
-    cat "${HDRDIR}/${f}.HDR" "${CPMIMAGE}" > "${MZFDIR}/${f}.MZF"
-done
-
-# Now go and pack the images into sectored MZF files ready for adding directly into a ROM output image.
-cd ${MZFDIR}
-ls -l *.MZF *.mzf 2>/dev/null | sed 's/  / /g' | sed 's/  / /g' | cut -d' ' -f5,9- > /tmp/filelist.tmp 2>/dev/null
-cat /tmp/filelist.tmp | grep -i cpm > /tmp/filelist
-cd ..
-
-IFS=' '; while read -r FSIZE FNAME;
-do
-  TNAME=`echo $FNAME | sed 's/mzf/MZF/g'`
-  if [ "$FNAME" != "$TNAME" ]; then
-      mv "$FNAME" "$TNAME"
-  fi
-  for BLOCKSIZE in ${BLOCKSIZELIST}
-  do
-      for SECTORSIZE in `seq -s ' ' ${BLOCKSIZE} ${BLOCKSIZE} ${MAXIMAGESIZE}`
-      do
-        BASE=`basename "$TNAME" .MZF`
-        if [ `echo ${FSIZE} - ${SECTORSIZE}   | bc` -le 0 ];
-        then
-            echo "Generating sectored MZF image: $BASE $TNAME $SECTORSIZE to target:${MZBDIR}/$BASE.${BLOCKSIZE}.bin"
-            dd if=/dev/zero ibs=1 count=$SECTORSIZE 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/${BASE}.${BLOCKSIZE}.bin"
-            dd if="${MZFDIR}/$TNAME" of="${MZBDIR}/${BASE}.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
-            break;
-        fi
-      done
-  done
-done </tmp/filelist
-

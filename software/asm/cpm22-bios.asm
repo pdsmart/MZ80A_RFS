@@ -56,9 +56,9 @@
 ;         This address is different for each DPH.
 ;------------------------------------------------------------------------------------------------------------
 DPBASE:     DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK1, CSV0, ALV0 
-            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK1, CSV1, ALV1 
-            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK2, CSV2, ALV2 
-            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK2, CSV3, ALV3 
+            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK2, CSV1, ALV1 
+            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK3, CSV2, ALV2 
+            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK3, CSV3, ALV3 
 
             ; NB. The Disk Parameter Blocks are stored in CBIOS ROM to save RAM space.
 

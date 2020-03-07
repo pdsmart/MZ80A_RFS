@@ -217,21 +217,60 @@ FDC_SIDE    EQU     005h + FDC                                           ; Side 
 ;-----------------------------------------------
 ; Common character definitions.
 ;-----------------------------------------------
-SCROLL      EQU     01H            ;Set scrool direction UP.
-BELL        EQU     07H
-SPACE       EQU     20H
-TAB         EQU     09H            ;TAB ACROSS (8 SPACES FOR SD-BOARD)
-CR          EQU     0DH
-LF          EQU     0AH
-FF          EQU     0CH
-ESC         EQU     1BH
-DELETE      EQU     7FH
-BACKS       EQU     08H
+SCROLL      EQU     001H            ;Set scroll direction UP.
+BELL        EQU     007H
+SPACE       EQU     020H
+TAB         EQU     009H            ;TAB ACROSS (8 SPACES FOR SD-BOARD)
+CR          EQU     00DH
+LF          EQU     00AH
+FF          EQU     00CH
+DELETE      EQU     07FH
+BACKS       EQU     008H
 SOH         EQU     1            ; For XModem etc.
 EOT         EQU     4
 ACK         EQU     6
-NAK         EQU     15H
-NUL         EQU     00H
+NAK         EQU     015H
+NUL         EQU     000H
+NULL        EQU     000H
+CTRL_A      EQU     001H
+CTRL_B      EQU     002H
+CTRL_C      EQU     003H
+CTRL_D      EQU     004H
+CTRL_E      EQU     005H
+CTRL_F      EQU     006H
+CTRL_G      EQU     007H
+CTRL_H      EQU     008H
+CTRL_I      EQU     009H
+CTRL_J      EQU     00AH
+CTRL_K      EQU     00BH
+CTRL_L      EQU     00CH
+CTRL_M      EQU     00DH
+CTRL_N      EQU     00EH
+CTRL_O      EQU     00FH
+CTRL_P      EQU     010H
+CTRL_Q      EQU     011H
+CTRL_R      EQU     012H
+CTRL_S      EQU     013H
+CTRL_T      EQU     014H
+CTRL_U      EQU     015H
+CTRL_V      EQU     016H
+CTRL_W      EQU     017H
+CTRL_X      EQU     018H
+CTRL_Y      EQU     019H
+CTRL_Z      EQU     01AH
+ESC         EQU     01BH
+CTRL_SLASH  EQU     01CH
+CTRL_RB     EQU     01DH
+CTRL_CAPPA  EQU     01EH
+CTRL_UNDSCR EQU     01FH
+CTRL_AT     EQU     000H
+CURSRIGHT   EQU     0F0H
+CURSLEFT    EQU     0F1H
+CURSUP      EQU     0F2H
+CURSDOWN    EQU     0F3H
+DBLZERO     EQU     0F4H
+INSERT      EQU     0F5H
+CLR         EQU     0F6H
 
 ;-----------------------------------------------
 ;    BIOS WORK AREA (MZ80A)
