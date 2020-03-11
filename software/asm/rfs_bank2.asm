@@ -38,21 +38,11 @@
            ; Common code spanning all banks.
            ;--------------------------------
 ROMFS2:    NOP
-           LD       A, (ROMBK1)                                              ; Ensure all banks are at default on
-           CP       4                                                        ; If the ROMBK1 value is 255, an illegal value, then the machine has just started so skip.
-           JR       C, ROMFS2_2
-           XOR      A                                                        ; Clear the lower stack space as we use it for variables.
-           LD       B, 7*8
-           LD       HL, 01000H
-ROMFS2_1:  LD       (HL),A
-           INC      HL
-           DJNZ     ROMFS2_1              
-ROMFS2_2:  LD       (RFSBK1),A                                               ; start up.
-           LD       A, (ROMBK2)
-           LD       (RFSBK2),A
-           JP       MONITOR
+           XOR     A                                                         ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+           LD      (RFSBK1),A
+           LD      (RFSBK2),A                                                ; and start up - ie. SA1510 Monitor.
+           ALIGN_NOPS 0E829H
 
-           ;
            ; Bank switching code, allows a call to code in another bank.
            ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
            ;

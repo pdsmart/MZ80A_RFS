@@ -43,7 +43,15 @@
            ; Common code spanning all banks.
            ;--------------------------------
 ROMFS:     NOP
-           LD       A, (ROMBK1)                                              ; Ensure all banks are at default on
+           JR       ROMFS_0                                                  ; Skip the reset vector.
+           NOP
+           NOP
+           NOP
+           NOP
+           NOP
+           NOP
+           JP       00000H                                                   ; Common point when an alternate bank needs to reset the system.
+ROMFS_0:   LD       A, (ROMBK1)                                              ; Ensure all banks are at default on
            CP       4                                                        ; If the ROMBK1 value is 255, an illegal value, then the machine has just started so skip.
            JR       C, ROMFS_2
            XOR      A                                                        ; Clear the lower stack space as we use it for variables.

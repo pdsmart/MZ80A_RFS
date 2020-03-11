@@ -73,7 +73,7 @@ SS1:    LD      (SWRK),A
         JR      FD2                   
 
 ST1:    CALL    NL
-        LD      A,03EH
+        LD      A,'*'
         CALL    PRNT
         LD      DE,BUFER
         CALL    GETL

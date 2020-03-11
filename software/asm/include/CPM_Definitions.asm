@@ -74,9 +74,10 @@ DPBLOCK7    EQU     DPBLOCK6 + DPSIZE
 
 ; BIOS equates
 NDISKS      EQU     4                                                    ; Number of Disk Drives
+KEYBUFSIZE  EQU     16                                                   ; Ensure this is a power of 2, max size 256.
 
 ; Debugging
-ENADEBUG    EQU     1                                                    ; Enable debugging logic, 1 = enable, 0 = disable
+ENADEBUG    EQU     0                                                    ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
 ; Configurable settings.
@@ -92,9 +93,8 @@ SECMSK      EQU     HSTBLK-1                                             ; secto
 WRALL       EQU     0                                                    ; write to allocated
 WRDIR       EQU     1                                                    ; write to directory
 WRUAL       EQU     2                                                    ; write to unallocated
-MTROFFSECS  EQU     10                                                   ; Time from last access to motor being switched off in seconds.
-
-
+TMRTICKINTV EQU     5                                                    ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
+MTROFFMSECS EQU     100                                                  ; Time from last access to motor being switched off in seconds in TMRTICKINTV ticks.
 COLW:       EQU     80                                                   ; Width of the display screen (ie. columns).
 ROW:        EQU     25                                                   ; Number of rows on display screen.
 SCRNSZ:     EQU     COLW * ROW                                           ; Total size, in bytes, of the screen display area.
@@ -106,29 +106,18 @@ MODE80C:    EQU     1
 ;-------------------------------------------------------
 
 ; Public functions in CBIOS User ROM Bank 1.
-QMELDY      EQU      9 + UROMADDR
-QTEMP       EQU     12 + UROMADDR
-QMSTA       EQU     15 + UROMADDR
-QMSTP       EQU     18 + UROMADDR
-QBEL        EQU     21 + UROMADDR
-QTIMST      EQU     24 + UROMADDR
-QTIMRD      EQU     27 + UROMADDR
+QREBOOT     EQU      9 + UROMADDR
+QMELDY      EQU     12 + UROMADDR
+QTEMP       EQU     15 + UROMADDR
+QMSTA       EQU     18 + UROMADDR
+QMSTP       EQU     21 + UROMADDR
+QBEL        EQU     24 + UROMADDR
 
 ; Public functions in CBIOS User ROM Bank 1.
-QNL         EQU      9 + UROMADDR
-QPRTS       EQU     12 + UROMADDR
-QPRNT       EQU     15 + UROMADDR
-QDACN       EQU     18 + UROMADDR
-QADCN       EQU     21 + UROMADDR
-QPRTHX      EQU     24 + UROMADDR
-QSAVE       EQU     27 + UROMADDR
-QLOAD       EQU     30 + UROMADDR
-QFLAS       EQU     33 + UROMADDR
-QPRNT3      EQU     36 + UROMADDR
-QPRTHL      EQU     39 + UROMADDR
-QDPCT       EQU     42 + UROMADDR
-QANSITERM   EQU     45 + UROMADDR
-
+QPRNT       EQU      9 + UROMADDR
+QPRTHX      EQU     12 + UROMADDR
+QPRTHL      EQU     15 + UROMADDR
+QANSITERM   EQU     18 + UROMADDR
 
 
 ;-----------------------------------------------
@@ -264,18 +253,30 @@ CTRL_RB     EQU     01DH
 CTRL_CAPPA  EQU     01EH
 CTRL_UNDSCR EQU     01FH
 CTRL_AT     EQU     000H
-CURSRIGHT   EQU     0F0H
-CURSLEFT    EQU     0F1H
-CURSUP      EQU     0F2H
-CURSDOWN    EQU     0F3H
-DBLZERO     EQU     0F4H
-INSERT      EQU     0F5H
-CLR         EQU     0F6H
+NOKEY       EQU     0F0H
+CURSRIGHT   EQU     0F1H
+CURSLEFT    EQU     0F2H
+CURSUP      EQU     0F3H
+CURSDOWN    EQU     0F4H
+DBLZERO     EQU     0F5H
+INSERT      EQU     0F6H
+CLRKEY      EQU     0F7H
+HOMEKEY     EQU     0F8H
+BREAKKEY    EQU     0FBH
 
 ;-----------------------------------------------
 ;    BIOS WORK AREA (MZ80A)
 ;-----------------------------------------------
             ORG     CBIOSDATA
+
+            ; Keyboard processing, ensure starts where LSB = 0.
+VARSTART    EQU     $                                                    ; Start of variables.
+KEYBUF:     DS      virtual KEYBUFSIZE                                   ; Interrupt driven keyboard buffer.
+KEYCOUNT:   DS      virtual 1
+KEYWRITE:   DS      virtual 2                                            ; Pointer into the buffer where the next character should be placed.
+KEYREAD:    DS      virtual 2                                            ; Pointer into the buffer where the next character can be read.
+KEYLAST:    DS      virtual 1                                            ; KEY LAST VALUE
+KEYRPT:     DS      virtual 1                                            ; KEY REPEAT COUNTER
 ;
 SPV:
 IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
@@ -286,8 +287,11 @@ DTADR:      DS      virtual 2                                            ; DATA 
 EXADR:      DS      virtual 2                                            ; EXECUTION ADDRESS
 SWPW:       DS      virtual 10                                           ; SWEEP WORK
 KDATW:      DS      virtual 2                                            ; KEY WORK
-KANAF:      DS      virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
+;KANAF:      DS      virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
 DSPXY:      DS      virtual 2                                            ; DISPLAY COORDINATES
+DSPXYLST:   DS      virtual 2                                            ; Last known cursor position, to compare with DSPXY to detect changes.
+FLASHCTL:   DS      virtual 1                                            ; CURSOR FLASH CONTROL. BIT 0 = Cursor On/Off, BIT 1 = Cursor displayed.
+DSPXYADDR:  DS      virtual 2                                            ; Address of last known position.
 MANG:       DS      virtual 6                                            ; COLUMN MANAGEMENT
 MANGE:      DS      virtual 1                                            ; COLUMN MANAGEMENT END
 PBIAS:      DS      virtual 1                                            ; PAGE BIAS
@@ -310,8 +314,8 @@ ONTYO:      DS      virtual 1                                            ; ONTYO
 OCTV:       DS      virtual 1                                            ; OCTAVE WORK
 RATIO:      DS      virtual 2                                            ; ONPU RATIO
 ;BUFER:      DS      virtual 81                                           ; GET LINE BUFFER
-KEYBUF:     DS      virtual 1                                            ; KEY BUFFER
-KEYRPT:     DS      virtual 2                                            ; KEY REPEAT COUNTER
+;KEYBUF:     DS      virtual 1                                            ; KEY BUFFER
+TIMESEC     DS      virtual 6                                            ; RTC 48bit TIME IN MILLISECONDS
 FDCCMD      DS      virtual 1                                            ; LAST FDC COMMAND SENT TO CONTROLLER.
 MOTON       DS      virtual 1                                            ; MOTOR ON = 1, OFF = 0
 INVFDCDATA: DS      virtual 1                                            ; INVERT DATA COMING FROM FDC, 1 = INVERT, 0 = AS IS
@@ -374,7 +378,6 @@ JSW_FF      DS      virtual 1                                            ; Byte 
 JSW_LF      DS      virtual 1                                            ; Byte value to turn on/off LF routine
 CHARACTER   DS      virtual 1                                            ; To buffer character to be printed.    
 CURSORPOS   DS      virtual 2                                            ; Cursor position, default 0,0.
-CURSORON    DS      virtual 1                                            ; Cursor on/off toggle value
 BOLDMODE    DS      virtual 1
 HIBRITEMODE DS      virtual 1                                            ; 0 means on, &C9 means off
 UNDERSCMODE DS      virtual 1
@@ -382,9 +385,15 @@ ITALICMODE  DS      virtual 1
 INVMODE     DS      virtual 1
 CHGCURSMODE DS      virtual 1
 ANSIMODE    DS      virtual 1                                            ; 1 = on, 0 = off
-VARIABLEEND DS      virtual 1
 COLOUR      EQU     0
 
-            DS      virtual 128 
-BIOSSTACK   EQU     $   ; Perhaps change to 0080?                        ; BIOS Stack.
 SPSAVE:     DS      virtual 2                                            ; CPM Stack save.
+SPISRSAVE:  DS      virtual 2
+VAREND      EQU     $                                                    ; End of variables
+
+            ; Stack space for the CBIOS.
+            DS      virtual 128 
+BIOSSTACK   EQU     $
+            ; Stack space for the Interrupt Service Routine.
+            DS      virtual 32                                           ; Max 8 stack pushes.
+ISRSTACK    EQU     $

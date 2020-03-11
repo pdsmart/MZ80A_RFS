@@ -70,14 +70,11 @@ BANK5:      PUSH    AF
             RET
 
 ; Public methods for User Rom CBIOS Bank 1
+?REBOOT:    CALL    BANK4
+            JP      QREBOOT
+
 ?MLDY:      CALL    BANK4
             JP      QMELDY
-
-?TMST:      CALL    BANK4
-            JP      QTIMST
-
-?TMRD:      CALL    BANK4
-            JP      QTIMRD
 
 ?BEL:       CALL    BANK4
             JP      QBEL
@@ -92,44 +89,24 @@ BANK5:      PUSH    AF
             JP      QMSTP
 
 ; Public methods for User Rom CBIOS Bank 2
-;?LTNL:      CALL    BANK5
-;            JP      QLTNL
-
-?NL:        CALL    BANK5
-            JP      QNL
-
-?PRTS:      CALL    BANK5
-            JP      QPRTS
 
 ?PRNT:      CALL    BANK5
             JP      QPRNT
 
-?DACN:      CALL    BANK5
-            JP      QDACN
-
-?ADCN:      CALL    BANK5
-            JP      QADCN
-
 ?PRTHX:     CALL    BANK5
             JP      QPRTHX
-
-?SAVE:      CALL    BANK5
-            JP      QSAVE
-
-?LOAD:      CALL    BANK5
-            JP      QLOAD
-
-?FLAS:      CALL    BANK5
-            JP      QFLAS
-
-?PRNT3:     CALL    BANK5
-            JP      QPRNT3
 
 ?PRTHL:     CALL    BANK5
             JP      QPRTHL
 
 ?ANSITERM:  CALL    BANK5
             JP      QANSITERM
+
+?NL:        LD      A,LF
+            JR      ?PRNT
+
+?PRTS:      LD      A,SPACE
+            JR      ?PRNT
 
 ; Public methods for User Rom CBIOS Bank 3
             LD      A,ROMBANK6
@@ -538,7 +515,7 @@ ALLOC:      XOR     A                                                    ; 0 to 
             INC     A                                                    ; 1 to accum
 ALLOC2:     LD      (RSFLAG), A                                          ; rsflag = 1
             CALL    RWOPER
-            LD      SP,(SPSAVE)                                       ; Restore the CPM stack.
+            LD      SP,(SPSAVE)                                          ; Restore the CPM stack.
             RET
 
             ;-------------------------------------------------------------------------------
@@ -546,9 +523,10 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
             ;                                                                              
             ;  Cold start initialisation routine. Called on CPM first start.
             ;-------------------------------------------------------------------------------
-INIT:       IM      1
-            LD      HL,IBUFE                                             ; Start of variable area
-            LD      BC,VARIABLEEND-IBUFE                                 ; Size of variable area.
+INIT:       DI
+            IM      1
+            LD      HL,VARSTART                                          ; Start of variable area
+            LD      BC,VAREND-VARSTART                                   ; Size of variable area.
             XOR     A
             CALL    CLRMEM                                               ; Clear memory.
             CALL    ?MODE
@@ -559,10 +537,26 @@ INIT:       IM      1
 STRT1:      CALL    CLR8
             LD      A,004H
             LD      (TEMPW),A
-            LD      A,0FFH                                               ; Initialise keybuffer.
-            LD      (KEYBUF),A
+
+            ; Setup keyboard buffer control.
+            LD      A,0
+            LD      (KEYCOUNT),A                                         ; Set keyboard buffer to empty.
+            LD      HL,KEYBUF
+            LD      (KEYWRITE),HL                                        ; Set write pointer to beginning of keyboard buffer.
+            LD      (KEYREAD),HL                                         ; Set read pointer to beginning of keyboard buffer.
+
+            ; Setup keyboard rate control and set to CAPSLOCK mode.
+            ; (0 = Off, 1 = CAPSLOCK, 2 = SHIFTLOCK).
             LD      HL,00002H                                            ; Initialise key repeater.
             LD      (KEYRPT),HL
+            LD      A,001H
+            LD      (SFTLK),A                                            ; Setup shift lock, default = off.
+
+            ; Setup the initial cursor, for CAPSLOCK this is a double underscore.
+            LD      A,03EH
+            LD      (FLSDT),A
+            LD      A,080H                                               ; Cursor on (Bit D7=1).
+            LD      (FLASHCTL),A
 
             ; Change to 80 character mode.
             LD      A, 128                                               ; 80 char mode.
@@ -575,6 +569,12 @@ STRT1:      CALL    CLR8
             CALL    ?BEL
             LD      A,0FFH
             LD      (SWRK),A
+
+            ; Setup timer interrupts
+            LD      BC,00000H                                            ; Time starts at 00:00:00 01/01/1980 on initialisation.
+            LD      DE,00000H
+            LD      HL,00000H
+            CALL    TIMESET
 
             ; Locate the CPM Image and store the Bank/Block to speed up warm boot.
             LD      HL,CPMROMFNAME                                       ; Name of CPM File in rom.
@@ -613,7 +613,8 @@ STRT3:      LD      HL,NUMBERBUF
             ; Warm boot initialisation. Called by CPM when a warm restart is
             ; required, reinitialise any needed hardware and reload CCP+BDOS.
             ;-------------------------------------------------------------------------------
-WINIT:      ; Reload the CCP and BDOS from ROM.
+WINIT:      DI
+            ; Reload the CCP and BDOS from ROM.
             LD      DE,CPMBIOS-CBASE                                     ; Only want to load in CCP and BDOS.
             LD      BC,(CPMROMLOC)                                       ; Load up the Bank and Page where the CPM Image can be found.
             CALL    MROMLOAD
@@ -657,46 +658,405 @@ WBTDSKOK2:  CALL    SETDRVMAP                                            ; Refre
 
 
             ;-------------------------------------------------------------------------------
-            ;  TIMIN                                                                      
+            ; TIMER INTERRUPT                                                                      
             ;                                                                              
-            ; This is the RTC interrupt after 12 hours has passed to switch the AMPM flag.
+            ; This is the RTC interrupt, which interrupts every 100msec. RTC is maintained
+            ; by keeping an in memory count of seconds past 00:00:00 and an AMPM flag.
             ;-------------------------------------------------------------------------------
-TIMIN:      PUSH    AF
+TIMIN:      LD      (SPISRSAVE),SP                                       ; CP/M has a small working stack, an interrupt could exhaust it so save interrupts stack and use a local stack.
+            LD      SP,ISRSTACK
+            ;
+            PUSH    AF                                                   ; Save used registers.
             PUSH    BC
             PUSH    DE
             PUSH    HL
-            LD      HL,AMPM
-            LD      A,(HL)
-            XOR     001H
-            LD      (HL),A
-            LD      HL,CONTF
-            LD      (HL),080H
-            DEC     HL
+            ;
+            ; Reset the interrupt counter.
+            LD      HL,CONTF                                             ; CTC Control register, set to reload the 100ms interrupt time period.
+            LD      (HL),080H                                              ; Select Counter 2, latch counter, read lsb first, mode 0 and binary.
             PUSH    HL
+            DEC     HL
             LD      E,(HL)
-            LD      D,(HL)
-            LD      HL,0A8C0H
-            ADD     HL,DE
-            DEC     HL
-            DEC     HL
+            LD      D,(HL)                                               ; Obtain the overrun count if any (due to disabled interrupts).
+            LD      HL, 00001H                                           ; Add full range to count to obtain the period of overrun time.
+            SBC     HL,DE
             EX      DE,HL
             POP     HL
-            LD      (HL),E
-            LD      (HL),D
-            POP     HL
+            LD      (HL),0B0H                                            ; Select Counter 2, load lsb first, mode 0 interrupt on terminal count, binary
+            DEC     HL
+            LD      (HL),TMRTICKINTV
+            LD      (HL),000H                                            ; Another 100msec delay till next interrupt.
+            ;
+            ; Update the RTC with the time period.
+            LD      HL,(TIMESEC)                                         ; Lower 16bits of counter.
+            ADD     HL,DE
+            LD      (TIMESEC),HL
+            JR      NC,TIMIN1                                            ; On overflow we increment middle 16bits.
+            ; 
+            LD      HL,(TIMESEC+2)
+            INC     HL 
+            LD      (TIMESEC+2),HL
+            LD      A,H
+            OR      L
+            JR      NZ,TIMIN1                                            ; On overflow we increment upper 16bits.
+            ;
+            LD      HL,(TIMESEC+4)
+            INC     HL 
+            LD      (TIMESEC+4),HL
+
+            ;
+            ; Flash a cursor at the current XY location.
+            ;
+TIMIN1:     LD      HL,FLASHCTL
+            BIT     7,(HL)                                               ; Is cursor enabled? If it isnt, skip further processing.
+            JR      Z,TIMIN2
+            ;
+FLSHCTL0:   LD      A,(KEYPC)                                            ; Flashing component, on each timer tick, display the cursor or the original screen character.
+            LD      C,A
+            XOR     (HL)                                                 ; Detect a cursor change signal.
+            RLCA    
+            RLCA    
+            JR      NC,TIMIN2                                            ; No change, skip.
+
+            RES     6,(HL)
+            LD      A,C                                                  ; We know there was a change, so decide what to display and write to screen.
+            RLCA
+            RLCA
+            LD      A,(FLASH)
+            JR      NC,FLSHCTL1
+            SET     6,(HL)                                               ; We are going to display the cursor, so save the underlying character.
+            LD      A,(FLSDT)                                            ; Retrieve the cursor character.
+FLSHCTL1:   LD      HL,(DSPXYADDR)                                       ; Load the desired cursor or character onto the screen.
+            LD      (HL),A
+
+            ; 
+            ; FDC Motor Off Timer
+            ;
+TIMIN2:     LD      A,(MTROFFTIMER)                                      ; Is the timer non-zero?
+            OR      A
+            JR      Z,TIMIN3
+            DEC     A                                                    ; Decrement.
+            LD      (MTROFFTIMER),A                                      
+            JR      NZ,TIMIN3                                            ; If zero after decrement, turn off the motor.
+            OUT     (FDC_MOTOR),A                                        ; Turn Motor off
+            LD      (MOTON),A                                            ; Clear Motor on flag
+
+            ;
+            ; Keyboard processing.
+            ;
+TIMIN3:     CALL    ?SWEP                                                ; Perform keyboard sweep
+            LD      A,B
+            RLCA    
+            JR      C,ISRKEY2                                            ; CY=1 then data available.
+            LD      HL,KDATW
+            LD      A,(HL)                                               ; Is a key being held down?
+            OR      A
+            JR      NZ, ISRAUTORPT                                       ; It is so process as an auto repeat key.
+            XOR     A
+            LD      (KEYRPT),A                                           ; No key held then clear the auto repeat initial pause counter.
+            LD      A,NOKEY                                              ; No key code.
+ISRKEY1:    LD      E,A
+            LD      A,(HL)                                               ; Current key scan line position.
+            INC     HL
+            LD      D,(HL)                                               ; Previous key position.
+            LD      (HL),A                                               ; Previous <= current
+            SUB     D                                                    ; Are they the same?
+            JR      NC,ISRKEY11
+            INC     (HL)                                                 ; 
+ISRKEY11:   LD      A,E
+ISRKEY10:   CP      NOKEY
+            JR      Z,ISREXIT
+            LD      (KEYLAST),A
+ISRKEYRPT:  LD      A,(KEYCOUNT)                                         ; Get current count of bytes in the keyboard buffer.
+            CP      KEYBUFSIZE - 1
+            JR      NC, ISREXIT                                          ; Keyboard buffer full, so waste character.
+            INC     A
+            LD      (KEYCOUNT),A
+            LD      HL,(KEYWRITE)                                        ; Get the write buffer pointer.
+            LD      (HL), E                                              ; Store the character.
+            INC     L
+            LD      A,L
+            AND     KEYBUFSIZE-1                                           ; Circular buffer, keep boundaries.
+            LD      L,A
+            LD      (KEYWRITE),HL                                        ; Store updated pointer.
+ISREXIT:    POP     HL
             POP     DE
             POP     BC
             POP     AF
+            ;
+            LD      SP,(SPISRSAVE)
             EI      
             RET     
 
-L06E7:      LD      B,0C9H
-            LD      A,(KANAF)
+            ;
+            ; Helper to determine if a key is being held down and autorepeat should be applied.
+            ; The criterion is a timer, if this expires then autorepeat is applied.
+            ;
+ISRAUTORPT: LD      A,(KEYRPT)                                           ; Increment an initial pause counter.
+            INC     A
+            CP      10
+            JR      C,ISRAUTO1                                           ; Once expired we can auto repeat the last key.
+            LD      A,(KEYLAST)
+            CP      080H
+            JR      NC,ISREXIT                                           ; Dont auto repeat control keys.
+            LD      E,A
+            JR      ISRKEYRPT 
+ISRAUTO1:   LD      (KEYRPT),A
+            JR      ISREXIT
+
+            ;
+            ; Method to alternate through the 3 shift modes, CAPSLOCK=1, SHIFTLOCK=2, NO LOCK=0
+            ;
+LOCKTOGGLE: LD      HL,FLSDT
+            LD      A,(SFTLK)
+            INC     A
+            CP      3
+            JR      C,LOCK0
+            XOR     A
+LOCK0:      LD      (SFTLK),A
             OR      A
-            JR      NZ,L06F0                
-            INC     B
-L06F0:      LD      A,B
-            JP      ?KY1
+            LD      (HL),043H                                            ; Thick block cursor when lower case.
+            JR      Z,LOCK1
+            CP      1
+            LD      (HL),03EH                                            ; Thick underscore when CAPS lock.
+            JR      Z,LOCK1
+            LD      (HL),0EFH                                            ; Block cursor when SHIFT lock.
+LOCK1:      JP      ISREXIT
+
+
+ISRKEY2:    RLCA    
+            RLCA    
+            RLCA    
+            JP      C,LOCKTOGGLE                                         ; GRAPH key which acts as the Shift Lock.
+            RLCA    
+            JP      C,ISRBRK                                             ; BREAK key.
+            LD      H,000H
+            LD      L,C
+            LD      A,C
+            CP      038H                                                 ; TEN KEY check.
+            JR      NC,ISRKEY6                                           ; Jump if TENKEY.
+            LD      A,B
+            RLCA    
+            LD      B,A
+            LD      A,(SFTLK)
+            OR      A
+            LD      A,B
+            JR      Z,ISRKEY14                 
+            RLA     
+            CCF     
+            RRA     
+ISRKEY14:   RLA     
+            RLA     
+            JR      NC,ISRKEY3                
+ISRKEY15:   LD      DE,KTBLC
+ISRKEY5:    ADD     HL,DE
+            LD      A,(HL)
+            JP      ISRKEY1                   
+
+ISRKEY3:    RRA     
+            JR      NC,ISRKEY6                
+            LD      A,(SFTLK)
+            CP      1
+            LD      DE,KTBLCL
+            JR      Z,ISRKEY5
+            LD      DE,KTBLS
+            JR      ISRKEY5                   
+
+ISRKEY6:    LD      DE,KTBL
+            JR      ISRKEY5                   
+ISRKEY4:    RLCA    
+            RLCA    
+            JR      C,ISRKEY15                 
+            LD      DE,KTBL
+            JR      ISRKEY5                   
+
+            ; Break key pressed, handled in getkey routine.
+ISRBRK:     LD      A,(KEYLAST)
+            CP      BREAKKEY
+            JP      Z,ISREXIT
+            XOR     A                                                    ; Reset the keyboard buffer.
+            LD      (KEYCOUNT),A
+            LD      HL,KEYBUF
+            LD      (KEYWRITE),HL
+            LD      (KEYREAD),HL
+            LD      A,BREAKKEY
+            JP      ISRKEY10
+
+            ; KEYBOARD SWEEP
+            ;
+            ; EXIT B,D7=0    NO DATA
+            ;          =1    DATA
+            ;        D6=0    SHIFT OFF
+            ;          =1    SHIFT ON
+            ;      C   =     ROW & COLUMN
+            ;
+?SWEP:      XOR     A
+            LD      (KDATW),A                                            ; Reset key counter
+            LD      B,0FAH                                               ; Starting scan line, D3:0 = scan = line 10. D5:4 not used, D7=Cursor flash.
+            LD      D,A
+
+            ; BREAK TEST
+            ; BREAK ON  : ZERO = 1
+            ;       OFF : ZERO = 0
+            ; NO KEY    : CY = 0
+            ; KEY IN    : CY = 1
+            ;     A D6=1: SHIFT ON
+            ;         =0: SHIFT OFF
+            ;       D5=1: CTRL ON
+            ;         =0: CTRL OFF
+            ;       D4=1: GRAPH ON
+            ;         =0: GRAPH OFF
+BREAK:      LD      A,0F0H
+            LD      (KEYPA),A                                            ; Port A scan line 0
+            NOP     
+            LD      A,(KEYPB)                                            ; Read back key data.
+            OR      A
+            RLA     
+            JR      NC,BREAK3                                            ; CTRL/BREAK key pressed?
+            RRA     
+            RRA                                                          ; Check if SHIFT key pressed/
+            JR      NC,BREAK1                                            ; SHIFT BREAK not pressed, jump.
+            RRA     
+            JR      NC,BREAK2                                            ; Check for GRAPH.
+            CCF     
+            JR      SWEP6 ;SWEP1     
+
+BREAK1:     LD      A,040H                                               ; A D6=1 SHIFT ON
+            SCF     
+            JR      SWEP6
+
+BREAK2:     LD      A,001H                                               ; No keys found to be pressed on scanline 0.
+            LD      (KDATW),A
+            LD      A,010H                                               ; A D4=1 GRAPH
+            SCF     
+            JR      SWEP6
+
+BREAK3:     AND     006H                                                 ; SHIFT + GRAPH + BREAK?
+            JR      Z,SWEP1A
+            AND     002H                                                 ; SHIFT ?
+            JR      Z,SWEP1                                              ; Z = 1 = SHIFT BREAK pressed/
+            LD      A,020H                                               ; A D5=1 CTRL
+            SCF     
+            JR      SWEP6
+
+SWEP1:      LD      D,088H                                               ; Break ON
+            JR      SWEP9                   
+SWEP1A:     JP      ?REBOOT                                              ; Shift + Graph + Break ON = RESET.
+            ;
+            JR      SWEP9                   
+SWEP6:      LD      HL,SWPW
+            PUSH    HL
+            JR      NC,SWEP11                
+            LD      D,A
+            AND     060H                                                 ; Shift & Ctrl =no data.
+            JR      NZ,SWEP11                
+            LD      A,D                                                  ; Graph Check
+            XOR     (HL)
+            BIT     4,A
+            LD      (HL),D
+            JR      Z,SWEP0                 
+SWEP01:     SET     7,D                                                  ; Data available, set flag.
+SWEP0:      DEC     B
+            POP     HL                                                   ; SWEP column work
+            INC     HL
+            LD      A,B
+            LD      (KEYPA),A                                            ; Port A (8255) D3:0 = Scan line output.
+            CP      0F0H
+            JR      NZ,SWEP3                                             ; If we are not at scan line 0 then check for key data.              
+            LD      A,(HL)                                               ; SWPW
+            CP      003H                                                 ; Have we scanned all lines, if yes then no data?
+            JR      C,SWEP9                 
+            LD      (HL),000H                                            ;
+            RES     7,D                                                  ; Reset data in as no data awailable.
+SWEP9:      LD      B,D
+            RET     
+
+SWEP11:     LD      (HL),000H
+            JR      SWEP0                   
+SWEP3:      LD      A,(KEYPB)                                            ; Port B (8255) D7:0 = Key data in for given scan line.
+            LD      E,A
+            CPL     
+            AND     (HL)
+            LD      (HL),E
+            PUSH    HL
+            LD      HL,KDATW
+            PUSH    BC
+            LD      B,008H
+SWEP8:      RLC     E
+            JR      C,SWEP7                 
+            INC     (HL)
+SWEP7:      DJNZ    SWEP8                   
+            POP     BC
+            OR      A
+            JR      Z,SWEP0                 
+            LD      E,A
+SWEP2:      LD      H,008H
+            LD      A,B
+            DEC     A                                                    ; TBL adjust
+            AND     00FH
+            RLCA    
+            RLCA    
+            RLCA    
+            LD      C,A
+            LD      A,E
+SWEP12:     DEC     H
+            RRCA    
+            JR      NC,SWEP12                
+            LD      A,H
+            ADD     A,C
+            LD      C,A
+            JP      SWEP01
+
+
+
+            ;-------------------------------------------------------------------------------
+            ; END OF TIMER INTERRUPT                                                                      
+            ;-------------------------------------------------------------------------------
+
+            ; 
+            ; BC:DE:HL contains the time in milliseconds (100msec resolution) since 01/01/1980.
+            ; HL contains lower 16 bits, DE contains middle 16 bits, BC contains upper 16bits, allows for a time from 00:00:00 to 23:59:59, for > 500000 days!
+TIMESET:    DI      
+            PUSH    BC
+            PUSH    DE
+            PUSH    HL
+            ;
+            LD      (TIMESEC),HL                                         ; Load lower 16 bits.
+            EX      DE,HL
+            LD      (TIMESEC+2),HL                                       ; Load middle 16 bits.
+            PUSH    BC
+            POP     HL
+            LD      (TIMESEC+4),HL                                       ; Load upper 16 bits.
+            ;
+            LD      HL,CONTF
+            LD      (HL),074H                                            ; Set Counter 1, read/load lsb first then msb, mode 2 rate generator, binary
+            LD      (HL),0B0H                                            ; Set Counter 2, read/load lsb first then msb, mode 0 interrupt on terminal count, binary
+            DEC     HL
+            LD      DE,TMRTICKINTV                                       ; 100Hz coming into Timer 2 from Timer 1, set divisor to set interrupts per second.
+            LD      (HL),E                                               ; Place current time in Counter 2
+            LD      (HL),D
+            DEC     HL
+            LD      (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
+            LD      (HL),001H
+            NOP     
+            NOP     
+            NOP     
+            ;
+            POP     HL
+            POP     DE
+            POP     BC
+           ;EI      
+            RET    
+
+            ; Time Read;
+            ; Returns BC:DE:HL where HL is lower 16bits, DE is middle 16bits and BC is upper 16bits of milliseconds since 01/01/1980.
+TIMEREAD:   LD      HL,(TIMESEC+4)
+            PUSH    HL
+            POP     BC
+            LD      HL,(TIMESEC+2)
+            EX      DE,HL
+            LD      HL,(TIMESEC)
+            RET
 
 ?MODE:      LD      HL,KEYPF
             LD      (HL),08AH
@@ -705,183 +1065,84 @@ L06F0:      LD      A,B
             LD      (HL),001H
             RET     
 
-?GET:       PUSH    BC
-            PUSH    HL
-            LD      B,009H
-            LD      HL,SWPW+1
-            CALL    ?CLRFF
-            POP     HL
-            POP     BC
-            CALL    ?KEY
-            SUB     0F0H
-            RET     Z
-            ADD     A,0F0H
-            JP      ?DACN
-
-?KEY:       PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            CALL    ?SWEP
-            LD      A,B
-            RLCA    
-            JR      C,?KY2                 
-            LD      A,0F0H
-?KY1:       LD      E,A
-            CALL    AUTCK
-            LD      A,(KDATW)
+            ; Method to check if a key has been pressed and stored in buffer.. 
+CHKKY:     ;CALL    ?SAVE
+            LD      A, (KEYCOUNT)
             OR      A
-            JR      Z,?KY11                 
-            CALL    DLY12
-            CALL    ?SWEP
-            LD      A,B
-            RLCA    
-            JR      C,?KY2                 
-?KY11:      LD      A,E
-            CP      0F0H
-            JR      NZ,?KY9                
-?KY10:      POP     HL
-            POP     DE
-            POP     BC
-            RET     
-?KY2:       RLCA    
-            RLCA    
-            RLCA    
-            JP      C,L06E7
-            RLCA    
-            JP      C,BRK
-            LD      H,000H
-            LD      L,C
-            LD      A,C
-            CP      038H
-            JR      NC,?KY6                
-            LD      A,(KANAF)
-            OR      A
-            LD      A,B
-            RLCA    
-            JR      NZ,?KY4                
-            LD      B,A
-            LD      A,(SFTLK)
-            OR      A
-            LD      A,B
-            JR      Z,L0917                 
-            RLA     
-            CCF     
-            RRA     
-L0917:      RLA     
-            RLA     
-            JR      NC,?KY3                
-L091B:      LD      DE,KTBLC
-?KY5:       ADD     HL,DE
-            LD      A,(HL)
-            JR      ?KY1                   
-?KY3:       RRA     
-            JR      NC,?KY6                
-            LD      DE,KTBLS
-            JR      ?KY5                   
-?KY6:       LD      DE,KTBL ; 00BEAH
-            JR      ?KY5                   
-?KY4:       RLCA    
-            JR      C,?KY7                 
-            RLCA    
-            JR      C,L091B                 
-            LD      DE,KTBLG
-            JR      ?KY5                   
-?KY7:       LD      DE,KTBLGS
-            JR      ?KY5                   
-?KY9:       CALL    AUTCK
-            INC     A
-            LD      A,E
-            JR      ?KY10                   
-
-DLY12:      PUSH    BC
-            LD      B,023H
-DLY12A:     CALL    DLY3
-            DJNZ    DLY12A                   
-            POP     BC
-            RET     
-
-DLY3:       NEG     
-            NEG     
-            LD      A,02AH
-            JP      L0762
-L09AB:      ADD     A,C
-            DJNZ    L09AB                   
-            POP     BC
-            LD      C,A
-            XOR     A
-            RET     
-
-L0760:      LD      A,00DH
-L0762:      DEC     A
-            JP      NZ,L0762
-            RET    
-
-            ; Method to check if a key has been pressed. 
-CHKKY:      CALL    ?SAVE
-            LD      A, (KEYBUF)
-            CP      0FFH
             JR      Z,CHKKY2
-            JR      CHKKY3
-CHKKY2:     CALL    ?KEY
-            CALL    ?FLAS
-            CALL    ?LOAD
-            JR      Z,CHKKY4
-            LD      (KEYBUF),A
-CHKKY3:     LD      A,0FFH
+           ;CALL    ?LOAD
+            LD      A,0FFH
             RET
-CHKKY4:     XOR     A
+CHKKY2:    ;CALL    ?FLAS
+           ;CALL    ?LOAD
+            XOR     A
             RET
 
-GETKY:      LD      A,(KEYBUF)
-            CP      0FFH
+GETKY:      PUSH    HL
+            LD      A,(KEYCOUNT)
+            OR      A
             JR      Z,GETKY2
+GETKY1:     DI                                                           ; Disable interrupts, we dont want a race state occurring.
+            LD      A,(KEYCOUNT)
+            DEC     A                                                    ; Take 1 off the total count as we are reading a character out of the buffer.
+            LD      (KEYCOUNT),A
+            LD      HL,(KEYREAD)                                         ; Get the position in the buffer where the next available character resides.
+            LD      A,(HL)                                               ; Read the character and save.
             PUSH    AF
-            LD      A,0FFH
-            LD      (KEYBUF),A
+            INC     L                                                    ; Update the read pointer and save.
+            LD      A,L
+            AND     KEYBUFSIZE-1
+            LD      L,A
+            LD      (KEYREAD),HL
             POP     AF
-            JR      ?PRCKEY
+            EI                                                           ; Interrupts back on so keys and RTC are actioned.
+            JR      ?PRCKEY                                              ; Process the key, action any non ASCII keys.
             ;
-GETKY2:     CALL    ?SAVE
-GETKY3:     CALL    ?KEY
-            CALL    ?FLAS
+GETKY2:    ;CALL    ?SAVE                                                ; No key available so loop and exercise the flashing cursor until one becomes
+GETKY3:     LD      A,(KEYCOUNT)                                         ; available.
+            OR      A
+           ;CALL    ?FLAS
             JR      Z,GETKY3                 
-            CALL    ?LOAD
+           ;CALL    ?LOAD
+            JR      GETKY1
             ;
 ?PRCKEY:    ;PUSH   AF
             ;CALL   ?PRTHX
             ;POP    AF
-            CP      CR                                            ; CR
-            JR      NZ,?PRCKY1
-            JR      ?PRCKYE
-?PRCKY1:    CP      0C9H                                          ; GRAPH -> ALPHA
-            JR      NZ,?PRCKY2
-            XOR     A
-            LD      (KANAF),A
-            JR      GETKY2
-?PRCKY2:    CP      0CAH                                          ; ALPHA -> GRAPH
+            CP      CR                                                   ; CR
             JR      NZ,?PRCKY3
-            LD      A,001H
-            LD      (KANAF),A
-            JR      GETKY2
-?PRCKY3:    CP      0C5H                                          ; HOME
+            JR      ?PRCKYE
+;?PRCKY1:    CP      GRAPHALPHA                                           ; GRAPH -> ALPHA
+;            JR      NZ,?PRCKY2
+;            XOR     A
+;            LD      (KANAF),A
+;            JR      GETKY2
+;?PRCKY2:    CP      ALPHAGRAPH                                           ; ALPHA -> GRAPH
+;            JR      NZ,?PRCKY3
+;            LD      A,001H
+;            LD      (KANAF),A
+;            JR      GETKY2
+?PRCKY3:    CP      HOMEKEY                                              ; HOME
             JR      NZ,?PRCKY4
             JR      GETKY2
-?PRCKY4:    CP      0C6H                                          ; CLR
+?PRCKY4:    CP      CLRKEY                                               ; CLR
             JR      NZ,?PRCKY5
             JR      GETKY2
-?PRCKY5:    CP      0C8H                                          ; INSERT
+?PRCKY5:    CP      INSERT                                               ; INSERT
             JR      NZ,?PRCKY6
             JR      GETKY2
-?PRCKY6:    CP      DBLZERO                                       ; 00
+?PRCKY6:    CP      DBLZERO                                              ; 00
             JR      NZ,?PRCKY7
             LD      A,'0'
-            LD      (KEYBUF),A                                    ; Place a character into the keybuffer so we double up on 0
+            LD      (KEYBUF),A                                           ; Place a character into the keybuffer so we double up on 0
             JR      ?PRCKYX
-?PRCKY7:    
-?PRCKYX:    ;CALL    ?DACN                                         ; Convert to ASCII ready for return of key value.
-?PRCKYE:    ;PUSH   AF
-            ;CALL   ?PRTHX
-            ;POP    AF
+?PRCKY7:    CP      BREAKKEY                                             ; Break key processing.
+            JR      NZ,?PRCKY8
+
+?PRCKY8:
+?PRCKYX:    
+?PRCKYE:    
+            POP     HL
             RET
 
 CLR8Z:      XOR     A
@@ -905,127 +1166,6 @@ L09E8:      LD      (HL),D
             DJNZ    ?DINT                   
             RET  
 
-AUTCK:      LD      HL,KDATW
-            LD      A,(HL)
-            INC     HL
-            LD      D,(HL)
-            LD      (HL),A
-            SUB     D
-            RET     NC
-            INC     (HL)
-            RET     
-
-?SWEP:      PUSH    DE
-            PUSH    HL
-            XOR     A
-            LD      (KDATW),A
-            LD      B,0FAH
-            LD      D,A
-            CALL    BREAK
-            JR      NZ,SWEP6                
-            LD      D,088H
-            JR      SWEP9                   
-SWEP6:      LD      HL,SWPW
-            PUSH    HL
-            JR      NC,SWEP11                
-            LD      D,A
-            AND     060H
-            JR      NZ,SWEP11                
-            LD      A,D
-            XOR     (HL)
-            BIT     4,A
-            LD      (HL),D
-            JR      Z,SWEP0                 
-SWEP01:     SET     7,D
-SWEP0:      DEC     B
-            POP     HL
-            INC     HL
-            LD      A,B
-            LD      (KEYPA),A
-            CP      0F0H
-            JR      NZ,SWEP3                
-            LD      A,(HL)
-            CP      003H
-            JR      C,SWEP9                 
-            LD      (HL),000H
-            RES     7,D
-SWEP9:      LD      B,D
-            POP     HL
-            POP     DE
-            RET     
-
-SWEP11:     LD      (HL),000H
-            JR      SWEP0                   
-SWEP3:      LD      A,(KEYPB)
-            LD      E,A
-            CPL     
-            AND     (HL)
-            LD      (HL),E
-            PUSH    HL
-            LD      HL,KDATW
-            PUSH    BC
-            LD      B,008H
-SWEP8:      RLC     E
-            JR      C,SWEP7                 
-            INC     (HL)
-SWEP7:      DJNZ    SWEP8                   
-            POP     BC
-            OR      A
-            JR      Z,SWEP0                 
-            LD      E,A
-SWEP2:      LD      H,008H
-            LD      A,B
-            DEC     A
-            AND     00FH
-            RLCA    
-            RLCA    
-            RLCA    
-            LD      C,A
-            LD      A,E
-L0743:      DEC     H
-            RRCA    
-            JR      NC,L0743                
-            LD      A,H
-            ADD     A,C
-            LD      C,A
-            JP      SWEP01
-
-BRK:        LD      A,0CBH
-            OR      A
-            JP      ?KY10
-
-BREAK:      LD      A,0F0H
-            LD      (KEYPA),A
-            NOP     
-            LD      A,(KEYPB)
-            OR      A
-            RLA     
-            JR      NC,L0D37                
-            RRA     
-            RRA     
-            JR      NC,L0D27                
-            RRA     
-            JR      NC,L0D2B                
-            CCF     
-            RET     
-
-L0D27:      LD      A,040H
-            SCF     
-            RET     
-
-L0D2B:      LD      A,(KDATW)
-            LD      A,001H
-            LD      (KDATW),A
-            LD      A,010H
-            SCF     
-            RET     
-
-L0D37:      AND     002H
-            RET     Z
-
-            LD      A,020H
-            SCF     
-            RET     
 
             ; HL = Start
             ; DE = End
@@ -1044,8 +1184,9 @@ DUM2:       CALL    SPHEX
             CP      020h
             JR      NC,L0D51
             LD      A,02Eh
-L0D51:      CALL    ?ADCN
-            CALL    ?PRNT3
+L0D51:     ;CALL    ?ADCN
+           ;CALL    ?PRNT3
+            CALL    ?PRNT
             LD      A,(DSPXY)
             INC     C
             SUB     C
@@ -1068,9 +1209,11 @@ L0D78:      DJNZ    DUM2
             DEC     A
             LD      (TMPCNT),A
             JR      NZ,DUM3
-DUM4:       CALL    ?KEY
+DUM4:       LD      A,(KEYBUF)
+            CP      0FFH
+            ;CALL    ?KEY
             JR      Z,DUM4
-            CALL    ?DACN
+           ;CALL    ?DACN
             CP      'D'
             JR      NZ,DUM5
             LD      A,8
@@ -1970,7 +2113,7 @@ DATASTOP:   LD      A,0D8H                                               ; Force
             CPL    
             OUT     (FDC_CR),A
             CALL    WAITRDY                                              ; Wait for controller to become ready, acknowledging interrupt.
-            CALL    CHECKTIMER
+           ;CALL    CHECKTIMER
             IN      A,(FDC_STR)                                          ; Check for errors.
             CPL     
             AND     0FFH
@@ -1984,12 +2127,13 @@ UPDSECTOR:  PUSH    HL
             ADD     A,(HL)                                               ; Update sector to account for sectors read. NB. All reads will start at such a position
             LD      (HL), A                                              ; that a read will not span a track or head. Ensure that disk formats meet an even 512byte format.
             POP     HL
-MOTOROFF:   LD      A,MTROFFSECS                                         ; Schedule motor to be turned off.
+MOTOROFF:   LD      A,MTROFFMSECS                                         ; Schedule motor to be turned off.
             LD      (MTROFFTIMER),A
     ;   SCF
     ;   CCF
     ;   CALL DEBUG
             XOR     A                                                    ; Successful read, return 0
+            EI
             RET    
 
 SEEKRETRY:  LD      B,A                                                  ; Preserve the FDC Error byte.
@@ -2020,13 +2164,13 @@ DSKCMD:     LD      (FDCCMD),A                                           ; Store
             CPL                                                          ; Inverse (FDC is reverse bit logic).
             RET   
 
-CHECKTIMER: PUSH    AF
-            LD      A,(TIMFG)
-            CP      0F0H
-            JR      NZ,CHKTIM1                                          
-            EI     
-CHKTIM1:    POP     AF
-            RET     
+;CHECKTIMER: PUSH    AF
+;            LD      A,(TIMFG)
+;            CP      0F0H
+;            JR      NZ,CHKTIM1                                          
+;            EI     
+;CHKTIM1:    POP     AF
+;            RET     
 
             ; Seek to programmed track.
 SEEK:       LD      A,01BH                                               ; Seek command, load head, verify stepping 6ms.
@@ -2168,6 +2312,7 @@ HDLERROR:   CALL    ERRPRTSTR
             CALL    DSKINIT
             CALL    DSKMTRON
             LD      A,001H                                               ; Indicate error by setting 1 in A register.
+            EI
             RET
 
 ERRPRTSTR:  EX      DE,HL
@@ -2335,18 +2480,18 @@ INFOMSG4:   DB      ",HL=",  000H
 INFOMSG5:   DB      ",SP=",  000H
             ENDIF
 
-KTBL:       ; Strobe 0
-            DB      '2'
-            DB      '1'
+KTBL:       ; Strobe 0           
+            DB      '"'
+            DB      '!'
             DB      'W'
             DB      'Q'
             DB      'A'
-            DB      DELETE
+            DB      INSERT
             DB      NULL
             DB      'Z'
             ; Strobe 1
-            DB      '4'
-            DB      '3'
+            DB      '$'
+            DB      '#'
             DB      'R'
             DB      'E'
             DB      'D'
@@ -2354,8 +2499,8 @@ KTBL:       ; Strobe 0
             DB      'X'
             DB      'C'
             ; Strobe 2
-            DB      '6'
-            DB      '5'
+            DB      '&'
+            DB      '%'
             DB      'Y'
             DB      'T'
             DB      'G'
@@ -2363,8 +2508,8 @@ KTBL:       ; Strobe 0
             DB      'V'
             DB      'B'
             ; Strobe 3
-            DB      '8'
-            DB      '7'
+            DB      '('
+            DB      '\''
             DB      'I'
             DB      'U'
             DB      'J'
@@ -2372,32 +2517,32 @@ KTBL:       ; Strobe 0
             DB      'N'
             DB      SPACE
             ; Strobe 4
-            DB      '0'
-            DB      '9'
+            DB      '_'
+            DB      ')'
             DB      'P'
             DB      'O'
             DB      'L'
             DB      'K'
-            DB      ','
+            DB      '<'
             DB      'M'
             ; Strobe 5
-            DB      '^'
-            DB      '-'
-            DB      '['
-            DB      '@'
-            DB      ':'
-            DB      ';'
-            DB      '/'
-            DB      '.'
-            ; Strobe 6
-            DB      HOME
-            DB      '\\'
-            DB      CURSRIGHT
+            DB      '~'
+            DB      '='
+            DB      '{'
+            DB      '`'
+            DB      '*'
+            DB      '+'
             DB      CURSLEFT
+            DB      '>'
+            ; Strobe 6
+            DB      HOMEKEY
+            DB      '|'
+            DB      CURSRIGHT
+            DB      CURSUP
             DB      CR
-            DB      'J'
+            DB      '}'
             DB      NULL
-            DB      '?'
+            DB      CURSUP     
             ; Strobe 7
             DB      '8'
             DB      '7'
@@ -2415,215 +2560,149 @@ KTBL:       ; Strobe 0
             DB      NULL
             DB      '3'
             DB      NULL
-            DB      ','
+            DB      ','         
 
-KTBLS:      ; Strobe 0
-            DB      '"'
-            DB      '!'
-            DB      'w'
-            DB      'q'
-            DB      'a'
-            DB      INSERT
-            DB      NULL
-            DB      'z'
-            ; Strobe 1
-            DB      '$'
-            DB      '#'
-            DB      'r'
-            DB      'e'
-            DB      'd'
-            DB      's'
-            DB      'x'
-            DB      'c'
-            ; Strobe 2
-            DB      '&'
-            DB      '%'
-            DB      'y'
-            DB      't'
-            DB      'g'
-            DB      'f'
-            DB      'v'
-            DB      'b'
-            ; Strobe 3
-            DB      '('
-            DB      '\''
-            DB      'i'
-            DB      'u'
-            DB      'j'
-            DB      'h'
-            DB      'n'
-            DB      SPACE
-            ; Strobe 4
-            DB      '-'
-            DB      ')'
-            DB      'p'
-            DB      'o'
-            DB      'l'
-            DB      'k'
-            DB      '<'
-            DB      'm'
-            ; Strobe 5
-            DB      '~'
-            DB      '='
-            DB      '{'
-            DB      '`'
-            DB      '*'
-            DB      '+'
-            DB      '<'
-            DB      '>'
-            ; Strobe 6
-            DB      CLR
-            DB      '|'
-            DB      CURSLEFT
-            DB      CURSDOWN
-            DB      CR
-            DB      '}'
-            DB      NULL
-            DB      '^'
+KTBLS:      ; Strobe 0          
+            DB      '2'         
+            DB      '1'         
+            DB      'w'         
+            DB      'q'         
+            DB      'a'         
+            DB      DELETE      
+            DB      NULL        
+            DB      'z'         
+            ; Strobe 1          
+            DB      '4'         
+            DB      '3'         
+            DB      'r'         
+            DB      'e'         
+            DB      'd'         
+            DB      's'         
+            DB      'x'         
+            DB      'c'         
+            ; Strobe 2          
+            DB      '6'         
+            DB      '5'         
+            DB      'y'         
+            DB      't'         
+            DB      'g'         
+            DB      'f'         
+            DB      'v'         
+            DB      'b'         
+            ; Strobe 3          
+            DB      '8'         
+            DB      '7'         
+            DB      'i'         
+            DB      'u'         
+            DB      'j'         
+            DB      'h'         
+            DB      'n'         
+            DB      SPACE       
+            ; Strobe 4          
+            DB      '0'         
+            DB      '9'         
+            DB      'p'         
+            DB      'o'         
+            DB      'l'         
+            DB      'k'         
+            DB      ','         
+            DB      'm'         
+            ; Strobe 5          
+            DB      '^'         
+            DB      '-'         
+            DB      '['         
+            DB      '@'         
+            DB      ':'         
+            DB      ';'         
+            DB      '/'         
+            DB      '.'         
+            ; Strobe 6          
+            DB      CLRKEY      
+            DB      '\\'        
+            DB      CURSLEFT    
+            DB      CURSDOWN    
+            DB      CR          
+            DB      ']'         
+            DB      NULL        
+            DB      '?'         
 
-KTBLG:      ; GRAPHIC MODE
-            ; Strobe 0
-            DB      03EH
-            DB      037H
-            DB      038H
-            DB      03CH
-            DB      053H
-            DB      DELETE
-            DB      NULL
-            DB      076H
-            ; Strobe 1
-            DB      07BH
-            DB      07FH
-            DB      030H
-            DB      034H
-            DB      047H
-            DB      044H
-            DB      06DH
-            DB      0DEH
-            ; Strobe 2
-            DB      05EH
-            DB      03AH
-            DB      075H
-            DB      071H
-            DB      04BH
-            DB      04AH
-            DB      0DAH
-            DB      06FH
-            ; Strobe 3
-            DB      0BDH
-            DB      01FH
-            DB      07DH
-            DB      079H
-            DB      05CH
-            DB      072H
-            DB      032H
-            DB      SPACE
-            ; Strobe 4
-            DB      09CH
-            DB      0A1H
-            DB      0D6H
-            DB      0B0H
-            DB      0B4H
-            DB      05BH
-            DB      060H
-            DB      01CH
-            ; Strobe 5
-            DB      09EH
-            DB      0D2H
-            DB      0D8H
-            DB      0B2H
-            DB      0B6H
-            DB      042H
-            DB      0DBH
-            DB      0B8H
-            ; Strobe 6
-            DB      HOME
-            DB      0D4H
-            DB      CURSRIGHT
-            DB      CURSUP
-            DB      CR
-            DB      04EH
-            DB      NULL
-            DB      0BAH
-
-KTBLGS:     ; GRAPHIC MODE AND SHIFT ON
-            ; Strobe 0
-            DB      036H
-            DB      03FH
-            DB      078H
-            DB      07CH
-            DB      046H
-            DB      INSERT
-            DB      NULL
-            DB      077H
-            ; Strobe 1
-            DB      03BH
-            DB      07EH
-            DB      070H
-            DB      074H
-            DB      048H
-            DB      041H
-            DB      0DDH
-            DB      0D9H
-            ; Strobe 2
-            DB      01EH
-            DB      07AH
-            DB      035H
-            DB      031H
-            DB      04CH
-            DB      043H
-            DB      0A6H
-            DB      06EH
-            ; Strobe 3
-            DB      0A2H
-            DB      05FH
-            DB      03DH
-            DB      039H
-            DB      05DH
-            DB      073H
-            DB      033H
-            DB      SPACE
-            ; Strobe 4
-            DB      09DH
-            DB      0A3H
-            DB      0B1H
-            DB      0D5H
-            DB      056H
-            DB      06CH
-            DB      0D0H
-            DB      01DH
-            ; Strobe 5
-            DB      09FH
-            DB      0D1H
-            DB      0B3H
-            DB      0D7H
-            DB      04DH
-            DB      0B5H
-            DB      01BH
-            DB      0B9H
-            ; Strobe 6
-            DB      CLR
-            DB      0D3H
-            DB      CURSLEFT
-            DB      CURSDOWN
-            DB      CR
-            DB      0B7H
-            DB      NULL
-            DB      0BBH
-
+KTBLCL:     ; Strobe 0          
+            DB      '2'         
+            DB      '1'         
+            DB      'W'         
+            DB      'Q'         
+            DB      'A'         
+            DB      DELETE      
+            DB      NULL        
+            DB      'Z'         
+            ; Strobe 1          
+            DB      '4'         
+            DB      '3'         
+            DB      'R'         
+            DB      'E'         
+            DB      'D'         
+            DB      'S'         
+            DB      'X'         
+            DB      'C'         
+            ; Strobe 2          
+            DB      '6'         
+            DB      '5'         
+            DB      'Y'         
+            DB      'T'         
+            DB      'G'         
+            DB      'F'         
+            DB      'V'         
+            DB      'B'         
+            ; Strobe 3          
+            DB      '8'         
+            DB      '7'         
+            DB      'I'         
+            DB      'U'         
+            DB      'J'         
+            DB      'H'         
+            DB      'N'         
+            DB      SPACE       
+            ; Strobe 4          
+            DB      '0'         
+            DB      '9'         
+            DB      'P'         
+            DB      'O'         
+            DB      'L'         
+            DB      'K'         
+            DB      ','         
+            DB      'M'         
+            ; Strobe 5          
+            DB      '^'         
+            DB      '-'         
+            DB      '['         
+            DB      '@'         
+            DB      ':'         
+            DB      ';'         
+            DB      '/'         
+            DB      '.'         
+            ; Strobe 6          
+            DB      CLRKEY      
+            DB      '\\'        
+            DB      CURSLEFT    
+            DB      CURSDOWN    
+            DB      CR          
+            DB      ']'         
+            DB      NULL        
+            DB      '?'         
+                                
 KTBLC:      ; CTRL ON
             ; Strobe 0
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
             DB      CTRL_W
             DB      CTRL_Q
             DB      CTRL_A
-            DB      0F0H
+            DB      NOKEY
             DB      000H
             DB      CTRL_Z
             ; Strobe 1
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
             DB      CTRL_R
             DB      CTRL_E
             DB      CTRL_D
@@ -2631,8 +2710,8 @@ KTBLC:      ; CTRL ON
             DB      CTRL_X
             DB      CTRL_C
             ; Strobe 2
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
             DB      CTRL_Y
             DB      CTRL_T
             DB      CTRL_G
@@ -2640,40 +2719,40 @@ KTBLC:      ; CTRL ON
             DB      CTRL_V
             DB      CTRL_B
             ; Strobe 3
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
             DB      CTRL_I
             DB      CTRL_U
             DB      CTRL_J
             DB      CTRL_H
             DB      CTRL_N
-            DB      0F0H
+            DB      NOKEY
             ; Strobe 4
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
             DB      CTRL_P
             DB      CTRL_O
             DB      CTRL_L
             DB      CTRL_K
-            DB      0F0H
+            DB      NOKEY
             DB      CTRL_M
             ; Strobe 5
             DB      CTRL_CAPPA
             DB      CTRL_UNDSCR
             DB      ESC
             DB      CTRL_AT
-            DB      0F0H
-            DB      0F0H
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
             ; Strobe 6
-            DB      0F0H
+            DB      NOKEY
             DB      CTRL_SLASH
-            DB      0F0H
-            DB      0F0H
-            DB      0F0H
+            DB      NOKEY
+            DB      NOKEY
+            DB      NOKEY
             DB      CTRL_RB
-            DB      0F0H
+            DB      NOKEY
 
             ; SIGN ON BANNER
 CBIOSSIGNON:DB      "** CBIOS v1.11, (C) P.D. Smart, 2020 **", CR, NUL

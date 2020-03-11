@@ -38,10 +38,11 @@
             ; Common code spanning all banks to ensure that a Monitor is selected upon power up/reset.
             ;-----------------------------------------------------------------------------------------
             NOP
-            XOR      A                                                        ; We shouldnt arrive here after a reset, if we do, select MROM bank 0
-            LD       (RFSBK1),A                                               ; and start up - ie. SA1510 Monitor.
+            XOR     A                                                    ; We shouldnt arrive here after a reset, ensure MROM and UROM are set to bank 0
+            LD      (RFSBK1),A                                           ; then a restart will take place as Bank 0 will jump to vector 00000H
+            LD      (RFSBK2),A                                           
             NOP
-            JP       00000h
+            ; After switching in Bank 0, it will automatically continue processing in Bank 0 at the XOR A instructionof ROMFS:
 
             ; Jump table for entry into this pages functions.
 

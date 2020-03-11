@@ -39,25 +39,17 @@
             ; Common code spanning all banks to ensure that a Monitor is selected upon power up/reset.
             ;-----------------------------------------------------------------------------------------
             NOP
-            XOR      A                                                   ; We shouldnt arrive here after a reset, if we do, select MROM bank 0
-            LD       (RFSBK1),A                                          ; and start up - ie. SA1510 Monitor.
+            XOR     A                                                    ; We shouldnt arrive here after a reset, ensure MROM and UROM are set to bank 0
+            LD      (RFSBK1),A                                           ; then a restart will take place as Bank 0 will jump to vector 00000H
+            LD      (RFSBK2),A                                           
             NOP
-            JP       00000h
+            ; After switching in Bank 0, it will automatically continue processing in Bank 0 at the XOR A instructionof ROMFS:
 
             ; Jump table for entry into this pages functions.
-            JP      ?NL                                                  ;  9  QNL
-            JP      ?PRTS                                                ; 12  QPRTS
-            JP      ?PRNT                                                ; 15  QPRNT
-            JP      ?DACN                                                ; 18  QDACN
-            JP      ?ADCN                                                ; 21  QADCN
-            JP      ?PRTHX                                               ; 24  QPRTHX
-            JP      ?SAVE                                                ; 27  QSAVE
-            JP      ?LOAD                                                ; 30  QLOAD
-            JP      ?FLAS                                                ; 33  QFLAS
-            JP      PRNT3                                                ; 36  QPRNT3
-            JP      PRTHL                                                ; 39  QPRTHL
-            JP      ?DPCT                                                ; 42  QDPCT
-            JP      ?ANSITERM                                            ; 45  QANSITERM
+            JP      ?PRNT                                                ;  9  QPRNT
+            JP      ?PRTHX                                               ; 12  QPRTHX
+            JP      ?PRTHL                                               ; 15  QPRTHL
+            JP      ?ANSITERM                                            ; 18  QANSITERM
 
 
             ; CR PAGE MODE1
@@ -113,47 +105,50 @@ DPCT1:      ADD     HL,BC
             EX      DE,HL
             JP      (HL)
 
-?SAVE:      LD      HL,FLSDT
-            LD      (HL),0EFH
-            LD      A,(KANAF)
-            OR      A
-            JR      Z,L0270                 
-            LD      (HL),0FFH
-L0270:      LD      A,(HL)
-            PUSH    AF
-            CALL    ?PONT
-            LD      A,(HL)
-            LD      (FLASH),A
-            POP     AF
-            LD      (HL),A
-            XOR     A
-            LD      HL,KEYPA
-            LD      (HL),A
-            CPL     
-            LD      (HL),A
-            RET     
-
-?LOAD:      PUSH    AF
-            LD      A,(FLASH)
-            CALL    ?PONT
-            LD      (HL),A
-            POP     AF
-            RET     
-
-?FLAS:      PUSH    AF
-            PUSH    HL
-            LD      A,(KEYPC)
-            RLCA    
-            RLCA    
-            JR      C,FLAS1                 
-            LD      A,(FLSDT)
-FLAS2:      CALL    ?PONT
-            LD      (HL),A
-FLAS3:      POP     HL
-            POP     AF
-            RET     
-FLAS1:      LD      A,(FLASH)
-            JR      FLAS2                   
+;?SAVE:      LD      HL,FLSDT
+;            LD      A,(SFTLK)
+;            OR      A
+;            LD      (HL),043H                                            ; Thick block cursor when lower case.
+;            JR      Z,SAVE1
+;            CP      1
+;            LD      (HL),03EH                                            ; Thick underscore when CAPS lock.
+;            JR      Z,SAVE1
+;            LD      (HL),0EFH                                            ; Block cursor when SHIFT lock.
+;SAVE1:      LD      A,(HL)
+;            PUSH    AF
+;            CALL    ?PONT
+;            LD      A,(HL)
+;            LD      (FLASH),A
+;            POP     AF
+;            LD      (HL),A
+;            XOR     A
+;            LD      HL,KEYPA
+;            LD      (HL),A
+;            CPL     
+;            LD      (HL),A
+;            RET     
+;
+;?LOAD:      PUSH    AF
+;            LD      A,(FLASH)
+;            CALL    ?PONT
+;            LD      (HL),A
+;            POP     AF
+;            RET     
+;
+;?FLAS:      PUSH    AF
+;            PUSH    HL
+;            LD      A,(KEYPC)
+;            RLCA    
+;            RLCA    
+;            JR      C,FLAS1                 
+;            LD      A,(FLSDT)
+;FLAS2:      CALL    ?PONT
+;            LD      (HL),A
+;FLAS3:      POP     HL
+;            POP     AF
+;            RET     
+;FLAS1:      LD      A,(FLASH)
+;            JR      FLAS2                   
 
 
 ?PRT:       LD      A,C
@@ -204,25 +199,113 @@ L098C:      SUB     00AH
             JR      NZ,L098C                
             RET     
 
+            ; Delete a character on screen.
+?DELCHR:    LD      A,0C7H
+            CALL    ?DPCT
+            JR      ?PRNT1
+
+?NEWLINE:   CALL    ?NL
+            JR      ?PRNT1
+
+            ;
+            ; Function to disable the cursor display.
+            ;
+CURSOROFF:  DI
+            CALL    CURSRSTR                                             ; Restore character under the cursor.
+            LD      HL,FLASHCTL                                          ; Indicate cursor is now off.
+            RES     7,(HL)
+            EI
+            RET
+
+            ;
+            ; Function to enable the cursor display.
+            ;
+CURSORON:   DI
+            CALL    DSPXYTOADDR                                          ; Update the screen address for where the cursor should appear.
+            LD      HL,FLASHCTL                                          ; Indicate cursor is now on.
+            SET     7,(HL)
+            EI
+            RET
+
+            ;
+            ; Function to restore the character beneath the cursor iff the cursor is being dislayed.
+            ;
+CURSRSTR:   PUSH    HL
+            PUSH    AF
+            LD      HL,FLASHCTL                                          ; Check to see if there is a cursor at the current screen location.
+            BIT     6,(HL)
+            JR      Z,CURSRSTR1
+            RES     6,(HL)
+            LD      HL,(DSPXYADDR)                                       ; There is so we must restore the original character before further processing.
+            LD      A,(FLASH)
+            LD      (HL),A
+CURSRSTR1:  POP     AF
+            POP     HL
+            RET
+
+            ;
+            ; Function to convert XY co-ordinates to a physical screen location and save.
+            ;
+DSPXYTOADDR:PUSH    HL
+            PUSH    DE
+            PUSH    BC
+            LD      BC,(DSPXY)                                           ; Calculate the new cursor position based on the XY coordinates.
+            LD      DE,COLW
+            LD      HL,SCRN - COLW
+DSPXYTOA1:  ADD     HL,DE
+            DEC     B
+            JP      P,DSPXYTOA1
+            LD      B,000H
+            ADD     HL,BC
+            RES     3,H
+            LD      (DSPXYADDR),HL                                       ; Store the new address.
+            LD      A,(HL)                                               ; Store the new character.
+            LD      (FLASH),A
+DSPXYTOA2:  POP     BC
+            POP     DE
+            POP     HL
+            RET
+
+            ;
+            ; Function to print a space.
+            ;
 ?PRTS:      LD      A,020H
-?PRNT:      CP      00DH
-            JR      Z,?NL                 
+
+            ; Function to print a character to the screen. If the character is a control code it is processed as necessary
+            ; otherwise the character is converted from ASCII display and displayed.
+            ;
+?PRNT:      DI
+            CALL    CURSRSTR                                             ; Restore char under cursor.
+            CP      00DH
+            JR      Z,?NEWLINE                 
             CP      00AH
-            JR      Z,?NL                 
+            JR      Z,?NEWLINE                 
+            CP      07FH
+            JR      Z,?DELCHR
+            CP      BACKS
+            JR      Z,?DELCHR
             PUSH    BC
             LD      C,A
             LD      B,A
             CALL    ?PRT
             LD      A,B
             POP     BC
+?PRNT1:     CALL    DSPXYTOADDR
+            EI
             RET     
 
-PRTHL:      LD      A,H
+            ;
+            ; Function to print out the contents of HL as 4 digit Hexadecimal.
+            ;
+?PRTHL:     LD      A,H
             CALL    ?PRTHX
             LD      A,L
             JR      ?PRTHX                   
-            LD      B,E
-            LD      B,E
+            RET
+
+            ;
+            ; Function to print out the contents of A as 2 digit Hexadecimal
+            ;
 ?PRTHX:     PUSH    AF
             RRCA    
             RRCA    
@@ -233,11 +316,6 @@ PRTHL:      LD      A,H
             POP     AF
             CALL    ASC
             JP      ?PRNT
-L03D5:      POP     DE
-            POP     HL
-            POP     BC
-            POP     AF
-            RET     
 
 ASC:        AND     00FH
             CP      00AH
@@ -376,16 +454,11 @@ CLRS1:      LD      A,(SCLDSP)
 HOM0:       LD      HL,00000H
             JP      CURS3
 
-ALPHA:      XOR     A
-ALPHI:      LD      (KANAF),A
 ?RSTR:      POP     HL
 ?RSTR1:     POP     DE
             POP     BC
             POP     AF
             RET     
-
-KANA:       LD      A,001H
-            JR      ALPHI                   
 
 DEL:        LD      HL,(DSPXY)
             LD      A,H
@@ -518,8 +591,8 @@ DACN1:      OR      A
             DW      CLRS
             DW      DEL
             DW      INST
-            DW      ALPHA
-            DW      KANA
+            DW      ?RSTR
+            DW      ?RSTR
             DW      ?RSTR
             DW      REV
             DW      .CR
@@ -838,22 +911,22 @@ ANSI_NN:    CP      "?"                                                  ; Simpl
             CP      "@"                                                  ; Is it a letter?
             JP      C,ANSIEXIT                                           ; Abandon if not letter; something wrong
 
-ANSIFOUND:  LD      HL,(NUMBERPOS)                                       ; Get value of number buffer
+ANSIFOUND:  CALL    CURSRSTR                                             ; Restore any character under the cursor.
+            LD      HL,(NUMBERPOS)                                       ; Get value of number buffer
             LD      A,(HAVELOADED)                                       ; Did we put anything in this byte?
             OR      A
             JR      NZ,AF1
             LD      (HL),255                                             ; Mark the fact that nothing was put in
 AF1:        INC      HL
             LD      A,254
-            LD      (HL),A                                               ; Mark end of sequence (for unlimited length
-                                                                         ; sequences)
-            ;*** Disable cursor, because it might well move!
-            LD      A,(CURSORON)
-            OR      A                                                    ; Well, what do we have here?!
-        ;    CALL    NZ,ToggleCursor                                     ; If cursor on, then remove
+            LD      (HL),A                                               ; Mark end of sequence (for unlimited length sequences)
+
+            ;Disable cursor as unwanted side effects such as screen flicker may occur.
+            LD      A,(FLASHCTL)
+            BIT     7,A
+            CALL    NZ,CURSOROFF
 
             XOR     A
-            LD      (CURSORON),A                                         ; And cursor is now off
             LD      (CURSORCOUNT),A                                      ; Restart count
             LD      A,0C9h
             LD      (CHGCURSMODE),A                                      ; Disable flashing temp.
@@ -886,7 +959,8 @@ AF1:        INC      HL
             CP      "u"
             JP      Z,RCP                                                ; Restore the cursor position
 
-ANSIEXIT:   LD      HL,NUMBERBUF                                         ; Numbers buffer position
+ANSIEXIT:   CALL    CURSORON                                             ; If t
+            LD      HL,NUMBERBUF                                         ; Numbers buffer position
             LD      (NUMBERPOS),HL
             XOR     A
             LD      (CHARACTERNO),A                                      ; Next time it runs, it will be the
@@ -947,8 +1021,7 @@ AnsiNumber: LD      HL,(NUMBERPOS)                                       ; Get a
             LD      (HAVELOADED),A                                       ; Yes, we _have_ put something in!
             JP      AnsiMore
 
-AN1:
-            LD      A,(HL)                                               ; Stored value in A; TBA in C
+AN1:        LD      A,(HL)                                               ; Stored value in A; TBA in C
             ADD     A,A                                                  ; 2 *
             LD      D,A                                                  ; Save the 2* for later
             ADD     A,A                                                  ; 4 *
@@ -1040,7 +1113,7 @@ CUB:        CALL    GetNumber                                            ; Numbe
 CUBget:     LD      A,(DSPXY)                                            ; A <- Column
             CP      B                                                    ; Too far?
             JR      C,CUB1a
-            SUB      B
+            SUB     B
             JR      CUB1b
 CUB1a:      LD      A,0
 CUB1b:      LD      (DSPXY),A                                            ; Column <-A
@@ -1137,7 +1210,7 @@ ED1_2:      EX      DE,HL                                                ; Value
             LD      HL,(DSPXY)                                           ; _that_ value again!
             POP     BC                                                   ; Number to blank
             CALL    CALCSCADDR
-            CALL    CLRSCRN                                          ; Now do it!
+            CALL    CLRSCRN                                              ; Now do it!
             JP      ANSIEXIT                                             ; Then exit properly
 
             ;***    Option 1 - clear from cursor to beginning of screen
@@ -1159,7 +1232,7 @@ ED2_2:      EX      DE,HL                                                ; Value
             PUSH    HL                                                   ; Value saved for later
             LD      HL,0                                                 ; Find the begining!
             POP     BC                                                   ; Number to blank
-            CALL    CLRSCRN                                          ; Now do it!
+            CALL    CLRSCRN                                              ; Now do it!
             JP      ANSIEXIT                                             ; Then exit properly
 
             ; ***    ANSI CLEAR LINE
