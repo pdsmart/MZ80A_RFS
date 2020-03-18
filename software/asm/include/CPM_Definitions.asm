@@ -77,7 +77,7 @@ NDISKS      EQU     4                                                    ; Numbe
 KEYBUFSIZE  EQU     16                                                   ; Ensure this is a power of 2, max size 256.
 
 ; Debugging
-ENADEBUG    EQU     0                                                    ; Enable debugging logic, 1 = enable, 0 = disable
+ENADEBUG    EQU     1                                                    ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
 ; Configurable settings.
@@ -150,6 +150,21 @@ RFSRST1:    EQU     0EFFEh                                               ; Reset
 RFSRST2:    EQU     0EFFFh                                               ; Reset RFS Bank2 to original.
 
 ;-----------------------------------------------
+; IO ports in hardware and values.
+;-----------------------------------------------
+SPI_OUT     EQU     0FFH
+SPI_IN      EQU     0FEH
+;
+DOUT_LOW    EQU     000H
+DOUT_HIGH   EQU     004H
+DIN_LOW     EQU     000H
+DIN_HIGH    EQU     001H
+CLOCK_LOW   EQU     000H
+CLOCK_HIGH  EQU     002H
+CS_LOW      EQU     000H
+CS_HIGH     EQU     001H
+
+;-----------------------------------------------
 ; Rom File System Header (MZF)
 ;-----------------------------------------------
 RFS_ATRB:   EQU     00000h                                               ; Code Type, 01 = Machine Code.
@@ -174,11 +189,16 @@ WRKROMBK1: EQU      01018H                                               ; WORKI
 WRKROMBK2: EQU      01019H                                               ; WORKING USERROM BANK
 
 ;-----------------------------------------------
-; ROM Banks, 0-3 are reserved for alternative
-;            Monitor versions in MROM bank,
-;            0-7 are reserved for RFS code in the
-;            User ROM bank.
+; ROM Banks, 0-7 are reserved for alternative
+;            Monitor versions, CPM and RFS
+;            code in MROM bank,
+;            0-7 are reserved for RFS code in
+;            the User ROM bank.
+;            8-15 are reserved for CPM code in
+;            the User ROM bank.
 ;-----------------------------------------------
+MROMPAGES   EQU     8
+USRROMPAGES EQU     12
 ROMBANK0    EQU     0
 ROMBANK1    EQU     1
 ROMBANK2    EQU     2
@@ -187,6 +207,10 @@ ROMBANK4    EQU     4
 ROMBANK5    EQU     5
 ROMBANK6    EQU     6
 ROMBANK7    EQU     7
+ROMBANK8    EQU     8
+ROMBANK9    EQU     9
+ROMBANK10   EQU     10
+ROMBANK11   EQU     11
 
 OBJCD       EQU     001h
 
@@ -289,7 +313,7 @@ SWPW:       DS      virtual 10                                           ; SWEEP
 KDATW:      DS      virtual 2                                            ; KEY WORK
 ;KANAF:      DS      virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
 DSPXY:      DS      virtual 2                                            ; DISPLAY COORDINATES
-DSPXYLST:   DS      virtual 2                                            ; Last known cursor position, to compare with DSPXY to detect changes.
+;DSPXYLST:   DS      virtual 2                                            ; Last known cursor position, to compare with DSPXY to detect changes.
 FLASHCTL:   DS      virtual 1                                            ; CURSOR FLASH CONTROL. BIT 0 = Cursor On/Off, BIT 1 = Cursor displayed.
 DSPXYADDR:  DS      virtual 2                                            ; Address of last known position.
 MANG:       DS      virtual 6                                            ; COLUMN MANAGEMENT
@@ -306,8 +330,8 @@ REVFLG:     DS      virtual 1                                            ; REVER
 FLSDT:      DS      virtual 1                                            ; CURSOR DATA
 STRGF:      DS      virtual 1                                            ; STRING FLAG
 DPRNT:      DS      virtual 1                                            ; TAB COUNTER
-AMPM:       DS      virtual 1                                            ; AMPM DATA
-TIMFG:      DS      virtual 1                                            ; TIME FLAG
+;AMPM:       DS      virtual 1                                            ; AMPM DATA
+;TIMFG:      DS      virtual 1                                            ; TIME FLAG
 SWRK:       DS      virtual 1                                            ; KEY SOUND FLAG
 TEMPW:      DS      virtual 1                                            ; TEMPO WORK
 ONTYO:      DS      virtual 1                                            ; ONTYO WORK
@@ -392,8 +416,8 @@ SPISRSAVE:  DS      virtual 2
 VAREND      EQU     $                                                    ; End of variables
 
             ; Stack space for the CBIOS.
-            DS      virtual 128 
+            DS      virtual 64 
 BIOSSTACK   EQU     $
             ; Stack space for the Interrupt Service Routine.
-            DS      virtual 32                                           ; Max 8 stack pushes.
+            DS      virtual 16                                           ; Max 8 stack pushes.
 ISRSTACK    EQU     $

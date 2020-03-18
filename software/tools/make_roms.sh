@@ -36,8 +36,10 @@ ROM_PATH=${ROOTDIR}/software/roms/
 SECTORSIZE=256
 
 # Place the RFS rom into the User ROM at the beginning as it contains all the banked pages.
-echo "cat ${ROM_PATH}/rfs.rom > /tmp/user.rom"
-cat ${ROM_PATH}/rfs.rom ${ROM_PATH}/cbios_bank1.rom ${ROM_PATH}/cbios_bank2.rom ${ROM_PATH}/cbios_bank3.rom ${ROM_PATH}/cbios_bank4.rom > /tmp/user.rom
+echo "cat ${ROM_PATH}/rfs.rom ${ROM_PATH}/cbios_bank1.rom ${ROM_PATH}/cbios_bank2.rom ${ROM_PATH}/cbios_bank3.rom ${ROM_PATH}/cbios_bank4.rom > /tmp/user.rom"
+cat ${ROM_PATH}/rfs.rom ${ROM_PATH}/cbios_bank1.rom ${ROM_PATH}/cbios_bank2.rom \
+    ${ROM_PATH}/cbios_bank3.rom ${ROM_PATH}/cbios_bank4.rom \
+    > /tmp/user.rom
 
 # CPM RFS Disks currently only in User ROM.
 for f in 1 2
@@ -49,14 +51,19 @@ do
 done
 
 # Place the monitor roms into the MROM at the beginning for banked page usage.
-echo "cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom > /tmp/mrom.rom"
-cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom > /tmp/mrom.rom
+echo "cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom  ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom > /tmp/mrom.rom"
+cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom \
+    ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom \
+    ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom \
+    ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom \
+    > /tmp/mrom.rom
 GENROM=0
 
 # Manually choose the programs you want installed into the ROMS. The files will be first placed into the USER ROM and when full into the 
 # Monitor ROM. Thus order is important if you want a particular program in a particular ROM.
 ROM_INCLUDE=
 ROM_INCLUDE+="${MZB_PATH}/cpm22.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/sdtest.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/1Z-013B.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/2Z009E.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/2z-046a.${SECTORSIZE}.bin:"
@@ -83,7 +90,7 @@ ROM_INCLUDE+="${MZB_PATH}/BASIC_OM-1000.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/BASIC_OM-1001.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/BASIC_OM-500.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/basic_sa-5510.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/BASIC.SA-5510.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/BASIC.SA-5510.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/BASIC SA-5575_C.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/BASIC_SA-5575_C.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/BASIC SA-5575_S.${SECTORSIZE}.bin:"
@@ -102,7 +109,7 @@ ROM_INCLUDE+="${MZB_PATH}/BAS_MOD_v3.74.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/BINARY_COUNT.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/BYTESAVER SA5510.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/BYTESAVER_SA5510.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/CIRCUS_STAR.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/CIRCUS_STAR.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/clock1.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/CLUB COPY.U1.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/CLUB_COPY.U1.${SECTORSIZE}.bin:"
@@ -242,7 +249,7 @@ ROM_INCLUDE+="${MZB_PATH}/SARGON_2.71.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SUTAMC9.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SUTAPEBA.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SUTAPEMO.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/TETRIS.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/TETRIS.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/tetris-2_MZ800.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/TEXT_BASIC_I.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/TEXT~ED_v1.2.${SECTORSIZE}.bin:"
@@ -250,7 +257,7 @@ ROM_INCLUDE+="${MZB_PATH}/TETRIS.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/TRANS.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/ufo.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/UNI=BASIC800.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/UNIVERSAL_BASIC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/UNIVERSAL_BASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/URAS-700.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/Utility_2.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Utility_V_1.1.${SECTORSIZE}.bin:"
@@ -280,7 +287,9 @@ do
             else
                 GENROM=1
             fi
-        else
+        fi
+
+        if (( ${GENROM} == 1 )); then
             cat /tmp/mrom.rom "${f}" > /tmp/tmp.size
             FILESIZE=$(stat -c%s "/tmp/tmp.size")
             if (( ${FILESIZE} < 524288 )); then
@@ -290,10 +299,13 @@ do
                 GENROM=2
             fi
         fi
+
         if (( ${GENROM} == 2 )); then
             echo "Limit reached ROMS full, skipping from ${f}..."
             break
         fi
+    else
+        echo "ALERT! File:${f} not found."
     fi
 done
 if [ -f /tmp/user.rom ]; then

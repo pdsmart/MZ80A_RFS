@@ -126,22 +126,30 @@ RFS_EXADR: EQU      00016h                                               ; Exec 
 RFS_COMNT: EQU      00018h                                               ; COMMENT
 
 ;-----------------------------------------------
-; ROM Banks, 0-3 are reserved for alternative
-;            Monitor versions in MROM bank,
-;            0-7 are reserved for RFS code in the
-;            User ROM bank.
+; ROM Banks, 0-7 are reserved for alternative
+;            Monitor versions, CPM and RFS
+;            code in MROM bank,
+;            0-7 are reserved for RFS code in
+;            the User ROM bank.
+;            8-15 are reserved for CPM code in
+;            the User ROM bank.
 ;-----------------------------------------------
-ROMBANK0   EQU      0
-ROMBANK1   EQU      1
-ROMBANK2   EQU      2
-ROMBANK3   EQU      3
-ROMBANK4   EQU      4
-ROMBANK5   EQU      5
-ROMBANK6   EQU      6
-ROMBANK7   EQU      7
+MROMPAGES   EQU     8
+USRROMPAGES EQU     12
+ROMBANK0    EQU     0
+ROMBANK1    EQU     1
+ROMBANK2    EQU     2
+ROMBANK3    EQU     3
+ROMBANK4    EQU     4
+ROMBANK5    EQU     5
+ROMBANK6    EQU     6
+ROMBANK7    EQU     7
+ROMBANK8    EQU     8
+ROMBANK9    EQU     9
+ROMBANK10   EQU     10
+ROMBANK11   EQU     11
 
 PRTMZF     EQU      0E880H
-
 MZFHDRSZ   EQU      128
 RFSSECTSZ  EQU      256
 MROMSIZE   EQU      4096
@@ -256,7 +264,7 @@ _DIRMROM:  PUSH     BC
            ; C = Block in page
            ; D = File sequence number.
            ;
-           LD       B,8                         ; First 8x2K pages are reserved in User bank.
+           LD       B,USRROMPAGES               ; First 16x2K pages are reserved in User bank.
            LD       C,0                         ; Block in page.
 DIRNXTPG:  LD       A,B
            LD       (WRKROMBK2), A
@@ -329,7 +337,7 @@ _MFINDMZF: PUSH     DE
            ; D = File sequence number.
            ;
 FINDMZF0:  POP      DE                          ; Get file sequence number in D.
-           LD       B,8                         ; First 8 pages are reserved in User ROM bank.
+           LD       B,USRROMPAGES               ; First 8 pages are reserved in User ROM bank.
            LD       C,0                         ; Block in page.
           ;LD       D,0                         ; File numbering start.
 FINDMZF1:  LD       A,B

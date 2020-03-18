@@ -68,6 +68,26 @@ BKSW1to3:  PUSH     AF
            LD       A, ROMBANK1                                              ; Calling bank (ie. us).
            PUSH     AF
            LD       A, ROMBANK3                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to4:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK4                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to5:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK5                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to6:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK6                                              ; Required bank to call.
+           JR       BKSW1_0
+BKSW1to7:  PUSH     AF
+           LD       A, ROMBANK1                                              ; Calling bank (ie. us).
+           PUSH     AF
+           LD       A, ROMBANK7                                              ; Required bank to call.
            ;
 BKSW1_0:   PUSH     BC                                                       ; Save BC for caller.
            LD       BC, BKSWRET1                                             ; Place bank switchers return address on stack.

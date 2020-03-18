@@ -58,48 +58,49 @@
 ; is switched in and a jump made to the public function. The page remains
 ; selected until the next public access call and the page changed accordingly.
 
-BANK4:      PUSH    AF
-            LD      A,ROMBANK4
+BANK8:      PUSH    AF
+            LD      A,ROMBANK8
             LD      (RFSBK2),A
             POP     AF
             RET
-BANK5:      PUSH    AF
-            LD      A,ROMBANK5
+BANK9:      PUSH    AF
+            LD      A,ROMBANK9
             LD      (RFSBK2),A
             POP     AF
             RET
 
 ; Public methods for User Rom CBIOS Bank 1
-?REBOOT:    CALL    BANK4
+?REBOOT:    LD      A,ROMBANK8
+            LD      (RFSBK2),A
             JP      QREBOOT
 
-?MLDY:      CALL    BANK4
+?MLDY:      CALL    BANK8
             JP      QMELDY
 
-?BEL:       CALL    BANK4
+?BEL:       CALL    BANK8
             JP      QBEL
 
-?TEMP:      CALL    BANK4
+?TEMP:      CALL    BANK8
             JP      QTEMP
 
-?MLDST:     CALL    BANK4
+?MLDST:     CALL    BANK8
             JP      QMSTA
 
-?MLDSP:     CALL    BANK4
+?MLDSP:     CALL    BANK8
             JP      QMSTP
 
 ; Public methods for User Rom CBIOS Bank 2
 
-?PRNT:      CALL    BANK5
+?PRNT:      CALL    BANK9
             JP      QPRNT
 
-?PRTHX:     CALL    BANK5
+?PRTHX:     CALL    BANK9
             JP      QPRTHX
 
-?PRTHL:     CALL    BANK5
+?PRTHL:     CALL    BANK9
             JP      QPRTHL
 
-?ANSITERM:  CALL    BANK5
+?ANSITERM:  CALL    BANK9
             JP      QANSITERM
 
 ?NL:        LD      A,LF
@@ -109,11 +110,11 @@ BANK5:      PUSH    AF
             JR      ?PRNT
 
 ; Public methods for User Rom CBIOS Bank 3
-            LD      A,ROMBANK6
+            LD      A,ROMBANK10
             LD      (RFSBK2),A
             JP      00000h
 ; Public methods for User Rom CBIOS Bank 4
-            LD      A,ROMBANK7
+            LD      A,ROMBANK11
             LD      (RFSBK2),A
             JP      00000h
 
@@ -570,11 +571,8 @@ STRT1:      CALL    CLR8
             LD      A,0FFH
             LD      (SWRK),A
 
-            ; Setup timer interrupts
-            LD      BC,00000H                                            ; Time starts at 00:00:00 01/01/1980 on initialisation.
-            LD      DE,00000H
-            LD      HL,00000H
-            CALL    TIMESET
+            ; Initialise the SD Card subsystem.
+       ;     CALL    SPI_INIT
 
             ; Locate the CPM Image and store the Bank/Block to speed up warm boot.
             LD      HL,CPMROMFNAME                                       ; Name of CPM File in rom.
@@ -602,6 +600,12 @@ STRT3:      LD      HL,NUMBERBUF
             LD      (IOBYT),A
             LD      (CDISK),A            
             ;
+            ; Setup timer interrupts
+            LD      BC,00000H                                            ; Time starts at 00:00:00 01/01/1980 on initialisation.
+            LD      DE,00000H
+            LD      HL,00000H
+            CALL    TIMESET
+            ;
             JR      CPMINIT
             
             ;-------------------------------------------------------------------------------
@@ -618,7 +622,7 @@ WINIT:      DI
             LD      DE,CPMBIOS-CBASE                                     ; Only want to load in CCP and BDOS.
             LD      BC,(CPMROMLOC)                                       ; Load up the Bank and Page where the CPM Image can be found.
             CALL    MROMLOAD
-            LD      A,ROMBANK5
+            LD      A,ROMBANK9                                           ; Screen Bank.
             LD      (RFSBK2),A    
             ;
 CPMINIT:    CALL    DSKINIT                                              ; Initialise the disk subsystem.
@@ -1041,6 +1045,10 @@ TIMESET:    DI
             NOP     
             NOP     
             NOP     
+            LD      A, 0C3H                                              ; Install the interrupt vector for when interrupts are enabled.
+            LD      HL,TIMIN
+            LD      (00038H),A
+            LD      (00039H),HL
             ;
             POP     HL
             POP     DE
@@ -1209,11 +1217,10 @@ L0D78:      DJNZ    DUM2
             DEC     A
             LD      (TMPCNT),A
             JR      NZ,DUM3
-DUM4:       LD      A,(KEYBUF)
+DUM4:       CALL    CHKKY
             CP      0FFH
-            ;CALL    ?KEY
-            JR      Z,DUM4
-           ;CALL    ?DACN
+            JR      NZ,DUM4
+            CALL    GETKY
             CP      'D'
             JR      NZ,DUM5
             LD      A,8
@@ -1327,7 +1334,7 @@ FINDMZF:    LD       (TMPADR), HL                ; Save name of program to load.
             ; C = Block in page
             ; D = File sequence number.
             ;
-FINDMZF0:   LD      B,8                         ; First 8 pages are reserved in User ROM bank.
+FINDMZF0:   LD      B,USRROMPAGES               ; First 16 pages are reserved in User ROM bank.
             LD      C,0                         ; Block in page.
             LD      D,0                         ; File numbering start.
 FINDMZF1:   LD      A,B
@@ -1475,7 +1482,7 @@ LROMLOAD7:  LD      A, B
             ;
 LROMLOAD8:  POP     BC
 LROMLOAD5:  PUSH    AF
-            LD      A,ROMBANK7
+            LD      A,ROMBANK9
             LD      (RFSBK2), A                 ; Set the MROM bank back to original.
             POP     AF
             RET
@@ -1486,7 +1493,7 @@ LROMLOAD5:  PUSH    AF
 ROMREAD:    LD      DE,(HSTTRK)                                          ; To cater for larger RFS images in the future we use the full 16bit track number.
             LD      (TRACKNO),DE
             LD      A, BANKSPERTRACK * SECTORSPERBANK
-            LD      B,8 
+            LD      B,8
             LD      HL,0 
 ROMREAD2:   ADD     HL,HL 
             RLCA 
@@ -1623,7 +1630,7 @@ ROMREAD16:  LD      A, B
             ;
 ROMREAD17:  POP     BC
 ROMREAD18:  PUSH    AF
-            LD      A,ROMBANK7                                           ; Reselect utilities bank.
+            LD      A,ROMBANK9                                           ; Reselect utilities bank.
             LD      (RFSBK2), A                                          ; Set the MROM bank back to original.
             POP     AF
             POP     HL
@@ -1967,9 +1974,7 @@ SELDRIVE:   LD      A,(CDISK)
        ;SCF
        ;CCF
        ;CALL DEBUG
-            LD      A,(MOTON)                                            ; motor on flag
-            RRCA                                                         ; motor off?
-            CALL    NC,DSKMTRON                                          ; yes, set motor on and wait
+            CALL    DSKMTRON                                             ; yes, set motor on and wait
             LD      A,(FDCDISK)                                          ; select drive no
             OR      084H                                                     
             OUT     (FDC_MOTOR),A                                        ; Motor on for drive 0-3
@@ -1997,7 +2002,9 @@ SELDRV3:    CALL    SETDRVCFG
             RET
 
             ; Turn disk motor on if not already running.
-DSKMTRON:   LD      A,(MOTON)                                            ; Test to see if motor is on, if it isnt, switch it on.
+DSKMTRON:   LD      A,255                                                ; Ensure motor is kept running whilst we read/write.
+            LD      (MTROFFTIMER),A
+            LD      A,(MOTON)                                            ; Test to see if motor is on, if it isnt, switch it on.
             RRCA
             JR      NC, DSKMOTORON
             RET
@@ -2050,8 +2057,11 @@ DSKWRITE3:  CALL    SETHEAD                                              ; Set s
             LD      IY,WRITEDATA                                         ; Write sector from memory.
             DI     
             ;
-        SCF
-        CALL DEBUG
+            IF ENADEBUG = 1
+              SCF
+              CALL  DEBUG
+            ENDIF
+
             LD      A,0B4H                                               ; Write Sector multipe with Side Compare for side 1.
             CALL    DISKCMDWAIT
             LD      D,2                                                  ; Regardless of 4x128, 2x256 or 1x512, we always read 512bytes by the 2x INI instruction with B=256.
@@ -2321,7 +2331,50 @@ ERRPRTSTR:  EX      DE,HL
             EX      DE,HL
             JP      MONPRTSTR
 
+            ;-------------------------------------------------------------------------------
+            ;  SPI I/O Routines.                                                                      
+            ;                                                                              
+            ;  Basic Input and Output routines to send and receive data with an SD card.
+            ;-------------------------------------------------------------------------------
 
+            ;
+            ; Function to initialise the SPI hardware.
+            ;
+;SPI_INIT:   LD      A,DOUT_HIGH | CLOCK_HIGH | CS_LOW                    ; Clock and MOSI High.
+;            OUT     (SPI_OUT),A
+;            RET
+
+            ;
+            ; Function to output a byte to the SPI port and read a byte being returned by the slave simultaneously.
+            ; Input;  A = Char to send
+            ; Output: C = Char received.
+            ;
+;SPI_IO:     PUSH    DE
+;            LD      E,A                                                  ; E = Character to send.
+;            LD      C,0                                                  ; C = Character being read.
+;            LD      B,008H
+;SPI0:       LD      A,E
+;            RLCA
+;            LD      E,A
+;            LD      A,DOUT_LOW  | CLOCK_HIGH | CS_LOW                    ; Output a 0
+;            JR      NC,SPI1
+;            LD      A,DOUT_HIGH | CLOCK_HIGH | CS_LOW                    ; Output a 1
+;SPI1:       OUT     (SPI_OUT),A
+;            LD      D,A                                                  ; Preserve sent data.
+;            IN      A,(SPI_IN)                                           ; Input the received bit
+;            AND     DIN_HIGH                                             ; Mask and add to the byte being assembled.
+;            OR      C
+;            RRCA
+;            LD      C,A                                                  ; Store assembled byte.
+;            LD      A,D
+;            AND     DOUT_HIGH | CLOCK_LOW | CS_LOW                       ; Bring clock low preserving output data.
+;            OUT     (SPI_OUT),A
+;            DJNZ    SPI0                                                 ; Perform actions for the full 8 bits.
+;            LD      A,DOUT_HIGH | CLOCK_HIGH | CS_LOW                    ; Return clock and MOSI to high.
+;            OUT     (SPI_OUT),A
+;            POP     DE
+;            RET
+;
 
             ; Debug routine to print out all registers and dump a section of memory for analysis.
             ;

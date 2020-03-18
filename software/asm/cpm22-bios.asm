@@ -75,4 +75,4 @@ ALV2:       DS      (720/8)+1                                            ; alloc
 CSV3:       DS      32                                                   ; scratch area for drive 3.
 ALV3:       DS      (720/8)+1                                            ; allocation vector 3
 
-            ALIGN_NOPS  CBIOSDATA
+            ALIGN   CBIOSDATA
