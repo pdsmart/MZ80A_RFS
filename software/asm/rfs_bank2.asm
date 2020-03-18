@@ -1167,11 +1167,6 @@ DIRSD2:     LD      A,(HL)
             INC     D
 DIRSD3:     INC     E                                                    ; Onto next directory entry number.
             DJNZ    DIRSD1
-
-            LD      DE,MSGSDRERR
-            RST     018H
-            CALL    NL
-
             RET
             ;
 

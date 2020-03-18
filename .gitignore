@@ -39,3 +39,14 @@ software/roms/MZ80AFI.rom
 software/roms/bios.rom
 software/roms/cpm22.rom
 software/tmp/
+software/src/FatFS
+software/src/sav
+software/asm/cbios.asm.bak
+software/asm/sav/
+software/rfs_bank2.asm.1703.2200
+software/roms/cbios_bank5.rom
+software/roms/cbios_bank6.rom
+software/roms/cbios_bank7.rom
+software/roms/cbios_bank8.rom
+software/src/sdtest.c
+

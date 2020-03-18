@@ -67,6 +67,9 @@ DLY12:      EQU     00DA7h
 DLY12A:     EQU     00DAAh
 ?RSTR1:     EQU     00EE6h
 
+; Debugging
+ENADEBUG    EQU     0                                                    ; Enable debugging logic, 1 = enable, 0 = disable
+
 ;-----------------------------------------------
 ; Memory mapped ports in hardware.
 ;-----------------------------------------------

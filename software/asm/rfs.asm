@@ -762,7 +762,9 @@ ISMZFNOT:   POP     HL
             POP     BC
             RET
 
-PRTDBG:     PUSH    HL
+            
+PRTDBG:     IF ENADEBUG = 1
+            PUSH    HL
             PUSH    DE
             PUSH    BC
             PUSH    AF
@@ -797,6 +799,7 @@ PRTDBG:     PUSH    HL
             POP     DE
             POP     HL
             RET
+            ENDIF
 
 _PRTMZF:    PUSH    DE
             PUSH    HL
@@ -806,9 +809,9 @@ _PRTMZF:    PUSH    DE
             ;
             LD      A,(SCRNMODE)
             CP      0
-            LD      H,46
+            LD      H,47
             JR      Z,PRTMZF0
-            LD      H,92
+            LD      H,93
 PRTMZF0:    LD      A,(TMPLINECNT)                                       ; Pause if we fill the screen.
             LD      E,A
             INC     E
@@ -1033,6 +1036,18 @@ LOADROM1:   DI
             LD      (RFSBK1), A
             CALL    MFINDMZF                                             ; Try and find the file in User ROM via MROM utility.
             JR      NZ, LROMNTFND
+            ;
+            LD      A,(ROMBK1)
+            LD      (RFSBK1), A
+            LD      DE,MSGLDROM
+            RST     018H
+            LD      DE,NAME
+            RST     018H
+            CALL    NL
+            LD      A,(WRKROMBK1)
+            LD      (RFSBK1), A
+
+            ;
             CALL    MROMLOAD                                             ; Load the file from User ROM via MROM utility.
             JP      Z, LROMLOAD5
 
@@ -1049,6 +1064,13 @@ LOADROMEND: EI
             ; Load program from RFS Bank 1 (MROM Bank)
             ;
 LROMLOAD:   PUSH    BC
+            ;
+            LD      DE,MSGLDROM
+            RST     018H
+            LD      DE,NAME
+            RST     018H
+            CALL    NL
+            ;
             LD      A,B
             LD      (WRKROMBK1),A
             LD      (RFSBK1), A
@@ -1169,14 +1191,15 @@ LOADSDCARD2:RET
 ;
 ;======================================
 ;
-MSGSON:     DB      "+ RFS ", 0ABh, "1.1 **",00Dh
-MSGOK:      DB      "OK!"
-MSGNOTFND:  DB      "NOT FOUND", 00Dh
-MSGRDIRLST: DB      "ROM DIRECTORY:", 00Dh
-MSGTRM:     DB      00Dh
-MSGSV:      DB      "FILENAME? ",  0DH
-MSG_INITM:  DB      "INIT MEMORY", 0Dh
-MSGBADCMD:  DB      "???", 0DH
+MSGSON:     DB      "+ RFS ", 0ABh, "1.1 **",00DH
+MSGOK:      DB      "OK!",                   00DH
+MSGNOTFND:  DB      "NOT FOUND",             00DH
+MSGRDIRLST: DB      "ROM DIRECTORY:",        00DH
+MSGTRM:     DB                               00DH
+MSGSV:      DB      "FILENAME? ",            00DH
+MSG_INITM:  DB      "INIT MEMORY",           00DH
+MSGBADCMD:  DB      "???",                   00DH
+MSGLDROM:   DB      "LOADING ",              00DH
 
             ; Bring in additional resources.
             USE_CMPSTRING:    EQU   1
