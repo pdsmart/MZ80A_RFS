@@ -38,7 +38,7 @@ STACK:     EQU     010F0H
 SPV:
 IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
 ATRB:      DS       virtual 1                                            ; ATTRIBUTE
-NAME:      DS       virtual 17                                           ; FILE NAME
+NAME:      DS       virtual FNSIZE                                       ; FILE NAME
 SIZE:      DS       virtual 2                                            ; BYTESIZE
 DTADR:     DS       virtual 2                                            ; DATA ADDRESS
 EXADR:     DS       virtual 2                                            ; EXECUTION ADDRESS
@@ -135,25 +135,28 @@ RFS_COMNT: EQU      00018h                                               ; COMME
 ;            the User ROM bank.
 ;-----------------------------------------------
 MROMPAGES   EQU     8
-USRROMPAGES EQU     12
-ROMBANK0    EQU     0
-ROMBANK1    EQU     1
-ROMBANK2    EQU     2
-ROMBANK3    EQU     3
-ROMBANK4    EQU     4
-ROMBANK5    EQU     5
-ROMBANK6    EQU     6
-ROMBANK7    EQU     7
-ROMBANK8    EQU     8
-ROMBANK9    EQU     9
-ROMBANK10   EQU     10
-ROMBANK11   EQU     11
+USRROMPAGES EQU     12                                                   ; Monitor ROM         :  User ROM
+ROMBANK0    EQU     0                                                    ; MROM SA1510 40 Char :  RFS Bank 0 - Main RFS Entry point and functions.
+ROMBANK1    EQU     1                                                    ; MROM SA1510 80 Char :  RFS Bank 1 - Floppy disk controller and utilities.
+ROMBANK2    EQU     2                                                    ; CPM 2.2 CBIOS       :  RFS Bank 2 - SD Card controller and utilities.
+ROMBANK3    EQU     3                                                    ; RFS Utilities       :  RFS Bank 3 - Cmdline tools (Memory, Printer, Help)
+ROMBANK4    EQU     4                                                    ; Free                :  RFS Bank 4 - CMT Utilities.
+ROMBANK5    EQU     5                                                    ; Free                :  RFS Bank 5
+ROMBANK6    EQU     6                                                    ; Free                :  RFS Bank 6
+ROMBANK7    EQU     7                                                    ; Free                :  RFS Bank 7 - Memory and timer test utilities.
+ROMBANK8    EQU     8                                                    ;                     :  CBIOS Bank 1 - Utilities
+ROMBANK9    EQU     9                                                    ;                     :  CBIOS Bank 2 - Screen / ANSI Terminal
+ROMBANK10   EQU     10                                                   ;                     :  CBIOS Bank 3 - SD Card
+ROMBANK11   EQU     11                                                   ;                     :  CBIOS Bank 4 - Floppy disk controller.
+
+
 
 PRTMZF     EQU      0E880H
 MZFHDRSZ   EQU      128
 RFSSECTSZ  EQU      256
 MROMSIZE   EQU      4096
 UROMSIZE   EQU      2048
+FNSIZE     EQU      17                                                   ; Size of tape filename.
 
 ;ROW        EQU      25
 ;COLW40     EQU      80
@@ -212,12 +215,11 @@ MFINDMZF:  JP       _MFINDMZF
 MROMLOAD:  JP       _MROMLOAD 
            ;-----------------------------------------
 
-;
-;====================================
-;
-; ROM File System Commands
-;
-;====================================
+           ;====================================
+           ;
+           ; ROM File System Commands
+           ;
+           ;====================================
 
            ; HL contains address of block to check.
 ISMZF:     PUSH     BC
@@ -230,7 +232,7 @@ ISMZF:     PUSH     BC
            ;
            INC      HL
            LD       DE,NAME                     ; Checks to confirm this is an MZF header.
-           LD       B,17                        ; Maximum of 17 characters, including terminator in filename.
+           LD       B,FNSIZE                    ; Maximum of 17 characters, including terminator in filename.
 ISMZFNXT:  LD       A,(HL)
            LD       (DE),A
            CP       00Dh                        ; If we find a terminator then this indicates potentially a valid name.
@@ -246,7 +248,7 @@ ISMZFNXT3: INC      DE
            DJNZ     ISMZFNXT
            JR       ISMZFNOT                    ; No end of string terminator, this cant be a valid filename.
 ISMZFVFY:  LD       A,B
-           CP       17
+           CP       FNSIZE
            JR       Z,ISMZFNOT                  ; If the filename has no length it cant be valid, so loop.
 ISMZFYES:  CP       A                           ; Set zero flag to indicate match.
 ISMZFNOT:  POP      HL
@@ -377,7 +379,7 @@ FINDMZF3:  POP      HL
            PUSH     DE
            PUSH     BC
            LD       DE,(TMPADR)                 ; Original DE put onto stack, original filename into DE 
-           LD       BC,17
+           LD       BC,FNSIZE
            CALL     CMPSTRING
            POP      BC
            POP      DE
@@ -502,11 +504,11 @@ LROMLOAD5: PUSH     AF
 
 
 
-;======================================
-;
-;       SA1510 mirrored functions. 
-;
-;======================================
+           ;======================================
+           ;
+           ;       SA1510 mirrored functions. 
+           ;
+           ;======================================
 
 ?MODE:     LD       HL,KEYPF
            LD       (HL),08AH
@@ -522,6 +524,14 @@ LROMLOAD5: PUSH     AF
            INC      HL
            DJNZ     ?DINT                   
            RET      
+
+
+           ;======================================
+           ;
+           ;       Message table
+           ;
+           ;======================================
+
 
 
 
@@ -544,9 +554,3 @@ LROMLOAD5: PUSH     AF
            ; Ensure we fill the entire 4K by padding with FF's.
            ALIGN    1000H
 
-;
-;======================================
-;
-;       Message table
-;
-;======================================

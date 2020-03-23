@@ -55,24 +55,15 @@
 ; -ALV    Address of a scratch pad area used by the BDOS to keep disk storage allocation information.
 ;         This address is different for each DPH.
 ;------------------------------------------------------------------------------------------------------------
-DPBASE:     DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK1, CSV0, ALV0 
-            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK2, CSV1, ALV1 
-            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK3, CSV2, ALV2 
-            DW      0000H, 0000H, 0000H, 0000H, CDIRBUF, DPBLOCK3, CSV3, ALV3 
+            ALIGN_NOPS   DPBASE                                          ; Space for 2xROM, 2xFD, 3xSD or upto 7 drives
+                                                                         ; These entries are created dynamically based on hardware available.
 
             ; NB. The Disk Parameter Blocks are stored in CBIOS ROM to save RAM space.
 
 ;------------------------------------------------------------------------------------------------------------
 ; CPN Disk work areas.
 ;------------------------------------------------------------------------------------------------------------
-CDIRBUF:    DS      128                                                  ; scratch directory area
-CSV0:       DS      32                                                   ; (DRM + 1)/4 = scratch area for drive 0.
-ALV0:       DS      (720/8)+1                                            ; (DSM/8) + 1 = allocation vector 0 NB.Set to largest DSM declared in DPB tables as drives can be switched.
-CSV1:       DS      32                                                   ; scratch area for drive 1.
-ALV1:       DS      (720/8)+1                                            ; allocation vector 1
-CSV2:       DS      32                                                   ; scratch area for drive 2.
-ALV2:       DS      (720/8)+1                                            ; allocation vector 2
-CSV3:       DS      32                                                   ; scratch area for drive 3.
-ALV3:       DS      (720/8)+1                                            ; allocation vector 3
-
-            ALIGN   CBIOSDATA
+            ALIGN_NOPS   CDIRBUF                                         ; Memory work areas, just allocate the space.
+            ALIGN_NOPS   CSVALVMEM
+            ALIGN_NOPS   CSVALVEND
+            ALIGN        CBIOSDATA

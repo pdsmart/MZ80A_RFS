@@ -32,12 +32,12 @@ COLW        EQU     40
 SCRNSZ      EQU     COLW * ROW
 MODE80C     EQU     0
 
-            ;======================================
+            ;===========================================================
             ;
-            ; USER ROM BANK 3
+            ; USER ROM BANK 3 - Monitor memory and help utilities.
             ;
-            ;======================================
-            ORG     0E800h
+            ;===========================================================
+            ORG     UROMADDR
 
             ;--------------------------------
             ; Common code spanning all banks.
@@ -106,339 +106,254 @@ BKSWRET3:   POP     BC
 
 
 
-MEMTEST:    LD      B,240       ; Number of loops
-LOOP:       LD      HL,MEMSTART ; Start of checked memory,
-            LD      D,0CFh      ; End memory check CF00
-LOOP1:      LD      A,000h
-            CP      L
-            JR      NZ,LOOP1b
-            CALL    PRTHL       ; Print HL as 4digit hex.
-            LD      A,0C4h      ; Move cursor left.
-            LD      E,004h      ; 4 times.
-LOOP1a:     CALL    DPCT
-            DEC     E
-            JR      NZ,LOOP1a
-LOOP1b:     INC     HL
-            LD      A,H
-            CP      D           ; Have we reached end of memory.
-            JR      Z,LOOP3     ; Yes, exit.
-            LD      A,(HL)      ; Read memory location under test, ie. 0.
-            CPL                 ; Subtract, ie. FF - A, ie FF - 0 = FF.
-            LD      (HL),A      ; Write it back, ie. FF.
-            SUB     (HL)        ; Subtract written memory value from A, ie. should be 0.
-            JR      NZ,LOOP2    ; Not zero, we have an error.
-            LD      A,(HL)      ; Reread memory location, ie. FF
-            CPL                 ; Subtract FF - FF
-            LD      (HL),A      ; Write 0
-            SUB     (HL)        ; Subtract 0
-            JR      Z,LOOP1     ; Loop if the same, ie. 0
-LOOP2:      LD      A,16h
-            CALL    PRNT        ; Print A
-            CALL    PRTHX       ; Print HL as 4 digit hex.
-            CALL    PRNTS       ; Print space.
-            XOR     A
-            LD      (HL),A
-            LD      A,(HL)      ; Get into A the failing bits.
-            CALL    PRTHX       ; Print A as 2 digit hex.
-            CALL    PRNTS       ; Print space.
-            LD      A,0FFh      ; Repeat but first load FF into memory
-            LD      (HL),A
-            LD      A,(HL)
-            CALL    PRTHX       ; Print A as 2 digit hex.
-            NOP
-            JR      LOOP4
+           ;-------------------------------------------------------------------------------
+           ; START OF MEMORY CMDLINE TOOLS FUNCTIONALITY
+           ;-------------------------------------------------------------------------------
 
-LOOP3:      CALL    PRTHL
-            LD      DE,OKCHECK
-            CALL    MSG          ; Print check message in DE
-            LD      A,B          ; Print loop count.
-            CALL    PRTHX
-            LD      DE,OKMSG
-            CALL    MSG          ; Print ok message in DE
-            CALL    NL
-            DEC     B
-            JR      NZ,LOOP
-            LD      DE,DONEMSG
-            CALL    MSG          ; Print check message in DE
-            JP      ST1X
+;
+;       Memory correction
+;       command 'M'
+;
+MCORX:      CALL    GETHEX                                               ; correction address
+MCORX1:     CALL    NLPHL                                                ; corr. adr. print
+            CALL    SPHEX                                                ; ACC ASCII display
+            CALL    PRNTS                                                ; space print
+            CALL    BGETLX                                               ; get data & check data
+            CALL    HLHEX                                                ; HLASCII(DE)
+            JR      C,MCRX3
+            CALL    DOT4DE                                               ; INC DE * 4
+            INC     DE
+            CALL    _2HEX                                                ; data check
+            JR      C,MCORX1
+            CP      (HL)
+            JR      NZ,MCORX1
+            INC     DE
+            LD      A,(DE)
+            CP      00Dh                                                 ; not correction
+            JR      Z,MCRX2
+            CALL    _2HEX                                                ; ACCHL(ASCII)
+            JR      C,MCORX1
+            LD      (HL),A                                               ; data correct
+MCRX2:      INC     HL
+            JR      MCORX1
+MCRX3:      LD      H,B                                                  ; memory address
+            LD      L,C
+            JR      MCORX1
 
-LOOP4:      LD      B,09h
-            CALL    PRNTS        ; Print space.
-            XOR     A            ; Zero A
-            SCF                  ; Set Carry
-LOOP5:      PUSH    AF           ; Store A and Flags
-            LD      (HL),A       ; Store 0 to bad location.
-            LD      A,(HL)       ; Read back
-            CALL    PRTHX        ; Print A as 2 digit hex.
-            CALL    PRNTS        ; Print space
-            POP     AF           ; Get back A (ie. 0 + C)
-            RLA                  ; Rotate left A. Bit LSB becomes Carry (ie. 1 first instance), Carry becomes MSB
-            DJNZ    LOOP5        ; Loop if not zero, ie. print out all bit locations written and read to memory to locate bad bit.
-            XOR     A            ; Zero A, clears flags.
-            LD      A,80h
-            LD      B,08h
-LOOP6:      PUSH    AF           ; Repeat above but AND memory location with original A (ie. 80) 
-            LD      C,A          ; Basically walk through all the bits to find which one is stuck.
-            LD      (HL),A
-            LD      A,(HL)
-            AND     C
-            NOP
-            JR      Z,LOOP8      ; If zero then print out the bit number
-            NOP
-            NOP
-            LD      A,C
-            CPL
-            LD      (HL),A
-            LD      A,(HL)
-            AND     C
-            JR      NZ,LOOP8     ; As above, if the compliment doesnt yield zero, print out the bit number.
-LOOP7:      POP     AF
-            RRCA
-            NOP
-            DJNZ    LOOP6
-            JP      ST1X
 
-LOOP8:      CALL    LETNL        ; New line.
-            LD      DE,BITMSG    ; BIT message
-            CALL    MSG          ; Print message in DE
-            LD      A,B
-            DEC     A
-            CALL    PRTHX        ; Print A as 2 digit hex, ie. BIT number.
-            CALL    LETNL        ; New line
-            LD      DE,BANKMSG   ; BANK message
-            CALL    MSG          ; Print message in DE
-            LD      A,H
-            CP      50h          ; 'P'
-            JR      NC,LOOP9     ; Work out bank number, 1, 2 or 3.
-            LD      A,01h
-            JR      LOOP11
-
-LOOP9:      CP      90h
-            JR      NC,LOOP10
-            LD      A,02h
-            JR      LOOP11
-
-LOOP10:     LD      A,03h
-LOOP11:     CALL    PRTHX        ; Print A as 2 digit hex, ie. BANK number.
-            JR      LOOP7
-
-DLY1S:      PUSH    AF
-            PUSH    BC
-            LD      C,10
-L0324:      CALL    DLY12
-            DEC     C
-            JR      NZ,L0324
-            POP     BC
+DUMPX:      CALL    GETHEX
+            CALL    DOT4DE
+            PUSH    HL
+            CALL    HLHEX
+            POP     DE
+            JR      C,DUM4
+DUM1:       EX      DE,HL
+DUM3:       LD      B,008h
+            LD      C,017h
+            CALL    NLPHL
+DUM2:       CALL    SPHEX
+            INC     HL
+            PUSH    AF
+            LD      A,(DSPXY)
+            ADD     A,C
+            LD      (DSPXY),A
             POP     AF
+            CP      020h
+            JR      NC,L0D51
+            LD      A,02Eh
+L0D51:      CALL    ?ADCN
+            CALL    PRNT3
+            LD      A,(DSPXY)
+            INC     C
+            SUB     C
+            LD      (DSPXY),A
+            DEC     C
+            DEC     C
+            DEC     C
+            PUSH    HL
+            SBC     HL,DE
+            POP     HL
+            JR      Z,L0D85
+            LD      A,0F8h
+            LD      (0E000h),A
+            NOP
+            LD      A,(0E001h)
+            CP      0FEh
+            JR      NZ,L0D78
+            CALL    ?BLNK
+L0D78:      DJNZ    DUM2
+L0D7A:      CALL    ?KEY
+            OR      A
+            JR      Z,L0D7A
+            CALL    BRKEY
+            JP      NZ,DUM3
+L0D85:      RET                     ; JR       LEA76
+DUM4:       LD      HL,000A0h
+            ADD     HL,DE
+            JR      DUM1            
+
+           ; Clear memory.
+INITMEMX:   LD      DE,MSG_INITM
+            CALL    MSG
+            CALL    LETNL
+            LD      HL,1200h
+            LD      BC,0D000h - 1200h
+CLEAR1:     LD      A,00h
+            LD      (HL),A
+            INC     HL
+            DEC     BC
+            LD      A,B
+            OR      C
+            JP      NZ,CLEAR1
             RET
 
-            ; Test the 8253 Timer, configure it as per the monitor and display the read back values.
-TIMERTST:   CALL    NL
-            LD      DE,MSG_TIMERTST
-            CALL    MSG
-            CALL    NL
-            LD      DE,MSG_TIMERVAL
-            CALL    MSG
-            LD      A,01h
-            LD      DE,8000h
-            CALL    TIMERTST1
-NDE:        JP      NDE
-            JP      ST1X
-TIMERTST1:  DI      
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            LD      (AMPM),A
-            LD      A,0F0H
-            LD      (TIMFG),A
-ABCD:       LD      HL,0A8C0H
-            XOR     A
-            SBC     HL,DE
-            PUSH    HL
-            INC     HL
-            EX      DE,HL
-
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),0B0H   ; 10110000 Control Counter 2 10, Write 2 bytes 11, 000 Interrupt on Terminal Count, 0 16 bit binary
-            LD      (HL),074H   ; 01110100 Control Counter 1 01, Write 2 bytes 11, 010 Rate Generator, 0 16 bit binary
-            LD      (HL),030H   ; 00110100 Control Counter 1 01, Write 2 bytes 11, 010 interrupt on Terminal Count, 0 16 bit binary
-
-            LD      HL,CONT2    ; Counter 2
-            LD      (HL),E
-            LD      (HL),D
-
-            LD      HL,CONT1    ; Counter 1
-            LD      (HL),00AH
-            LD      (HL),000H
-
-            LD      HL,CONT0    ; Counter 0
-            LD      (HL),00CH
-            LD      (HL),0C0H
-
-;            LD      HL,CONT2    ; Counter 2
-;            LD      C,(HL)
-;            LD      A,(HL)
-;            CP      D
-;            JP      NZ,L0323H                
-;            LD      A,C
-;            CP      E
-;            JP      Z,CDEF                
-            ;
-
-L0323H:     PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),080H
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            ;CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),040H
-            LD      HL,CONT1    ; Counter 1
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            ;CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),000H
-            LD      HL,CONT0    ; Counter 0
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            ;CALL    DLY1S
-            ;
-            LD      A,0C4h      ; Move cursor left.
-            LD      E,0Eh      ; 4 times.
-L0330:      CALL    DPCT
-            DEC     E
-            JR      NZ,L0330
-            ;
-;            LD      C,20
-;L0324:      CALL    DLY12
-;            DEC     C
-;            JR      NZ,L0324
-            ;
-            POP     HL
-            POP     DE
+BGETLX:     EX      (SP),HL
             POP     BC
+            LD      DE,BUFER
+            CALL    GETL
+            LD      A,(DE)
+            CP      01Bh
+            JP      Z,GETHEX2
+            JP      (HL)
+
+GETHEX:     EX      (SP),IY
             POP     AF
-            ;
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CP      D
-            JP      NZ,L0323H                
-            LD      A,C
-            CP      E
-            JP      NZ,L0323H                
-            ;
-            ;
-            PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            CALL    NL
-            CALL    NL
-            CALL    NL
-            LD      DE,MSG_TIMERVAL2
-            CALL    MSG
-            POP     HL
-            POP     DE
-            POP     BC
-            POP     AF
+            CALL    HLHEX
+            JR      C,GETHEX2
+            JP      (IY)
+GETHEX2:    POP     AF                                                   ; Waste the intermediate caller address
+            RET    
 
-            ;
-CDEF:       POP     DE
-            LD      HL,CONT1
-            LD      (HL),00CH
-            LD      (HL),07BH
-            INC     HL
+    
+           ;    INCREMENT DE REG.
+DOT4DE:    INC      DE
+           INC      DE
+           INC      DE
+           INC      DE
+           RET   
 
-L0336H:      PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),080H
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),040H
-            LD      HL,CONT1    ; Counter 1
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    PRNTS
-            CALL    DLY1S
-            ;
-            LD      HL,CONTF    ; Control Register
-            LD      (HL),000H
-            LD      HL,CONT0    ; Counter 0
-            LD      C,(HL)
-            LD      A,(HL)
-            CALL    PRTHX
-            LD      A,C
-            CALL    PRTHX
-            ;
-            CALL    DLY1S
-            ;
-            LD      A,0C4h      ; Move cursor left.
-            LD      E,0Eh      ; 4 times.
-L0340:      CALL    DPCT
-            DEC     E
-            JR      NZ,L0340
-            ;
-            POP     HL
-            POP     DE
-            POP     BC
-            POP     AF
+           ;    SPACE PRINT AND DISP ACC
+           ;    INPUT:HL=DISP. ADR.
+SPHEX:     CALL     PRNTS                                                ; SPACE PRINT
+           LD       A,(HL)
+           CALL     PRTHX                                                ; DSP OF ACC (ASCII)
+           LD       A,(HL)
+           RET
 
-            LD      HL,CONT2    ; Counter 2
-            LD      C,(HL)
-            LD      A,(HL)
-            CP      D
-            JR      NZ,L0336H                
-            LD      A,C
-            CP      E
-            JR      NZ,L0336H                
-            CALL    NL
-            LD      DE,MSG_TIMERVAL3
-            CALL    MSG
-            POP     HL
-            POP     DE
-            POP     BC
-            EI      
-            RET   
+           ;    NEW LINE AND PRINT HL REG (ASCII)
+NLPHL:     CALL     NL
+           CALL     PRTHL
+           RET  
+           ;-------------------------------------------------------------------------------
+           ; END OF MEMORY CMDLINE TOOLS FUNCTIONALITY
+           ;-------------------------------------------------------------------------------
+
+           ;-------------------------------------------------------------------------------
+           ; START OF PRINTER CMDLINE TOOLS FUNCTIONALITY
+           ;-------------------------------------------------------------------------------
+PTESTX:    LD       A,(DE)
+           CP       '&'                                                  ; plotter test
+           JR       NZ,PTST1X
+PTST0X:    INC      DE
+           LD       A,(DE)
+           CP       'L'                                                  ; 40 in 1 line
+           JR       Z,.LPTX
+           CP       'S'                                                  ; 80 in 1 line
+           JR       Z,..LPTX
+           CP       'C'                                                  ; Pen change
+           JR       Z,PENX
+           CP       'G'                                                  ; Graph mode
+           JR       Z,PLOTX
+           CP       'T'                                                  ; Test
+           JR       Z,PTRNX
+;
+PTST1X:    CALL     PMSGX
+ST1X2:     RET
+.LPTX:     LD       DE,LLPT                                              ; 01-09-09-0B-0D
+           JR       PTST1X
+..LPTX:    LD       DE,SLPT                                              ; 01-09-09-09-0D
+           JR       PTST1X
+PTRNX:     LD       A,004h                                               ; Test pattern
+           JR       LE999
+PLOTX:     LD       A,002h                                               ; Graph mode
+LE999:     CALL     LPRNTX
+           JR       PTST0X
+PENX:      LD       A,01Dh                                               ; 1 change code (text mode)
+           JR       LE999
+;
+;
+;       1 char print to $LPT
+;
+;        in: ACC print data
+;
+;
+LPRNTX:    LD       C,000h                                               ; RDAX test
+           LD       B,A                                                  ; print data store
+           CALL     RDAX
+           LD       A,B
+           OUT      (0FFh),A                                             ; data out
+           LD       A,080h                                               ; RDP high
+           OUT      (0FEh),A
+           LD       C,001h                                               ; RDA test
+           CALL     RDAX
+           XOR      A                                                    ; RDP low
+           OUT      (0FEh),A
+           RET
+;
+;       $LPT msg.
+;       in: DE data low address
+;       0D msg. end
+;
+PMSGX:     PUSH     DE
+           PUSH     BC
+           PUSH     AF
+PMSGX1:    LD       A,(DE)                                               ; ACC = data
+           CALL     LPRNTX
+           LD       A,(DE)
+           INC      DE
+           CP       00Dh                                                 ; end ?
+           JR       NZ,PMSGX1
+           POP      AF
+           POP      BC
+           POP      DE
+           RET
+
+;
+;       RDA check
+;
+;       BRKEY in to monitor return
+;       in: C RDA code
+;
+RDAX:       IN      A,(0FEh)
+            AND     00Dh
+            CP      C
+            RET     Z
+            CALL    BRKEY
+            JR      NZ,RDAX
+            LD      SP,ATRB
+            JR      ST1X2
+
+            ;    40 CHA. IN 1 LINE CODE (DATA)
+LLPT:       DB      01H                                                  ; TEXT MODE
+            DB      09H
+            DB      09H
+            DB      0BH
+            DB      0DH
+
+            ;    80 CHA. 1 LINE CODE (DATA)
+SLPT:       DB      01H                                                  ; TEXT MODE
+            DB      09H
+            DB      09H
+            DB      09H
+            DB      0DH
+
+            ;-------------------------------------------------------------------------------
+            ; END OF PRINTER CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF HELP SCREEN FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; Simple help screen to display commands.
 HELP:       CALL    NL
@@ -446,16 +361,33 @@ HELP:       CALL    NL
             CALL    PRTSTR
             RET
 
-            ; Modification of original MSG function, use NULL terminated strings not CR terminated.
+            ; Modification of original MSG function, use NULL terminated strings not CR terminated and include page pause.
 PRTSTR:     PUSH    AF
             PUSH    BC
             PUSH    DE
+            LD      A,0
+            LD      (TMPLINECNT),A
 PRTSTR1:    LD      A,(DE)
             CP      000H
-            JR      Z,PRTSTRE                 
-            CALL    PRNT
+            JR      Z,PRTSTRE
+            CP      00DH
+            JR      Z,PRTSTR3
+PRTSTR2:    CALL    PRNT
             INC     DE
             JR      PRTSTR1                   
+PRTSTR3:    PUSH    AF
+            LD      A,(TMPLINECNT)
+            CP      24
+            JR      Z,PRTSTR5
+            INC     A
+PRTSTR4:    LD      (TMPLINECNT),A
+            POP     AF
+            JR      PRTSTR2
+PRTSTR5:    CALL    GETKY
+            CP      ' '
+            JR      NZ,PRTSTR5
+            XOR     A
+            JR      PRTSTR4
 PRTSTRE:    POP     DE
             POP     BC
             POP     AF
@@ -471,36 +403,34 @@ HELPSCR:    DB      "4     - 40 COL MODE.",                                 00DH
             DB      "F[X]  - BOOT FD DRIVE X.",                             00DH
             DB  0AAH,"     - BOOT FD ORIGINAL ROM.",                        00DH
             DB      "H     - THIS HELP SCREEN.",                            00DH
-            DB      "IR/IC - RFS DIR LISTING ROM/CARD.",                    00DH
+            DB      "IR/IC - RFS DIR LISTING ROM/SD CARD.",                 00DH
             DB      "JXXXX - JUMP TO LOCATION XXXX.",                       00DH
             DB      "LT[FN]- LOAD TAPE, FN=FILENAME",                       00DH
             DB      "LR[FN]- LOAD ROM, FN=NO OR NAME",                      00DH
             DB      "LC[FN]- LOAD SDCARD, FN=NO OR NAME",                   00DH
-            DB      "      - ADD NX TO LOAD CMD FOR NO EXEC.",              00DH
+            DB      "      - ADD NX FOR NO EXEC, IE.LRNX.",                 00DH
             DB      "MXXXX - EDIT MEMORY STARTING AT XXXX.",                00DH
             DB      "P     - TEST PRINTER.",                                00DH
             DB      "R     - TEST DRAM MEMORY.",                            00DH
-            DB      "S     - SAVE CURRENT PROG TO TAPE.",                   00DH
+            DB      "ST[XXXXYYYYZZZZ] - SAVE MEM TO TAPE.",                 00DH
+            DB      "SC[XXXXYYYYZZZZ] - SAVE MEM TO CARD.",                 00DH
+            DB      "        XXXX=START,YYYY=END,ZZZZ=EXEC",                00DH
             DB      "T     - TEST TIMER.",                                  00DH
             DB      "V     - VERIFY TAPE SAVE.",                            00DH
             DB      000H
 
+            ;-------------------------------------------------------------------------------
+            ; END OF HELP SCREEN FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
-OKCHECK:    DB      ", CHECK: ", 0Dh
-OKMSG:      DB      " OK.", 0Dh
-DONEMSG:    DB      11h
-            DB      "RAM TEST COMPLETE.", 0Dh
-           
-BITMSG:     DB      " BIT:  ", 0Dh
-BANKMSG:    DB      " BANK: ", 0Dh
-MSG_TIMERTST:
-            DB      "8253 TIMER TEST", 0Dh, 00h
-MSG_TIMERVAL:
-            DB      "READ VALUE 1: ", 0Dh, 00h
-MSG_TIMERVAL2:
-            DB      "READ VALUE 2: ", 0Dh, 00h
-MSG_TIMERVAL3:
-            DB      "READ DONE.", 0Dh, 00h
+
+            ;--------------------------------------
+            ;
+            ; Message table
+            ;
+            ;--------------------------------------
+
+MSG_INITM:  DB      "INIT MEMORY",           00DH
 
             ALIGN   0EFFFh
             DB      0FFh

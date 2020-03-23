@@ -45,12 +45,17 @@
             NOP
             ; After switching in Bank 0, it will automatically continue processing in Bank 0 at the XOR A instructionof ROMFS:
 
+            ;-------------------------------------------------------------------------------
             ; Jump table for entry into this pages functions.
+            ;-------------------------------------------------------------------------------
             JP      ?PRNT                                                ;  9  QPRNT
             JP      ?PRTHX                                               ; 12  QPRTHX
             JP      ?PRTHL                                               ; 15  QPRTHL
             JP      ?ANSITERM                                            ; 18  QANSITERM
 
+            ;-------------------------------------------------------------------------------
+            ; START OF SCREEN FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; CR PAGE MODE1
 .CR:        CALL    .MANG
@@ -104,51 +109,6 @@ DPCT1:      ADD     HL,BC
             LD      D,(HL)
             EX      DE,HL
             JP      (HL)
-
-;?SAVE:      LD      HL,FLSDT
-;            LD      A,(SFTLK)
-;            OR      A
-;            LD      (HL),043H                                            ; Thick block cursor when lower case.
-;            JR      Z,SAVE1
-;            CP      1
-;            LD      (HL),03EH                                            ; Thick underscore when CAPS lock.
-;            JR      Z,SAVE1
-;            LD      (HL),0EFH                                            ; Block cursor when SHIFT lock.
-;SAVE1:      LD      A,(HL)
-;            PUSH    AF
-;            CALL    ?PONT
-;            LD      A,(HL)
-;            LD      (FLASH),A
-;            POP     AF
-;            LD      (HL),A
-;            XOR     A
-;            LD      HL,KEYPA
-;            LD      (HL),A
-;            CPL     
-;            LD      (HL),A
-;            RET     
-;
-;?LOAD:      PUSH    AF
-;            LD      A,(FLASH)
-;            CALL    ?PONT
-;            LD      (HL),A
-;            POP     AF
-;            RET     
-;
-;?FLAS:      PUSH    AF
-;            PUSH    HL
-;            LD      A,(KEYPC)
-;            RLCA    
-;            RLCA    
-;            JR      C,FLAS1                 
-;            LD      A,(FLSDT)
-;FLAS2:      CALL    ?PONT
-;            LD      (HL),A
-;FLAS3:      POP     HL
-;            POP     AF
-;            RET     
-;FLAS1:      LD      A,(FLASH)
-;            JR      FLAS2                   
 
 
 ?PRT:       LD      A,C
@@ -860,6 +820,9 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             DB      0CBH
             DB      000H
             DB      01EH
+            ;-------------------------------------------------------------------------------
+            ; END OF SCREEN FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ;----------------------------------------
             ;
@@ -1469,6 +1432,10 @@ SCP:        LD      HL,(DSPXY)                                           ; (back
 RCP:        LD      HL,(CURSORPSAV)                                      ; (current) <- (backup)
             LD      (DSPXY),HL
             JP      ANSIEXIT
+
+            ;-------------------------------------------------------------------------------
+            ; END OF ANSI TERMINAL FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ALIGN_NOPS    UROMADDR + 0800h
 

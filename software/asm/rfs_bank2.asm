@@ -27,12 +27,12 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
-            ;======================================
+            ;===========================================================
             ;
-            ; USER ROM BANK 2
+            ; USER ROM BANK 2 - SD Card Controller functions.
             ;
-            ;======================================
-            ORG     0E800h
+            ;===========================================================
+            ORG     UROMADDR
 
             ;--------------------------------
             ; Common code spanning all banks.
@@ -98,7 +98,9 @@ BKSWRET2:   POP     BC
             POP     AF
             RET                                                               ; Return to caller.
 
-
+            ;-------------------------------------------------------------------------------
+            ; START OF SD CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; Method to initialise the SD card.
             ;
@@ -308,16 +310,18 @@ SDACMD:     PUSH    AF
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00000H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
             CALL    SDCMD
-            LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
-            DEC     A
-            JR      NZ,SDACMD
-
             POP     HL
             POP     DE
+            LD      A,(SDBUF+6)                                          ; Should be a response of 0 or 1.
+            CP      2
+            JR      NC,SDACMD0
             POP     AF
             CALL    SDCMD
             LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
             OR      A
+            RET
+SDACMD0:    POP     AF
+            CP      1
             RET
 
             ; Method to send Application Command 41 to the SD card. This command involves retries and delays
@@ -331,8 +335,6 @@ SDACMD1:    PUSH    BC
             LD      HL,00040H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00000H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
             CALL    SDACMD
-            LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
-            OR      A
             JR      Z,SDACMD3
             LD      BC,12903                                             ; Delay for at least 200mS for the card to recover and be ready.
 SDACMD2:    DEC     BC                                                   ; 6T
@@ -346,7 +348,10 @@ SDACMD2:    DEC     BC                                                   ; 6T
             OR      C
             JR      NZ,SDACMD1
             LD      A,1
-SDACMD3:    OR      A
+            OR      A                                                    ; Retries exceeded, return error.
+            RET
+SDACMD3:    POP     BC                                                   ; Success, tidy up stack and exit with Z set.
+            XOR     A
             RET
 
             ; Method to send a byte to the SD card via the SPI protocol.
@@ -434,6 +439,7 @@ SPISKIP:    PUSH    BC
             ; This is done as follows: <MSB> <2> <1> <0> => <2> <1> <0> 0  (ie. 8 bit shift): Shift left <0> with carry, shift left <1> shift left <2>, 0 to <LSB>
             ;
             ; Input: HL = Stack offset.
+            ;
 LBATOADDR:  LD      HL,(SDSTARTSEC+1)
             LD      A,(HL)                                               ; Start ny retrieving bytes as HED0
             INC     HL
@@ -458,314 +464,6 @@ LBATOADDR:  LD      HL,(SDSTARTSEC+1)
             LD      A,0
             LD      (BC),A
             RET
-
-;
-;            ; Method to read a sector or partial sector contents to an SD Card.
-;            ;
-;            ; This method was originally a C routine I was using for FatFS but optimised it (still more can be done). The C->ASM is not so optimal.
-;            ;
-;            ; Input: on Stack : Position 2  = unsigned int count of 2 bytes.    - The count of bytes to read.
-;            ;                   Position 4  = unsigned int offset of 2 bytes.   - The offset in the 512 byte sector to commence read.
-;            ;                   Position 6  = unsigned long sector of 4 bytes.  - The sector number or direct byte address for older cards.
-;            ;                   Position 10 = unsigned char BYTE *buf of 2 bytes- Pointer to a buffer where the bytes should be stored
-;            ; Output: A = 0 - All ok. A > 0 - error occurred.
-;            ;
-;SD_READP:   LD      A,0
-;            CALL    SPICS                                                ; Set CS low (active).
-;
-;            LD      HL,(SDCAP)                                           ; Test to see if CT_BLOCK is available.
-;            LD      H,0
-;            LD      A,CT_BLOCK
-;            AND     L
-;            JP      NZ,READP_3                                           ; If it has CT_BLOCK then use sector numbers otherwise multiply up to bytes.
-;
-;            LD      HL,6 + 2                                             ; It isnt so we need to convert the block to bytes by x512.
-;            CALL    LBATOADDR
-;
-;READP_3:    LD      A,1    
-;            LD      (RESULT),A
-;
-;            ; A = ACMD to send
-;            ; LHED = Argument, ie. ACMD = A, L, H, E, D, CRC
-;            LD      HL,6                                                 ; Sector is stored as 3rd paramneter at offset 6, retrieve and arrange in little endian order in LHED
-;            ADD     HL,SP
-;            LD      D,(HL)
-;            INC     HL
-;            LD      E,(HL)
-;            INC     HL
-;            PUSH    DE
-;            LD      D,(HL)
-;            INC     HL
-;            LD      E,(HL)
-;            LD      A,CMD17                                              ; Send CMD17 to read a sector.
-;            POP     HL
-;            EX      DE,HL
-;            CALL    SDCMD
-;            LD      A,(SDBUF+6)                                          ; Fetch result and store.
-;            AND     A
-;            JP      NZ,READP_4
-;
-;            LD      HL,1000                                              ; Sit in a tight loop waiting for the data packet arrival (ie. not 0xFF).
-;READP_7:    PUSH    HL
-;            LD      HL,200    
-;            CALL    T_DELAY
-;            CALL    SPIIN
-;            POP     HL
-;            CP      255
-;            JP      NZ,READP_6 
-;            DEC     HL
-;            LD      A,H
-;            OR      L
-;            JR      NZ,READP_7
-;
-;READP_6:    CP      254
-;            JP      NZ,READP_4
-;            LD      HL,4    
-;            ADD     HL,SP
-;            LD      E,(HL)
-;            INC     HL
-;            LD      D,(HL)
-;            LD      HL,514
-;            AND     A
-;            SBC     HL,DE
-;            EX      DE,HL
-;            POP     BC
-;            POP     HL
-;            PUSH    HL
-;            PUSH    BC
-;            EX      DE,HL
-;            AND     A
-;            SBC     HL,DE
-;            LD      (BYTECNT),HL
-;
-;            LD      HL,4    
-;            ADD     HL,SP
-;            LD      A,(HL)
-;            INC     HL
-;            LD      H,(HL)
-;            LD      L,A
-;            LD      A,H
-;            OR      L
-;            JP      Z,READP_11
-;
-;            PUSH    HL
-;            POP     BC
-;            CALL    SPISKIP
-;
-;READP_11:   LD      HL,10                                                ; Get the buffer pointer from where to read data.
-;            ADD     HL,SP
-;            LD      A,(HL)
-;            INC     HL
-;            LD      H,(HL)
-;            LD      L,A
-;            LD      A,H
-;            OR      L
-;            JP      Z,READP_12
-;
-;READP_15:   PUSH    HL
-;            CALL    SPIIN
-;            POP     HL
-;            LD      (HL),A
-;            INC     HL
-;            PUSH    HL
-;            POP     BC
-;
-;            LD      HL,10                                                ; Update the pointer on the stack with register copy.
-;            ADD     HL,SP
-;            LD      (HL),C
-;            INC     HL
-;            LD      (HL),B
-;READP_13:   POP     DE                                                   ; Return address.
-;            POP     HL                                                   ; Count
-;            DEC     HL                                                   ; Decrement count
-;            PUSH    HL                                                   ; And return stack to previous state.
-;            PUSH    DE
-;            LD      A,H
-;            OR      L
-;            PUSH    BC
-;            POP     HL
-;            JP      NZ,READP_15
-;
-;READP_12:   LD      HL,(BYTECNT)
-;            PUSH    HL
-;            POP     BC
-;            CALL    SPISKIP
-;            LD      A,0    
-;            LD      (RESULT),A
-;READP_4:
-;            LD      A,0
-;            CALL    SPICS
-;            LD      A,(RESULT)
-;            RET
-
-
-;            ; Method to write a sector or partial sector contents to an SD Card.
-;            ; This method was originally a C routine I was using for FatFS but optimised it (still more can be done). The C->ASM is not so optimal.
-;            ;
-;            ; Input: on Stack : Position 2 = unsigned long sector of 4 bytes.   - This is the sector number if *buf = NULL, the byte count to write if *buf != NULL, 
-;            ;                                                                     or NULL to initialise/finalise a sector write.
-;            ;                   Position 6 = unsigned char BYTE *buf of 2 bytes.- This is the pointer to the data for writing. If NULL it indicates an initialise/
-;            ;                                                                     finalise action with above sector being use to indicate mode (!= 0 initialise, 0 = finalise).
-;            ;                                                                     If not NULL points to actual data for writing with the number of bytes stored in sector above.
-;            ; Output: A = 0 - All ok. A > 0 - error occurred.
-;SD_WRITEP:  LD      A,1        
-;            LD      (RESULT),A
-;
-;            LD      A,0FFH                                               ; Activate CS (set low).
-;            CALL    SPICS
-;
-;            LD      HL,6                                                 ; If buffer is not null, we are writing data, otherwise we are instigating a write transaction.
-;            ADD     HL,SP
-;            LD      A,(HL)
-;            INC     HL
-;            LD      H,(HL)
-;            LD      L,A
-;            LD      A,H
-;            OR      L
-;            JP      Z,WRITEP_3                                           ; NULL so we are performing a transaction open/close.
-;
-;            LD      HL,2                                                 ; Get the sector into DEHL.
-;            ADD     HL,SP
-;            LD      A,(HL)
-;            INC     HL
-;            LD      H,(HL)
-;            LD      L,A
-;            LD      (BYTECNT),HL                                         ; Only interested in the lower 16bit value of the long.
-;
-;WRITEP_4:   LD      A,H                                                  ; So long as we have bytes in the buffer, send to the card for writing.
-;            OR      L
-;            JP      Z,WRITEP_5
-;            LD      HL,(WRITECNT)                                        ; Count of bytes to write.
-;            LD      A,H
-;            OR      L
-;            JR      Z,WRITEP_5                                           ; If either the max count (512) or the requested count (BYTECNT) have expired, exit.
-;
-;            LD      HL,6                                                 ; Load the buffer pointer.
-;            ADD     HL,SP
-;            INC     (HL)
-;            LD      A,(HL)
-;            INC     HL
-;            JR      NZ,WRITEP_2                                          ; Increment by 1 carrying overflow into MSB.
-;            INC     (HL)
-;WRITEP_2:   LD      H,(HL)
-;            LD      L,A
-;            DEC     HL                                                   ; Back to current byte.
-;            LD      A,(HL)
-;            CALL    SPIOUT
-;            LD      HL,(WRITECNT)                                        ; Decrement the max count.
-;            DEC     HL
-;            LD      (WRITECNT),HL
-;            LD      HL,(BYTECNT)                                        ; Decrement the requested count.
-;            DEC     HL
-;            LD      (BYTECNT),HL
-;            JP      WRITEP_4
-;
-;WRITEP_5:   LD      A,0        
-;            LD      (RESULT),A
-;            JP      WRITEP_8
-;
-;WRITEP_3:   LD      HL,2                                                 ; Get the sector number into DEHL to test.
-;            ADD     HL,SP
-;            LD      E,(HL)
-;            INC     HL
-;            LD      D,(HL)
-;            INC     HL
-;            LD      A,(HL)
-;            INC     HL
-;            LD      H,(HL)
-;            LD      L,A
-;            EX      DE,HL
-;            LD      A,H
-;            OR      L
-;            OR      D
-;            OR      E
-;            JP      Z,WRITEP_9                                           ; Sector is 0 so finalise the write transaction.
-;
-;            LD      HL,(SDCAP)                                           ; Check to see if the card has block addressing.
-;            LD      H,0
-;            LD      A,CT_BLOCK
-;            AND     L
-;            JP      NZ,WRITEP_10                                         ; If it hasnt then we need to multiply up to the correct byte.
-;
-;            LD      HL,2 + 2                                             ; Fetch the sector number, multiply (by left shift x 9) x512 and store.
-;            CALL    LBATOADDR
-;
-;            ; A = ACMD to send
-;            ; LHED = Argument, ie. ACMD = A, L, H, E, D, CRC
-;WRITEP_10:  LD      HL,2                                                 ; Sector is stored as 3rd paramneter at offset 6, retrieve and arrange in little endian order in LHED
-;            ADD     HL,SP
-;            LD      D,(HL)
-;            INC     HL
-;            LD      E,(HL)
-;            INC     HL
-;            PUSH    DE
-;            LD      D,(HL)
-;            INC     HL
-;            LD      E,(HL)
-;            LD      A,CMD24                                              ; Send CMD24 to write a sector.
-;            POP     HL
-;            EX      DE,HL
-;            CALL    SDCMD
-;            LD      A,(SDBUF+6)                                          ; Fetch result and store.
-;            AND     A
-;            JP      NZ,WRITEP_8
-;            LD      A,255
-;            CALL    SPIOUT
-;            LD      A,254
-;            CALL    SPIOUT
-;            LD      HL,SD_SECSIZE        
-;            LD      (WRITECNT),HL
-;            LD      A,0        
-;            LD      (RESULT),A
-;            JP      WRITEP_8
-;
-;WRITEP_9:   LD      HL,(WRITECNT)
-;            INC     HL
-;            INC     HL
-;            LD      (BYTECNT),HL
-;WRITEP_13:
-;            LD      HL,(BYTECNT)
-;            DEC     HL
-;            LD      (BYTECNT),HL
-;            INC     HL
-;            LD      A,H
-;            OR      L
-;            JP      Z,WRITEP_14
-;            LD      A,0
-;            CALL    SPIOUT
-;            JP      WRITEP_13
-;WRITEP_14:
-;            CALL    SPIIN
-;            AND     01FH
-;            LD      L,A
-;            LD      H,0
-;            CP      5
-;            JP      NZ,WRITEP_15
-;
-;            LD      HL,10000        
-;            PUSH    HL
-;            JR      WRITEP_18
-;WRITEP_20:  DEC     HL
-;            PUSH    HL
-;            LD      HL,200        
-;            CALL    T_DELAY
-;WRITEP_18:  CALL    SPIIN
-;            POP     HL
-;            CP      255
-;            JP      Z,WRITEP_17
-;            LD      A,H
-;            OR      L
-;            JR      NZ,WRITEP_20
-;
-;WRITEP_17:  LD      A,H
-;            OR      L
-;            JP      Z,WRITEP_15
-;            LD      A,0
-;            LD      (RESULT),HL
-;WRITEP_15:  LD      A,000H
-;            CALL    SPICS
-;WRITEP_8:   LD      A,(RESULT)               
-;            RET
 
 
             ; Method to read a sector or partial sector contents to an SD Card.
@@ -1003,6 +701,23 @@ SD_WRITE15: LD      A,000H                                               ; Disab
 SD_WRITE8:  LD      A,(RESULT)                                           ; Return result.
             RET
 
+            ; Method to print out the filename within an MZF header or SD Card header.
+            ; The name may not be terminated as the full 17 chars are used, so this needs
+            ; to be checked.
+            ; Input: DE = Address of filename.
+            ;
+PRTFN:      PUSH    BC
+            LD      B,FNSIZE                                             ; Maximum size of filename.
+PRTMSG:     LD      A,(DE)
+            INC     DE
+            CP      000H                                                 ; If there is a valid terminator, exit.
+            JR      Z,PRTMSGE
+            CP      00DH
+            JR      Z,PRTMSGE
+            CALL    PRNT
+            DJNZ    PRTMSG                                               ; Else print until 17 chars have been processed.
+PRTMSGE:    POP     BC
+            RET
 
             ; Method to print out an SDC directory entry name along with an incremental file number. The file number can be
             ; used as a quick reference to a file rather than the filename.
@@ -1016,27 +731,32 @@ PRTDIR:     PUSH    BC
             ;
             LD      A,(SCRNMODE)
             CP      0
-            LD      H,46
+            LD      H,47
             JR      Z,PRTDIR0
-            LD      H,92
-PRTDIR0:    LD      A,(TMPLINECNT)              ; Pause if we fill the screen.
+            LD      H,93
+PRTDIR0:    LD      A,(TMPLINECNT)                                       ; Pause if we fill the screen.
             LD      E,A
             INC     E
             CP      H
             JR      NZ,PRTNOWAIT
             LD      E, 0
-PRTDIRWAIT: CALL    ?KEY
-            JR      Z,PRTDIRWAIT
+PRTDIRWAIT: CALL    GETKY
+            CP      ' '
+            JR      Z,PRTNOWAIT
+            CP      'X'                                                  ; Exit from listing.
+            LD      A,001H
+            JR      Z,PRTDIR4
+            JR      PRTDIRWAIT
 PRTNOWAIT:  LD      A,E
             LD      (TMPLINECNT),A
             ;
-            LD      A, D                        ; Print out file number and increment.
+            LD      A, D                                                 ; Print out file number and increment.
             CALL    PRTHX
             LD      A, '.'
             CALL    PRNT
             POP     DE
-            PUSH    DE                          ; Get pointer to the file name and print.
-            RST     018h
+            PUSH    DE                                                   ; Get pointer to the file name and print.
+            CALL    PRTFN                                                ; Print out the filename.
             ;
             LD      HL, (DSPXY)
             ;
@@ -1045,11 +765,11 @@ PRTNOWAIT:  LD      A,E
             LD      A,20
             JR      C, PRTDIR2
             ;
-            LD      A,(SCRNMODE)                ; 40 Char mode? 2 columns of filenames displayed so NL.
+            LD      A,(SCRNMODE)                                         ; 40 Char mode? 2 columns of filenames displayed so NL.
             CP      0
             JR      Z,PRTDIR1
             ;
-            LD      A,L                         ; 80 Char mode we print 4 columns of filenames.
+            LD      A,L                                                  ; 80 Char mode we print 4 columns of filenames.
             CP      40
             LD      A,40
             JR      C, PRTDIR2
@@ -1063,7 +783,9 @@ PRTDIR1:    CALL    NL
             JR      PRTDIR3
 PRTDIR2:    LD      L,A
             LD      (DSPXY),HL
-PRTDIR3:    POP     HL
+PRTDIR3:    XOR     A
+PRTDIR4:    OR      A
+            POP     HL
             POP     DE
             POP     BC
             RET
@@ -1096,7 +818,8 @@ GETSDDIRENT:PUSH    BC
             LD      HL,0
             LD      (SDSTARTSEC),HL
             LD      (SDOFFSET),HL
-            LD      B,0
+            LD      B,C
+            LD      C,0
             LD      (SDSTARTSEC+2),BC
             LD      HL,SD_SECSIZE
             LD      (SDLOADSIZE),HL
@@ -1164,10 +887,11 @@ DIRSD2:     LD      A,(HL)
             BIT     7,A                                                  ; Is this entry active, ie. Bit 7 of lower flag = 1?
             JR      Z,DIRSD3
             CALL    PRTDIR                                               ; Valid entry so print directory number and name pointed to by HL.
+            JR      NZ,DIRSD4
             INC     D
 DIRSD3:     INC     E                                                    ; Onto next directory entry number.
             DJNZ    DIRSD1
-            RET
+DIRSD4:     RET
             ;
 
             ; Load a program from the SD Card into RAM and/or execute it - Part 2.
@@ -1241,13 +965,18 @@ LOADSD9:    POP     DE                                                   ; No lo
             LD      L,A
             LD      A,(HL)
             LD      (ATRB),A                                             ; Type of file, store in the tape header memory.
-            INC     L
+            INC     HL
             LD      DE,NAME
             LD      BC,SDDIR_FNSZ
             LDIR                                                         ; Copy the filename into the CMT area.
-            LD      D,(HL)
+            LD      E,(HL)
             INC     HL
-            LD      E,(HL)                                               ; Start sector.
+            LD      D,(HL)                                               ; Start sector upper 16 bits, big endian.
+            INC     HL
+            LD      (SDSTARTSEC),DE
+            LD      E,(HL)
+            INC     HL
+            LD      D,(HL)                                               ; Start sector lower 16 bits, big endian.
             INC     HL
             LD      (COMNT),DE
             LD      (SDSTARTSEC+2),DE
@@ -1272,20 +1001,19 @@ LOADSD10:   LD      (DTADR),DE
             LD      D,(HL)                                               ; Execution address, store in tape header memory.
             LD      (EXADR),DE
             LD      DE,0
-            LD      (SDSTARTSEC),DE
             LD      (SDOFFSET),DE
             ;
             LD      DE,MSGSDLOAD
             RST     018H
             LD      DE,NAME
-            RST     018H
+            CALL    PRTFN
             CALL    NL
             ;
 LOADSD11:   LD      A,(SDLOADSIZE+1)
             CP      002H
             LD      HL,SD_SECSIZE                                        ; A full sector read if remaining bytes >=512
             JR      NC,LOADSD12
-            LD      HL,(SDLOADSIZE)                                         ; Get remaining bytes size.
+            LD      HL,(SDLOADSIZE)                                      ; Get remaining bytes size.
 LOADSD12:   LD      (SDBYTECNT),HL
             DI
             CALL    SD_READ                                              ; Read the sector.
@@ -1339,13 +1067,81 @@ LOADSDERR:  LD      DE,MSGSDRERR
             LD      A,2
             JR      LOADSDX1
 
+            ; Method to save a block of memory to the SD card as a program.
+            ; The parameters which should be given are:
+            ; XXXXYYYYZZZZ - where XXXX = Start Address, YYYY = End Address, ZZZZ = Execution Address.
+            ; Prompt for a filename which will be written into the SD Card directory.
+            ;
+SAVESDCARD: CALL    READHEX                                              ; Start address
+            LD      (DTADR),HL                                           ; data adress buffer
+            LD      B,H
+            LD      C,L
+            CALL    INCDE4
+            CALL    READHEX                                              ; End address
+            SBC     HL,BC                                                ; byte size
+            INC     HL
+            LD      (SIZE),HL                                            ; byte size buffer
+            CALL    INCDE4
+            CALL    READHEX                                              ; execute address
+            LD      (EXADR),HL                                           ; buffer
+            CALL    NL
+            LD      DE,MSGSAVESD                                         ; 'FILENAME? '
+            RST     018h
+            CALL    GETLHEX                                              ; filename input
+            CALL    INCDE4
+            CALL    INCDE4
+            LD      HL,NAME                                              ; name buffer
+SAVESD1:    INC     DE
+            LD      A,(DE)
+            LD      (HL),A                                               ; filename trans.
+            INC     HL
+            CP      00Dh                                                 ; end code
+            JR      NZ,SAVESD1
+            RET
 
+            ; Method to read 4 hex digits and convert to a 16bit number.
+            ;
+READHEX:    EX      (SP),IY
+            POP     AF
+            CALL    HLHEX
+            JR      C,READHEX2                                           ; Exit if the input is invalid
+            JP      (IY)
+READHEX2:   POP     AF                                                   ; Waste the intermediate caller address
+            RET 
+
+            ; Add 4 to DE.
+INCDE4:     INC     DE
+            INC     DE
+            INC     DE
+            INC     DE
+            RET  
+
+            ; Read a line from the user and store in BUFER.
+READLHEX:   EX       (SP),HL                                             ; Get return address into HL and pop of old HL value into BC.
+            POP      BC
+            LD       DE,BUFER
+            CALL     GETL                                                ; Input a line from the user.
+            LD       A,(DE)                                               ; Escape? Return to command processor.
+            CP       01Bh
+            JR       Z,READHEX2
+            JP       (HL)                                                ; Else go to original return address.
+            ;-------------------------------------------------------------------------------
+            ; END OF SD CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+             
+            ;--------------------------------------
+            ;
+            ; Message table
+            ;
+            ;--------------------------------------
 MSGCDIRLST: DB      "SDCARD DIRECTORY:",            00DH
 MSGSDRERR:  DB      "SDCARD READ ERROR, SECTOR:",   00DH
 MSGLOADADDR:DB      ", LOAD ADDR:",                 00DH
 MSGEXECADDR:DB      "EXEC ADDR:",                   00DH
 MSGNOTBIN:  DB      "NOT BINARY",                   00DH
 MSGSDLOAD:  DB      "LOADING ",                     00DH
+MSGSAVESD:  DB      "FILENAME: ",                   00DH
 
             ALIGN   0EFFFh
             DB      0FFh

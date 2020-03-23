@@ -56,9 +56,13 @@ WRITE       EQU     CBIOSSTART + 42
 FRSTAT      EQU     CBIOSSTART + 45
 SECTRN      EQU     CBIOSSTART + 48
 UNUSED      EQU     CBIOSSTART + 51
+BANKTOBANK  EQU     CBIOSSTART + 54
 CCP         EQU     CBASE
 CCPCLRBUF   EQU     CBASE + 3
-CPMDPBASE   EQU     CPMBIOS
+DPBASE      EQU     CPMBIOS
+CDIRBUF     EQU     CPMBIOS + (MAXDISKS * 16)
+CSVALVMEM   EQU     CDIRBUF + 128 
+CSVALVEND   EQU     CSVALVMEM + 1253
 IOBYT       EQU     00003H                                               ; IOBYTE address
 CDISK       EQU     00004H                                               ; Address of Current drive name and user number
 CPMUSERDMA  EQU     00080h                                               ; Default CPM User DMA address.
@@ -72,12 +76,6 @@ DPBLOCK5    EQU     DPBLOCK4 + DPSIZE
 DPBLOCK6    EQU     DPBLOCK5 + DPSIZE
 DPBLOCK7    EQU     DPBLOCK6 + DPSIZE
 
-; BIOS equates
-NDISKS      EQU     4                                                    ; Number of Disk Drives
-KEYBUFSIZE  EQU     16                                                   ; Ensure this is a power of 2, max size 256.
-
-; Debugging
-ENADEBUG    EQU     1                                                    ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
 ; Configurable settings.
@@ -101,23 +99,52 @@ SCRNSZ:     EQU     COLW * ROW                                           ; Total
 SCRLW:      EQU     COLW / 8                                             ; Number of 8 byte regions in a line for hardware scroll.
 MODE80C:    EQU     1
 
+; BIOS equates
+MAXDISKS    EQU     7                                                    ; Max number of Drives supported
+KEYBUFSIZE  EQU     16                                                   ; Ensure this is a power of 2, max size 256.
+
+; Debugging
+ENADEBUG    EQU     1                                                    ; Enable debugging logic, 1 = enable, 0 = disable
+
 ;-------------------------------------------------------
 ; Function entry points in the CBIOS ROMS
 ;-------------------------------------------------------
 
-; Public functions in CBIOS User ROM Bank 1.
+; Public functions in CBIOS User ROM Bank 1 - utility functions, ie. Audio.
 QREBOOT     EQU      9 + UROMADDR
 QMELDY      EQU     12 + UROMADDR
 QTEMP       EQU     15 + UROMADDR
 QMSTA       EQU     18 + UROMADDR
 QMSTP       EQU     21 + UROMADDR
 QBEL        EQU     24 + UROMADDR
+QMODE       EQU     27 + UROMADDR
+QTIMESET    EQU     30 + UROMADDR
+QTIMEREAD   EQU     33 + UROMADDR
+QCHKKY      EQU     36 + UROMADDR
+QGETKY      EQU     39 + UROMADDR
 
-; Public functions in CBIOS User ROM Bank 1.
+; Public functions in CBIOS User ROM Bank 2 - Screen / ANSI terminal functions.
 QPRNT       EQU      9 + UROMADDR
 QPRTHX      EQU     12 + UROMADDR
 QPRTHL      EQU     15 + UROMADDR
 QANSITERM   EQU     18 + UROMADDR
+
+; Public functions in CBIOS User ROM Bank 3 - SD Card functions.
+SD_INIT      EQU      9 + UROMADDR
+SD_READ      EQU     12 + UROMADDR
+SD_WRITE     EQU     15 + UROMADDR
+SD_GETLBA    EQU     18 + UROMADDR
+SDC_READ     EQU     21 + UROMADDR
+SDC_WRITE    EQU     24 + UROMADDR
+
+; Public functions in CBIOS User ROM Bank 4 - Floppy Disk Controller functions.
+QDSKINIT     EQU      9 + UROMADDR
+QSETDRVCFG   EQU     12 + UROMADDR
+QSETDRVMAP   EQU     15 + UROMADDR
+QSELDRIVE    EQU     18 + UROMADDR
+QGETMAPDSK   EQU     21 + UROMADDR
+QDSKREAD     EQU     24 + UROMADDR
+QDSKWRITE    EQU     27 + UROMADDR
 
 
 ;-----------------------------------------------
@@ -157,10 +184,12 @@ SPI_IN      EQU     0FEH
 ;
 DOUT_LOW    EQU     000H
 DOUT_HIGH   EQU     004H
+DOUT_MASK   EQU     004H
 DIN_LOW     EQU     000H
 DIN_HIGH    EQU     001H
 CLOCK_LOW   EQU     000H
 CLOCK_HIGH  EQU     002H
+CLOCK_MASK  EQU     0FDH
 CS_LOW      EQU     000H
 CS_HIGH     EQU     001H
 
@@ -198,19 +227,21 @@ WRKROMBK2: EQU      01019H                                               ; WORKI
 ;            the User ROM bank.
 ;-----------------------------------------------
 MROMPAGES   EQU     8
-USRROMPAGES EQU     12
-ROMBANK0    EQU     0
-ROMBANK1    EQU     1
-ROMBANK2    EQU     2
-ROMBANK3    EQU     3
-ROMBANK4    EQU     4
-ROMBANK5    EQU     5
-ROMBANK6    EQU     6
-ROMBANK7    EQU     7
-ROMBANK8    EQU     8
-ROMBANK9    EQU     9
-ROMBANK10   EQU     10
-ROMBANK11   EQU     11
+USRROMPAGES EQU     12                                                   ; Monitor ROM         :  User ROM
+ROMBANK0    EQU     0                                                    ; MROM SA1510 40 Char :  RFS Bank 0 - Main RFS Entry point and functions.
+ROMBANK1    EQU     1                                                    ; MROM SA1510 80 Char :  RFS Bank 1 - Floppy disk controller and utilities.
+ROMBANK2    EQU     2                                                    ; CPM 2.2 CBIOS       :  RFS Bank 2 - SD Card controller and utilities.
+ROMBANK3    EQU     3                                                    ; RFS Utilities       :  RFS Bank 3 - Cmdline tools (Memory, Printer, Help)
+ROMBANK4    EQU     4                                                    ; Free                :  RFS Bank 4 - CMT Utilities.
+ROMBANK5    EQU     5                                                    ; Free                :  RFS Bank 5
+ROMBANK6    EQU     6                                                    ; Free                :  RFS Bank 6
+ROMBANK7    EQU     7                                                    ; Free                :  RFS Bank 7 - Memory and timer test utilities.
+ROMBANK8    EQU     8                                                    ;                     :  CBIOS Bank 1 - Utilities
+ROMBANK9    EQU     9                                                    ;                     :  CBIOS Bank 2 - Screen / ANSI Terminal
+ROMBANK10   EQU     10                                                   ;                     :  CBIOS Bank 3 - SD Card
+ROMBANK11   EQU     11                                                   ;                     :  CBIOS Bank 4 - Floppy disk controller.
+
+
 
 OBJCD       EQU     001h
 
@@ -288,6 +319,67 @@ CLRKEY      EQU     0F7H
 HOMEKEY     EQU     0F8H
 BREAKKEY    EQU     0FBH
 
+
+; MMC/SD command (SPI mode)
+CMD0        EQU     64 + 0                                               ; GO_IDLE_STATE 
+CMD1        EQU     64 + 1                                               ; SEND_OP_COND 
+ACMD41      EQU     0x40+41                                              ; SEND_OP_COND (SDC) 
+CMD8        EQU     64 + 8                                               ; SEND_IF_COND 
+CMD9        EQU     64 + 9                                               ; SEND_CSD 
+CMD10       EQU     64 + 10                                              ; SEND_CID 
+CMD12       EQU     64 + 12                                              ; STOP_TRANSMISSION 
+CMD13       EQU     64 + 13                                              ; SEND_STATUS 
+ACMD13      EQU     0x40+13                                              ; SD_STATUS (SDC) 
+CMD16       EQU     64 + 16                                              ; SET_BLOCKLEN 
+CMD17       EQU     64 + 17                                              ; READ_SINGLE_BLOCK 
+CMD18       EQU     64 + 18                                              ; READ_MULTIPLE_BLOCK 
+CMD23       EQU     64 + 23                                              ; SET_BLOCK_COUNT 
+ACMD23      EQU     0x40+23                                              ; SET_WR_BLK_ERASE_COUNT (SDC)
+CMD24       EQU     64 + 24                                              ; WRITE_BLOCK 
+CMD25       EQU     64 + 25                                              ; WRITE_MULTIPLE_BLOCK 
+CMD32       EQU     64 + 32                                              ; ERASE_ER_BLK_START 
+CMD33       EQU     64 + 33                                              ; ERASE_ER_BLK_END 
+CMD38       EQU     64 + 38                                              ; ERASE 
+CMD55       EQU     64 + 55                                              ; APP_CMD 
+CMD58       EQU     64 + 58                                              ; READ_OCR 
+
+; Card type flags (CardType)
+CT_MMC      EQU     001H                                                 ; MMC ver 3 
+CT_SD1      EQU     002H                                                 ; SD ver 1 
+CT_SD2      EQU     004H                                                 ; SD ver 2 
+CT_SDC      EQU     CT_SD1|CT_SD2                                        ; SD 
+CT_BLOCK    EQU     008H                                                 ; Block addressing
+
+; Disk types.
+DSKTYP_FDC  EQU     0                                                    ; Type of disk is a Floppy disk and handled by the FDC controller.
+DSKTYP_ROM  EQU     1                                                    ; Type of disk is a ROM and handled by the ROM methods.
+DSKTYP_SDC  EQU     2                                                    ; Type of disk is an SD Card and handled by the SD Card methods.
+
+;
+; Rom Filing System constants.
+;
+RFS_DIRENT  EQU     256                                                  ; Directory entries in the RFS directory.
+RFS_DIRENTSZ EQU    32                                                   ; Size of a directory entry.
+RFS_DIRSIZE EQU     RFS_DIRENT * RFS_DIRENTSZ                            ; Total size of the directory.
+RFS_BLOCKSZ EQU     65536                                                ; Size of a file block per directory entry.
+RFS_IMGSZ   EQU     RFS_DIRSIZE + (RFS_DIRENT * RFS_BLOCKSZ)             ; Total size of the RFS image.
+
+;
+; CPM constants
+;
+CPM_SD_SEC   EQU    32
+CPM_SD_TRK   EQU    1024
+CPM_SD_IMGSZ EQU    CPM_SD_TRK * CPM_SD_SEC * SD_SECSIZE
+
+;
+; SD Card constants.
+;
+SD_SECSIZE  EQU     512                                                  ; Default size of an SD Sector 
+SD_SECPTRK  EQU     CPM_SD_SEC                                           ; Sectors of SD_SECSIZE per virtual track.
+SD_TRACKS   EQU     CPM_SD_TRK                                           ; Number of virtual tracks per disk image.
+
+
+
 ;-----------------------------------------------
 ;    BIOS WORK AREA (MZ80A)
 ;-----------------------------------------------
@@ -301,6 +393,8 @@ KEYWRITE:   DS      virtual 2                                            ; Point
 KEYREAD:    DS      virtual 2                                            ; Pointer into the buffer where the next character can be read.
 KEYLAST:    DS      virtual 1                                            ; KEY LAST VALUE
 KEYRPT:     DS      virtual 1                                            ; KEY REPEAT COUNTER
+USRBANKSAV: DS      virtual 1                                            ; Save user bank number when calling another user bank.
+HLSAVE:     DS      virtual 2                                            ; Space to save HL register when manipulating stack.
 ;
 SPV:
 IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
@@ -339,6 +433,7 @@ OCTV:       DS      virtual 1                                            ; OCTAV
 RATIO:      DS      virtual 2                                            ; ONPU RATIO
 ;BUFER:      DS      virtual 81                                           ; GET LINE BUFFER
 ;KEYBUF:     DS      virtual 1                                            ; KEY BUFFER
+DRVAVAIL    DS      virtual 1                                            ; Flag to indicate which drive controllers are available. Bit 2 = SD, Bit 1 = ROM, Bit 0 = FDC
 TIMESEC     DS      virtual 6                                            ; RTC 48bit TIME IN MILLISECONDS
 FDCCMD      DS      virtual 1                                            ; LAST FDC COMMAND SENT TO CONTROLLER.
 MOTON       DS      virtual 1                                            ; MOTOR ON = 1, OFF = 0
@@ -355,13 +450,13 @@ TMPCNT      DS      virtual 2                                            ; TEMPO
 CPMROMLOC:  DS      virtual 2                                            ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Image.
 CPMROMDRV0: DS      virtual 2                                            ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 0.
 CPMROMDRV1: DS      virtual 2                                            ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 1.
-DISKMAP:    DS      virtual NDISKS                                       ; Disk map of CPM logical to physical controller disk.
+NDISKS:     DS      virtual 1                                            ; Dynamically calculated number of disks on boot.
+DISKMAP:    DS      virtual MAXDISKS                                     ; Disk map of CPM logical to physical controller disk.
 FDCDISK:    DS      virtual 1                                            ; Physical disk number.
 SECPERTRK:  DS      virtual 1                                            ; Sectors per track for 1 head.
 SECPERHEAD: DS      virtual 1                                            ; Sectors per head.
 SECTORCNT:  DS      virtual 1                                            ; Sector size as a count of how many sectors make 512 bytes.
 DISKTYPE:   DS      virtual 1                                            ; Disk type of current selection.
-ROMDRV:     DS      virtual 1                                            ; ROM Drive Image to use.
 MTROFFTIMER:DS      virtual 1                                            ; Second down counter for FDC motor off.
 ;
 SEKDSK:     DS      virtual 1                                            ; Seek disk number
@@ -390,6 +485,11 @@ DMAADDR:    DS      virtual 2                                            ; Last 
 HSTBUF:     DS      virtual 512                                          ; Host buffer for disk sector storage
 HSTBUFE:
 
+SDVER:      DS      virtual 1                                            ; SD Card version.
+SDCAP:      DS      virtual 1                                            ; SD Card capabilities..
+SDSTARTSEC  DS      virtual 4                                            ; Starting sector of data to read/write from/to SD card.
+SDBUF:      DS      virtual 11                                           ; SD Card command fram buffer for the command and response storage.
+
 CURSORPSAV  DS      virtual 2                                            ; Cursor save position;default 0,0
 HAVELOADED  DS      virtual 1                                            ; To show that a value has been put in for Ansi emualtor.
 ANSIFIRST   DS      virtual 1                                            ; Holds first character of Ansi sequence
@@ -414,9 +514,8 @@ COLOUR      EQU     0
 SPSAVE:     DS      virtual 2                                            ; CPM Stack save.
 SPISRSAVE:  DS      virtual 2
 VAREND      EQU     $                                                    ; End of variables
-
             ; Stack space for the CBIOS.
-            DS      virtual 64 
+MSGSTRBUF:  DS      virtual 128                                          ; Lower end of the stack space is for interbank message printing, ie.space for a string to print.
 BIOSSTACK   EQU     $
             ; Stack space for the Interrupt Service Routine.
             DS      virtual 16                                           ; Max 8 stack pushes.

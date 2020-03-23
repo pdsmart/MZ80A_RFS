@@ -27,12 +27,12 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
-           ;======================================
+           ;============================================================
            ;
-           ; USER ROM BANK 1
+           ; USER ROM BANK 1 - Floppy Disk Controller functions.
            ;
-           ;======================================
-           ORG      0E800h
+           ;============================================================
+           ORG      UROMADDR
 
            ;--------------------------------
            ; Common code spanning all banks.
@@ -109,11 +109,19 @@ TRK0FD3    EQU      01004H
 TRK0FD4    EQU      01005H
 RETRIES    EQU      01006H
 BPARA      EQU      01008H
-           ;======================================
+
+           ;-------------------------------------------------------------------------------
+           ; START OF FLOPPY DISK CONTROLLER FUNCTIONALITY
+           ;-------------------------------------------------------------------------------
+
+           ; Method to check if the floppy interface ROM is present and if it is, jump to its entry point.
            ;
-           ; Floppy Disk Interface
-           ;
-           ;======================================
+FDCK:      CALL     FDCKROM                                                  ; Check to see if the Floppy ROM is present, exit if it isnt.
+           CALL     Z,0F000h
+           RET                                ; JP       CMDCMPEND
+FDCKROM:   LD       A,(0F000h)
+           OR       A
+           RET
 
 FLOPPY:    PUSH     DE                                                       ; Preserve pointer to input buffer.
            LD       DE,BPARA                                                 ; Copy disk parameter block into RAM work area. (From)
@@ -479,7 +487,15 @@ L0300:     IN      A,(0D8H)	                                 	             ; Sta
            JR      C,L0300	                                              	 ; Wait on data reg ready
            JP      (IY)	                                                     ; to f1df
 
-           ; Messages
+           ;-------------------------------------------------------------------------------
+           ; END OF FLOPPY DISK CONTROLLER FUNCTIONALITY
+           ;-------------------------------------------------------------------------------
+
+           ;--------------------------------------
+           ;
+           ; Message table
+           ;
+           ;--------------------------------------
 BOOTDRV:   DB       "FLOPPY BOOT DRIVE ?", 00DH
 LOADERR:   DB       "DISK LOADING ERROR", 00DH
 IPLLOAD:   DB       "DISK LOADING ", 00DH
@@ -492,13 +508,11 @@ DSKID:     DB       002H, "IPLPRO"
            ; Parameter block to indicate configuration and load area.
 PRMBLK:    DB       000H, 000H, 000H, 000H, 001H, 000H, 0CEH, 000H, 000H, 000H, 000H
 
-           ; Ensure we fill the entire 1K by padding with FF's.
+           ; Ensure we fill the entire 2K by padding with FF's.
            ALIGN    0EBFDh
            DB       0FFh
 
 L03FE:     JP       (IY)
-          ;DB       0DDH
-          ;DB       0E9H
 
            ALIGN    0EFFFh
            DB       0FFh

@@ -45,18 +45,30 @@
             NOP
             ; After switching in Bank 0, it will automatically continue processing in Bank 0 at the XOR A instructionof ROMFS:
 
-            ; Jump table for entry into this pages public functions.
+            ;-------------------------------------------------------------------------------
+            ; Jump table for entry into this pages functions.
+            ;-------------------------------------------------------------------------------
             JP      ?REBOOT                                              ;  9  REBOOT
             JP      ?MLDY                                                ; 12  QMELDY
             JP      ?TEMP                                                ; 15  QTEMP
             JP      MLDST                                                ; 18  QMSTA
             JP      MLDSP                                                ; 21  QMSTP
             JP      ?BEL                                                 ; 24  QBEL
+            JP      ?MODE                                                ; 27  QMODE
+            JP      ?TIMESET                                             ; 30  QTIMESET
+            JP      ?TIMEREAD                                            ; 33  QTIMEREAD
+            JP      ?CHKKY                                               ; 36  QCHKKY
+            JP      ?GETKY                                               ; 39  QGETKY
+
+
 
             ; Method to reboot the machine into startup mode, ie. Monitor at MROM Bank 0, UROM at Bank 0.
 ?REBOOT:    LD      A,(MEMSWR)                                           ; Switch memory to power up state, ie. Monitor ROM at 00000H
             JP      UROMADDR                                             ; Now run the code at the bank start which switches to bank 0, intitialises and then calls 00000H
             
+            ;-------------------------------------------------------------------------------
+            ; START OF AUDIO CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; Melody function.
 ?MLDY:      PUSH    BC
@@ -215,14 +227,18 @@ MLDDLY:     ADD     A,C
             POP     AF
             RET  
 
-            
+            ;
+            ; Method to sound the bell, basically play a constant tone.
+            ; 
 ?BEL:       PUSH    DE
             LD      DE,00DB1H
             CALL    ?MLDY
             POP     DE
             RET
 
-
+            ;
+            ; Melody (note) lookup table.
+            ;
 MTBL:       DB      043H
             DB      077H
             DB      007H
@@ -282,6 +298,137 @@ OPTBL:      DB      001H
             DB      010H
             DB      018H
             DB      020H
+            ;-------------------------------------------------------------------------------
+            ; END OF AUDIO CONTROLLER FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+
+            ;-------------------------------------------------------------------------------
+            ; START OF RTC FUNCTIONALITY (INTR HANDLER IN MAIN CBIOS)
+            ;-------------------------------------------------------------------------------
+            ; 
+            ; BC:DE:HL contains the time in milliseconds (100msec resolution) since 01/01/1980. In IX is held the interrupt service handler routine address for the RTC.
+            ; HL contains lower 16 bits, DE contains middle 16 bits, BC contains upper 16bits, allows for a time from 00:00:00 to 23:59:59, for > 500000 days!
+?TIMESET:   DI      
+            ;
+            LD      (TIMESEC),HL                                         ; Load lower 16 bits.
+            EX      DE,HL
+            LD      (TIMESEC+2),HL                                       ; Load middle 16 bits.
+            PUSH    BC
+            POP     HL
+            LD      (TIMESEC+4),HL                                       ; Load upper 16 bits.
+            ;
+            LD      HL,CONTF
+            LD      (HL),074H                                            ; Set Counter 1, read/load lsb first then msb, mode 2 rate generator, binary
+            LD      (HL),0B0H                                            ; Set Counter 2, read/load lsb first then msb, mode 0 interrupt on terminal count, binary
+            DEC     HL
+            LD      DE,TMRTICKINTV                                       ; 100Hz coming into Timer 2 from Timer 1, set divisor to set interrupts per second.
+            LD      (HL),E                                               ; Place current time in Counter 2
+            LD      (HL),D
+            DEC     HL
+            LD      (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
+            LD      (HL),001H
+            NOP     
+            NOP     
+            NOP     
+            ;
+            LD      A, 0C3H                                              ; Install the interrupt vector for when interrupts are enabled.
+            LD      (00038H),A
+            LD      (00039H),IX
+           ;EI      
+            RET    
+
+            ; Time Read;
+            ; Returns BC:DE:HL where HL is lower 16bits, DE is middle 16bits and BC is upper 16bits of milliseconds since 01/01/1980.
+?TIMEREAD:  LD      HL,(TIMESEC+4)
+            PUSH    HL
+            POP     BC
+            LD      HL,(TIMESEC+2)
+            EX      DE,HL
+            LD      HL,(TIMESEC)
+            RET
+            ;-------------------------------------------------------------------------------
+            ; END OF RTC FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+
+            ;-------------------------------------------------------------------------------
+            ; START OF KEYBOARD FUNCTIONALITY (INTR HANDLER SEPERATE IN CBIOS)
+            ;-------------------------------------------------------------------------------
+
+?MODE:      LD      HL,KEYPF
+            LD      (HL),08AH
+            LD      (HL),007H
+            LD      (HL),005H
+            LD      (HL),001H
+            RET     
+
+            ; Method to check if a key has been pressed and stored in buffer.. 
+?CHKKY:     LD      A, (KEYCOUNT)
+            OR      A
+            JR      Z,CHKKY2
+            LD      A,0FFH
+            RET
+CHKKY2:     XOR     A
+            RET
+
+?GETKY:     PUSH    HL
+            LD      A,(KEYCOUNT)
+            OR      A
+            JR      Z,GETKY2
+GETKY1:     DI                                                           ; Disable interrupts, we dont want a race state occurring.
+            LD      A,(KEYCOUNT)
+            DEC     A                                                    ; Take 1 off the total count as we are reading a character out of the buffer.
+            LD      (KEYCOUNT),A
+            LD      HL,(KEYREAD)                                         ; Get the position in the buffer where the next available character resides.
+            LD      A,(HL)                                               ; Read the character and save.
+            PUSH    AF
+            INC     L                                                    ; Update the read pointer and save.
+            LD      A,L
+            AND     KEYBUFSIZE-1
+            LD      L,A
+            LD      (KEYREAD),HL
+            POP     AF
+            EI                                                           ; Interrupts back on so keys and RTC are actioned.
+            JR      ?PRCKEY                                              ; Process the key, action any non ASCII keys.
+            ;
+GETKY2:     LD      A,(KEYCOUNT)                                         ; No key available so loop until one is.
+            OR      A
+            JR      Z,GETKY2                 
+            JR      GETKY1
+            ;
+?PRCKEY:    CP      CR                                                   ; CR
+            JR      NZ,?PRCKY3
+            JR      ?PRCKYE
+?PRCKY3:    CP      HOMEKEY                                              ; HOME
+            JR      NZ,?PRCKY4
+            JR      GETKY2
+?PRCKY4:    CP      CLRKEY                                               ; CLR
+            JR      NZ,?PRCKY5
+            JR      GETKY2
+?PRCKY5:    CP      INSERT                                               ; INSERT
+            JR      NZ,?PRCKY6
+            JR      GETKY2
+?PRCKY6:    CP      DBLZERO                                              ; 00
+            JR      NZ,?PRCKY7
+            LD      A,'0'
+            LD      (KEYBUF),A                                           ; Place a character into the keybuffer so we double up on 0
+            JR      ?PRCKYX
+?PRCKY7:    CP      BREAKKEY                                             ; Break key processing.
+            JR      NZ,?PRCKY8
+
+?PRCKY8:
+?PRCKYX:    
+?PRCKYE:    
+            POP     HL
+            RET
+
+            ;-------------------------------------------------------------------------------
+            ; END OF KEYBOARD FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+
+
 
             ALIGN_NOPS    UROMADDR + 0800h
 

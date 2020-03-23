@@ -26,6 +26,13 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
+;-----------------------------------------------
+; Entry/compilation start points.
+;-----------------------------------------------
+UROMADDR    EQU     0E800H                                               ; Start of User ROM Address space.
+RFSJMPTABLE EQU     UROMADDR + 00080H                                    ; Start of jump table.
+FDCROMADDR  EQU     0F000H
+
 ;-------------------------------------------------------
 ; Function entry points in the standard SA-1510 Monitor.
 ;-------------------------------------------------------
@@ -100,6 +107,23 @@ RFSRST1:    EQU     0EFFEh                                               ; Reset
 RFSRST2:    EQU     0EFFFh                                               ; Reset RFS Bank2 to original.
 
 ;-----------------------------------------------
+; IO ports in hardware and values.
+;-----------------------------------------------
+SPI_OUT     EQU     0FFH
+SPI_IN      EQU     0FEH
+;
+DOUT_LOW    EQU     000H
+DOUT_HIGH   EQU     004H
+DOUT_MASK   EQU     004H
+DIN_LOW     EQU     000H
+DIN_HIGH    EQU     001H
+CLOCK_LOW   EQU     000H
+CLOCK_HIGH  EQU     002H
+CLOCK_MASK  EQU     0FDH
+CS_LOW      EQU     000H
+CS_HIGH     EQU     001H
+
+;-----------------------------------------------
 ; Rom File System Header (MZF)
 ;-----------------------------------------------
 RFS_ATRB:   EQU     00000h                                               ; Code Type, 01 = Machine Code.
@@ -122,6 +146,7 @@ MZFHDRSZ    EQU     128
 RFSSECTSZ   EQU     256
 MROMSIZE    EQU     4096
 UROMSIZE    EQU     2048
+FNSIZE      EQU     17
 
 ;-----------------------------------------------
 ; ROM Banks, 0-7 are reserved for alternative
@@ -133,54 +158,83 @@ UROMSIZE    EQU     2048
 ;            the User ROM bank.
 ;-----------------------------------------------
 MROMPAGES   EQU     8
-USRROMPAGES EQU     12
-ROMBANK0    EQU     0
-ROMBANK1    EQU     1
-ROMBANK2    EQU     2
-ROMBANK3    EQU     3
-ROMBANK4    EQU     4
-ROMBANK5    EQU     5
-ROMBANK6    EQU     6
-ROMBANK7    EQU     7
-ROMBANK8    EQU     8
-ROMBANK9    EQU     9
-ROMBANK10   EQU     10
-ROMBANK11   EQU     11
+USRROMPAGES EQU     12                                                   ; Monitor ROM         :  User ROM
+ROMBANK0    EQU     0                                                    ; MROM SA1510 40 Char :  RFS Bank 0 - Main RFS Entry point and functions.
+ROMBANK1    EQU     1                                                    ; MROM SA1510 80 Char :  RFS Bank 1 - Floppy disk controller and utilities.
+ROMBANK2    EQU     2                                                    ; CPM 2.2 CBIOS       :  RFS Bank 2 - SD Card controller and utilities.
+ROMBANK3    EQU     3                                                    ; RFS Utilities       :  RFS Bank 3 - Cmdline tools (Memory, Printer, Help)
+ROMBANK4    EQU     4                                                    ; Free                :  RFS Bank 4 - CMT Utilities.
+ROMBANK5    EQU     5                                                    ; Free                :  RFS Bank 5
+ROMBANK6    EQU     6                                                    ; Free                :  RFS Bank 6
+ROMBANK7    EQU     7                                                    ; Free                :  RFS Bank 7 - Memory and timer test utilities.
+ROMBANK8    EQU     8                                                    ;                     :  CBIOS Bank 1 - Utilities
+ROMBANK9    EQU     9                                                    ;                     :  CBIOS Bank 2 - Screen / ANSI Terminal
+ROMBANK10   EQU     10                                                   ;                     :  CBIOS Bank 3 - SD Card
+ROMBANK11   EQU     11                                                   ;                     :  CBIOS Bank 4 - Floppy disk controller.
 
 OBJCD       EQU     001h
 
 ;-----------------------------------------------
 ; Common character definitions.
 ;-----------------------------------------------
-SCROLL      EQU     01H                                                  ; Set scrool direction UP.
-BELL        EQU     07H
-SPACE       EQU     20H
-TAB         EQU     09H                                                  ; TAB ACROSS (8 SPACES FOR SD-BOARD)
-CR          EQU     0DH
-LF          EQU     0AH
-FF          EQU     0CH
-ESC         EQU     1BH
-DELETE      EQU     7FH
-BACKS       EQU     08H
+SCROLL      EQU     001H                                                 ; Set scrool direction UP.
+BELL        EQU     007H
+SPACE       EQU     020H
+TAB         EQU     009H                                                 ; TAB ACROSS (8 SPACES FOR SD-BOARD)
+CR          EQU     00DH
+LF          EQU     00AH
+FF          EQU     00CH
+ESC         EQU     01BH
+DELETE      EQU     07FH
+BACKS       EQU     008H
 SOH         EQU     1                                                    ; For XModem etc.
 EOT         EQU     4
 ACK         EQU     6
 NAK         EQU     15H
 NUL         EQU     00H
+NULL        EQU     000H
+CTRL_A      EQU     001H
+CTRL_B      EQU     002H
+CTRL_C      EQU     003H
+CTRL_D      EQU     004H
+CTRL_E      EQU     005H
+CTRL_F      EQU     006H
+CTRL_G      EQU     007H
+CTRL_H      EQU     008H
+CTRL_I      EQU     009H
+CTRL_J      EQU     00AH
+CTRL_K      EQU     00BH
+CTRL_L      EQU     00CH
+CTRL_M      EQU     00DH
+CTRL_N      EQU     00EH
+CTRL_O      EQU     00FH
+CTRL_P      EQU     010H
+CTRL_Q      EQU     011H
+CTRL_R      EQU     012H
+CTRL_S      EQU     013H
+CTRL_T      EQU     014H
+CTRL_U      EQU     015H
+CTRL_V      EQU     016H
+CTRL_W      EQU     017H
+CTRL_X      EQU     018H
+CTRL_Y      EQU     019H
+CTRL_Z      EQU     01AH
+CTRL_SLASH  EQU     01CH
+CTRL_RB     EQU     01DH
+CTRL_CAPPA  EQU     01EH
+CTRL_UNDSCR EQU     01FH
+CTRL_AT     EQU     000H
+NOKEY       EQU     0F0H
+CURSRIGHT   EQU     0F1H
+CURSLEFT    EQU     0F2H
+CURSUP      EQU     0F3H
+CURSDOWN    EQU     0F4H
+DBLZERO     EQU     0F5H
+INSERT      EQU     0F6H
+CLRKEY      EQU     0F7H
+HOMEKEY     EQU     0F8H
+BREAKKEY    EQU     0FBH
 
-
-SPI_OUT     EQU     0FFH
-SPI_IN      EQU     0FEH
-DOUT_LOW    EQU     000H
-DOUT_HIGH   EQU     004H
-DOUT_MASK   EQU     004H
-DIN_LOW     EQU     000H
-DIN_HIGH    EQU     001H
-CLOCK_LOW   EQU     000H
-CLOCK_HIGH  EQU     002H
-CLOCK_MASK  EQU     0FDH
-CS_LOW      EQU     000H
-CS_HIGH     EQU     001H
 
 ; MMC/SD command (SPI mode)
 CMD0        EQU     64 + 0                                               ; GO_IDLE_STATE 
@@ -234,7 +288,7 @@ SDDIR_SSEC  EQU     013H
 SDDIR_SIZE  EQU     015H
 SDDIR_LOAD  EQU     017H
 SDDIR_EXEC  EQU     019H
-SDDIR_FNSZ  EQU     17
+SDDIR_FNSZ  EQU     FNSIZE
 SDDIR_ENTSZ EQU     32
 
 ;-----------------------------------------------
@@ -247,7 +301,7 @@ STACK:      EQU     010F0H
 SPV:
 IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
 ATRB:       DS      virtual 1                                            ; ATTRIBUTE
-NAME:       DS      virtual 17                                           ; FILE NAME
+NAME:       DS      virtual FNSIZE                                       ; FILE NAME
 SIZE:       DS      virtual 2                                            ; BYTESIZE
 DTADR:      DS      virtual 2                                            ; DATA ADDRESS
 EXADR:      DS      virtual 2                                            ; EXECUTION ADDRESS

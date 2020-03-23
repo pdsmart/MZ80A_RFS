@@ -52,71 +52,173 @@
             JP      WRITE_
             JP      LISTST_
             JP      SECTRN_
+            NOP
+            NOP
             RET
+            JP      BANKTOBANK_
 
 ; Methods to access public functions in paged User Rom. The User Rom bank
 ; is switched in and a jump made to the public function. The page remains
 ; selected until the next public access call and the page changed accordingly.
 
+            ; CBIOS Bank 1 - Utilities and Audio.
 BANK8:      PUSH    AF
             LD      A,ROMBANK8
             LD      (RFSBK2),A
             POP     AF
             RET
+            ; CBIOS Bank 2 - Screen / ANSI Terminal
 BANK9:      PUSH    AF
             LD      A,ROMBANK9
             LD      (RFSBK2),A
             POP     AF
             RET
+            ; CBIOS Bank 3 - SD Card.
+BANK10:     PUSH    AF
+            LD      A,ROMBANK10
+            LD      (RFSBK2),A
+            POP     AF
+            RET
+            ; CBIOS Bank 4
+BANK11:     PUSH    AF
+            LD      A,ROMBANK11
+            LD      (RFSBK2),A
+            POP     AF
+            RET
 
-; Public methods for User Rom CBIOS Bank 1
-?REBOOT:    LD      A,ROMBANK8
+            ; Method to allow one bank to call a routine in another bank. It is costly in processing time
+            ; and should only be used infrequently.
+            ;
+            ; Input: A [7:4] = Bank to Call
+            ;          [3:0] = Calling Bank.
+            ;        HL      = Address to call.
+            ;        AF      = Stored on stack to pass to called function.
+            ;        All other registers passed to called function.
+            ; Stack; +2 = AF
+            ; Output: All registers and flags returned to caller.
+            ;
+BANKTOBANK_:LD      (USRBANKSAV),A                                       ; Save the bank we return to.
+            SRL     A                                                    ; Switch to required bank.
+            SRL     A
+            SRL     A
+            SRL     A
+            LD      (RFSBK2),A
+            LD      (HLSAVE),HL                                          ; Save HL (exec address) whilst we get AF from stack.
+            POP     HL                                                   ; HL = return address in original bank.
+            POP     AF                                                   ; AF to pass to called routine.
+            PUSH    HL                                                   ; Restore return address onto stack.
+            LD      HL,BKTOBKRET                                         ; Push the address t
+            PUSH    HL                                                   ; Called routine must return to this method so we can switch back the banks.
+            LD      HL,(HLSAVE)                                          ; Get address to call.
+            JP      (HL)                                                 ; No execute called routine
+BKTOBKRET:  PUSH    AF
+            LD      A,(USRBANKSAV)
+            AND     00FH                                                 ; We just want the bank number we are returning to.
+            LD      (RFSBK2),A                                           ; Switch back bank.
+            POP     AF                                                   ; Restore A and flags to pass back to caller.
+            RET
+
+
+; Public methods for User Rom CBIOS Bank 1 - Utility functions.
+?REBOOT:    LD      A,ROMBANK8                                           ; Method to exit CPM and return to the Sharp MZ80A Monitor.
             LD      (RFSBK2),A
             JP      QREBOOT
 
-?MLDY:      CALL    BANK8
+?MLDY:      CALL    BANK8                                                ; Method to sound a melody given an input array of notes to play.
             JP      QMELDY
 
-?BEL:       CALL    BANK8
+?BEL:       CALL    BANK8                                                ; Method to sound a bell.
             JP      QBEL
 
-?TEMP:      CALL    BANK8
+?TEMP:      CALL    BANK8                                                ; Method to set the playback tempo.
             JP      QTEMP
 
-?MLDST:     CALL    BANK8
+?MLDST:     CALL    BANK8                                                ; Method to start playing a melody.
             JP      QMSTA
 
-?MLDSP:     CALL    BANK8
+?MLDSP:     CALL    BANK8                                                ; Method to stop playing a melody.
             JP      QMSTP
 
-; Public methods for User Rom CBIOS Bank 2
+?MODE:      CALL    BANK8                                                ; Method to setup the 8255 PIO.
+            JP      QMODE
 
-?PRNT:      CALL    BANK9
+?TIMESET:   CALL    BANK8                                                ; Method to setup the RTC.
+            JP      QTIMESET
+
+?TIMEREAD:  CALL    BANK8                                                ; Method to read the RTC.
+            JP      QTIMEREAD
+
+?CHKKY:     CALL    BANK8                                                ; Method to see if a key has been pressed or available in the key buffer.
+            JP      QCHKKY
+
+?GETKY:     CALL    BANK8                                                ; Method to get the next key from the key buffer or wait until one is pressed.
+            JP      QGETKY
+
+
+; Public methods for User Rom CBIOS Bank 2 - Screen / ANSI Terminal functions.
+
+?PRNT:      CALL    BANK9                                                ; Print a character onto the screen at current X/Y location.
             JP      QPRNT
 
-?PRTHX:     CALL    BANK9
+?PRTHX:     CALL    BANK9                                                ; Print register A onto screen as 2 hex digits.
             JP      QPRTHX
 
-?PRTHL:     CALL    BANK9
+?PRTHL:     CALL    BANK9                                                ; Print register HL onto screen as 4 hex digits.
             JP      QPRTHL
 
-?ANSITERM:  CALL    BANK9
+?ANSITERM:  CALL    BANK9                                                ; Send character into the ANSI terminal emulator and process.
             JP      QANSITERM
 
-?NL:        LD      A,LF
+?NL:        LD      A,LF                                                 ; Print a newline.
             JR      ?PRNT
 
-?PRTS:      LD      A,SPACE
+?PRTS:      LD      A,SPACE                                              ; Print a space.
             JR      ?PRNT
 
-; Public methods for User Rom CBIOS Bank 3
-            LD      A,ROMBANK10
-            LD      (RFSBK2),A
-            JP      00000h
-; Public methods for User Rom CBIOS Bank 4
-            LD      A,ROMBANK11
-            LD      (RFSBK2),A
-            JP      00000h
+; Public methods for User ROM CBIOS Bank 3 - SD Card functions.
+
+?SDINIT:    CALL    BANK10                                               ; Initialise the SD Card subsystem
+            JP      SD_INIT
+
+?SDREAD:    CALL    BANK10                                               ; Read a full or partial sector (512 bytes).
+            JP      SD_READ
+
+?SDWRITE:   CALL    BANK10                                               ; Write a full or partial sector (512 bytes).
+            JP      SD_WRITE
+
+?SDGETLBA:  CALL    BANK10                                               ; Get the LBA address for the given CPM Track and Sector.
+            JP      SD_GETLBA
+
+?SDCREAD:   CALL    BANK10                                               ; Read a CPM host sector according to stored values (512 bytes).
+            JP      SDC_READ
+
+?SDCWRITE:  CALL    BANK10                                               ; Write a CPM host sector according to stored values (512 bytes).
+            JP      SDC_WRITE
+
+; Public methods for User ROM CBIOS Bank 4 - Floppy Disk Controller functions.
+
+?DSKINIT:   CALL    BANK11                                               ; Initialise the disk system.
+            JP      QDSKINIT
+
+?SETDRVCFG: CALL    BANK11                                               ; Set the drive configuration.
+            JP      QSETDRVCFG
+
+?SETDRVMAP: CALL    BANK11                                               ; Set the drive mapping, ie. CPM Drive C is FDC Drive.
+            JP      QSETDRVMAP
+
+?SELDRIVE:  CALL    BANK11                                               ; Select the requested drive and turn on motor.
+            JP      QSELDRIVE
+
+?GETMAPDSK: CALL    BANK11                                               ; Map the CPM Disk to an actual controller + disk number.
+            JP      QGETMAPDSK
+
+?DSKREAD:   CALL    BANK11                                               ; Read a sector from the selected disk
+            JP      QDSKREAD
+
+?DSKWRITE:  CALL    BANK11                                               ; Write a sector to the selected disk
+            JP      QDSKWRITE
+
+
 
 
             ;-------------------------------------------------------------------------------
@@ -207,7 +309,7 @@ CONOUT_:    LD      (SPSAVE),SP                                          ; The o
             ;-------------------------------------------------------------------------------
 CONIN_:     LD      (SPSAVE),SP                                          ; The original monitor routines and the enhancements can use
             LD      SP,BIOSSTACK                                         ; more stack space than the 16 words provided by CPM.
-            CALL    GETKY
+            CALL    ?GETKY
             LD      SP,(SPSAVE)                                          ; Restore the CPM stack.
             RET
 
@@ -220,7 +322,7 @@ CONIN_:     LD      (SPSAVE),SP                                          ; The o
             ;-------------------------------------------------------------------------------
 CONST_:     LD      (SPSAVE),SP                                          ; The original monitor routines and the enhancements can use
             LD      SP,BIOSSTACK                                         ; more stack space than the 16 words provided by CPM.
-            CALL    CHKKY
+            CALL    ?CHKKY
             LD      SP,(SPSAVE)                                          ; Restore the CPM stack.
             RET
 
@@ -342,26 +444,35 @@ SETDMA_:    LD      (DMAADDR),BC
 SELDSK_:    LD      (SPSAVE),SP                                          ; The original monitor routines and the enhancements can use
             LD      SP,BIOSSTACK                                         ; more stack space than the 16 words provided by CPM.
             LD      HL, 00000H                                           ; HL = error code
-            LD      A, C                                                 ; A = disk number
-            CP      NDISKS
-            JR      C, SELDSK0                                           ; Ensure we dont select a non existant disk.
-            XOR     A                                                    ; No, set disk 0 as current disk
-SELDSK0:    LD      (CDISK),A                                            ; Setup drive.
-            CALL    SETDRVCFG                                
-          ; CALL    SELDRIVE
+            LD      A,(NDISKS)
+            LD      B,A
+            LD      A,C
+            CP      B
+            JR      NC,SELDSK1                                           ; Ensure we dont select a non existant disk.
+            LD      (CDISK),A                                            ; Setup drive.
+SELDSK0:    CALL    ?SETDRVCFG                                
             LD      A,(DISKTYPE)
-            CP      1
-            JR      Z,SELROMDSK
-            LD      A,C                                                  ; Check again and if disk valid, calculate the DPB address.
-            CP      NDISKS                                               ; Drive number ok?
-            JR      C, CALCHL                                            ; Yes, jump
+            CP      DSKTYP_ROM
+            JR      Z,SELROMDSK                                          ; Select ROM.
+            CP      DSKTYP_SDC
+            JR      Z,SELSDCDSK                                          ; Select SD Card.
+            ; If it is not a ROM drive or an SD drive then it must be a floppy disk.
+            LD      A,C
+            JR      CALCHL
 SELDSK1:    LD      SP,(SPSAVE)                                          ; Restore the CPM stack.
             RET
 
+            ; For SD Cards, check that the SD Card is present, otherwise illegal disk.
+SELSDCDSK:  LD      A,(DRVAVAIL)
+            BIT     2,A
+            JR      Z,SELDSK1                                            ; No SD Card drives available then skip.
+            LD      A,C
+            JR      CALCHL
 
-SELROMDSK:  LD      A,(ROMDRV)
-            OR      A
-            JR      NZ,SELDSK2
+            ; For ROM drives, check that at least one drive is present, otherwise illegal disk.
+SELROMDSK:  CALL    ?GETMAPDSK                                           ; Map CDISK to controller + drive number.
+            AND     03FH                                                 ; Mask out controller id bits.
+            JR      NZ,SELDSK2                                           ; There are only 2 ROM drives, so if it isnt drive 0, then always select drive 1.
             LD      DE,(CPMROMDRV0)                                      ; Retrieve the bank and page the image is located at.
             JR      SELDSK3
 SELDSK2:    LD      DE,(CPMROMDRV1)                                      ; Retrieve the bank and page the image is located at.
@@ -379,11 +490,12 @@ CALCHL:     LD      (SEKDSK),A
             RLC     A                                                    ; *4
             RLC     A                                                    ; *8
             RLC     A                                                    ; *16
-            LD      HL,CPMDPBASE
+            LD      HL,DPBASE
             LD      B,0
             LD      C,A 
             ADD     HL,BC
             JR      SELDSK1
+
 
             ;-------------------------------------------------------------------------------
             ;  SECTRAN                                                                     
@@ -571,13 +683,19 @@ STRT1:      CALL    CLR8
             LD      A,0FFH
             LD      (SWRK),A
 
-            ; Initialise the SD Card subsystem.
-       ;     CALL    SPI_INIT
-
+            ;
+            ; Initialise the SD Card subsystem (if connected).
+            ;
+            CALL    ?SDINIT
+            LD      A,(DRVAVAIL)
+            SET     2,A                                                  ; Assume the SD Card is present.
+            JR      Z,STRT2
+            RES     2,A                                                  ; No SD Card is present.
             ; Locate the CPM Image and store the Bank/Block to speed up warm boot.
+STRT2:      LD      (DRVAVAIL),A
             LD      HL,CPMROMFNAME                                       ; Name of CPM File in rom.
             CALL    FINDMZF
-            JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM!
+            JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM! This shouldnt happen as we boot from ROM.
             LD      (CPMROMLOC),BC
 
             ; Locate the ROMFS CPM Disk Image to be mapped as drive D.
@@ -586,28 +704,152 @@ STRT1:      CALL    CLR8
             LD      (CPMROMDRV1),HL
             LD      HL,CPMRDRVFN0                                        ; Name of CPM Rom Drive File 0 in rom.
             CALL    FINDMZF
-            JR      NZ,STRT2                                             ; Failed to find the drive image in the ROM!
-            LD      (CPMROMDRV0),BC                                      ; If found store the bank and page the image is located at.
-STRT2:      LD      HL,CPMRDRVFN1                                        ; Name of CPM Rom Drive File 1 in rom.
-            CALL    FINDMZF
             JR      NZ,STRT3                                             ; Failed to find the drive image in the ROM!
-            LD      (CPMROMDRV1),BC                                      ; If found store the bank and page the image is located at.
+            LD      (CPMROMDRV0),BC                                      ; If found store the bank and page the image is located at.
+            LD      A,(DRVAVAIL)
+            SET     1,A                                                  ; Indicate ROM drives are available.
+            LD      (DRVAVAIL),A
 
-STRT3:      LD      HL,NUMBERBUF
+STRT3:      LD      HL,CPMRDRVFN1                                        ; Name of CPM Rom Drive File 1 in rom.
+            CALL    FINDMZF
+            JR      NZ,STRT4                                             ; Failed to find the drive image in the ROM!
+            LD      (CPMROMDRV1),BC                                      ; If found store the bank and page the image is located at.
+            LD      A,(DRVAVAIL)
+            SET     1,A                                                  ; Indicate ROM drives are available.
+            LD      (DRVAVAIL),A
+
+STRT4:      LD      HL,NUMBERBUF
             LD      (NUMBERPOS),HL
             ;
             XOR     A
             LD      (IOBYT),A
             LD      (CDISK),A            
             ;
+            CALL    ?DSKINIT                                             ; Initialise the disk subsystem.
+            JR      NZ,STRT5
+            LD      A,(DRVAVAIL)
+            SET     0,A                                                  ; Indicate Floppy drives are available.
+            LD      (DRVAVAIL),A
+
+STRT5:      LD      DE,DPBASE                                            ; Base of parameter block.
+            LD      A,0                                                  ; Using scratch area, setup the disk count, pointer to ALV memory and pointer to CSV memory.
+            LD      (CDIRBUF),A
+            LD      HL,CSVALVMEM
+            LD      (CDIRBUF+1),HL
+            ;
+            LD      A,(DRVAVAIL)
+            BIT     1,A
+            JR      Z,STRT7                                              ; No ROM drives available then skip.
+            ;
+            LD      BC,32/4                                              ; Setup CSV/ALV parameters for a ROM drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,31  ; 240/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPBLOCK1
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+
+            LD      A,(CPMROMDRV0)                                       ; Drive 0 available?
+            CP      0FFH
+            JR      Z,STRT6
+            ;
+            CALL    COPYDPB                                              ; Copy and set parameters
+
+STRT6:      LD      A,(CPMROMDRV1)                                       ; Drive 1 available?
+            CP      0FFH
+            JR      Z,STRT7
+
+            LD      BC,DPBLOCK2
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+            CALL    COPYDPB
+
+STRT7:      LD      A,(DRVAVAIL)
+            BIT     0,A
+            JR      Z,STRT8                                              ; No Floppy drives available then skip.
+
+            LD      BC,128/4                                             ; Setup CSV/ALV parameters for a 1.4MB Floppy drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,91   ; 720/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPBLOCK3
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+
+            ; Floppy drive controller always has 2 drives so set them up.
+            CALL    COPYDPB
+            CALL    COPYDPB
+
+STRT8:      LD      A,(DRVAVAIL)
+            BIT     2,A
+            JR      Z,STRT10                                             ; No SD Card drives available then skip.
+
+            LD      BC,0                                                 ; Setup CSV/ALV parameters for a 16MB SD Card drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,257    ; 2048/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPBLOCK4
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+
+            CALL    COPYDPB                                              ; Add in 2 SD drives by default.
+STRT9:      CALL    COPYDPB
+            ;
+            LD      BC,(CDIRBUF+1)
+            LD      HL,CSVALVEND - 2048/8 + 1                            ; Subtract the size of the ALV (CSV has no size for a fixed SD drive)
+            OR      A
+            SBC     HL,BC
+            JR      C,STRT10                                             ; If there is no more space, exit.
+            JR      STRT9                                                ; Add another, keep on adding until there is no more ALV Memory free.
+
+STRT10:     LD      A,(CDIRBUF)
+            LD      (NDISKS),A                                           ; Setup max number of system disks found on this boot up.
+         
             ; Setup timer interrupts
+            LD      IX,TIMIN                                             ; Pass the interrupt service handler vector.
             LD      BC,00000H                                            ; Time starts at 00:00:00 01/01/1980 on initialisation.
             LD      DE,00000H
             LD      HL,00000H
-            CALL    TIMESET
+            CALL    ?TIMESET
+
+            EI
             ;
             JR      CPMINIT
-            
+
+            ; Helper method to set up a Disk Parameter Block.
+            ; Input: Drive Count = (CDIRBUF)
+            ;        CSV/ALV Memory Pointer (CDIRBUF+1)
+            ;        CSV Size (CDIRBUF+3)
+            ;        ALV Size (CDIRBUF+5)
+            ;        Disk parameters address CDIRBUF+7)
+            ; Output: Updated CSV/ALV Pointer (CDIRBUF+1)
+            ;         Updated disk count (CDIRBUF)
+COPYDPB:    LD      HL,DPBTMPL                                           ; Base of parameter template for ROM Drive 0
+            LD      BC,10
+            LDIR                                                         ; Copy the lower part of the DPB as it is static.
+            LD      HL,CDIRBUF+7                                         ; Get the address of the disk parameters.
+            LDI
+            LDI
+            LD      BC,(CDIRBUF+3)                                       ; Add the CSV size for this entry to the pointer and store.
+            LD      A,B                                                  ; Fixed drives dont have a CSV, so if 0, copy 0 and not allocate memory.
+            OR      C
+            LD      HL,CDIRBUF+1                                         ; Now get the free CSV/ALV pointer.
+            JR      NZ,COPYDPB1
+            LD      HL,CDIRBUF+3
+COPYDPB1:   LDI
+            LDI
+            LD      HL,(CDIRBUF+1)
+            LD      BC,(CDIRBUF+3)                                       ; Add the CSV size for this entry to the pointer and store.
+            ADD     HL,BC
+            LD      (CDIRBUF+1),HL
+            LD      HL,CDIRBUF+1
+            LDI
+            LDI
+            LD      HL,(CDIRBUF+1)
+            LD      BC,(CDIRBUF+5)                                       ; Now add the size of the ALV for this drive to the pointer for the next drive.
+            ADD     HL,BC
+            LD      (CDIRBUF+1),HL                                       ; Store.
+            LD      A,(CDIRBUF)
+            INC     A
+            LD      (CDIRBUF),A                                          ; Update drive count.
+            RET
+
             ;-------------------------------------------------------------------------------
             ;  WINIT                                                                      
             ;                                                                              
@@ -618,44 +860,52 @@ STRT3:      LD      HL,NUMBERBUF
             ; required, reinitialise any needed hardware and reload CCP+BDOS.
             ;-------------------------------------------------------------------------------
 WINIT:      DI
+
             ; Reload the CCP and BDOS from ROM.
             LD      DE,CPMBIOS-CBASE                                     ; Only want to load in CCP and BDOS.
             LD      BC,(CPMROMLOC)                                       ; Load up the Bank and Page where the CPM Image can be found.
-            CALL    MROMLOAD
+            CALL    UROMLOAD
             LD      A,ROMBANK9                                           ; Screen Bank.
             LD      (RFSBK2),A    
             ;
-CPMINIT:    CALL    DSKINIT                                              ; Initialise the disk subsystem.
+CPMINIT:    LD      A,(DRVAVAIL)
+            BIT     0,A
+            JR      Z,CPMINIT1
+            ;
+            CALL    ?DSKINIT                                             ; Re-initialise the disk subsystem if available.
             XOR     A                                                    ; 0 to accumulator
             LD      (HSTACT),A                                           ; Host buffer inactive
             LD      (UNACNT),A                                           ; Clear unalloc count
+
             ; CP/M init
-            LD      A, 0C3H                                              ; C3 IS A JMP INSTRUCTION
+CPMINIT1:   LD      A, 0C3H                                              ; C3 IS A JMP INSTRUCTION
             LD      (00000H), A                                          ; FOR JMP TO WBOOT
             LD      HL,WBOOTE                                            ; WBOOT ENTRY POINT
             LD      (00001H), HL                                         ; SET ADDRESS FIELD FOR JMP AT 0
             LD      (00005H), A                                          ; FOR JMP TO BDOS
             LD      HL, CPMBDOS                                          ; BDOS ENTRY POINT
             LD      (00006H), HL                                         ; ADDRESS FIELD OF JUMP AT 5 TO BDOS
-            LD      HL,TIMIN                                             ; Install interrupt vector for RTC.
+            LD      HL,TIMIN                                             ; Re-install interrupt vector for RTC incase it was overwritten.
             LD      (00038H),A
             LD      (00039H),HL
             LD      BC,CPMUSERDMA
             CALL    SETDMA_
             EI                                                           ; Interrupts on for the RTC.
             ; check if current disk is valid
+            LD      A,(NDISKS)                                           ; Get the dynamic disk count.
+            LD      L,A
             LD      A, (CDISK)                                           ; GET CURRENT USER/DISK NUMBER (UUUUDDDD)
             AND     00FH                                                 ; Isolate the disk number.
-            CP      NDISKS                                               ; Drive number ok?
+            CP      L                                                    ; Drive number ok?
             JR      C, WBTDSKOK2                                         ; Yes, jump (Carry set if A < NDISKS)
             LD      A, (CDISK)                                           ; No, set disk 0 (previous user)
             AND     0F0H
             LD      (CDISK), A                                           ; Save User/Disk    
-WBTDSKOK2:  CALL    SETDRVMAP                                            ; Refresh the map of physical floppies to CPM drive number.
-            CALL    SETDRVCFG
+WBTDSKOK2:  CALL    ?SETDRVMAP                                           ; Refresh the map of physical floppies to CPM drive number.
+            CALL    ?SETDRVCFG
             LD      A,(DISKTYPE)
             OR      A
-            CALL    Z,SELDRIVE                                           ; Select and start disk drive motor if floppy disk.
+            CALL    Z,?SELDRIVE                                          ; Select and start disk drive motor if floppy disk.
             LD      A, (CDISK)
             LD      C, A                                                 ; C = current User/Disk for CCP jump (UUUUDDDD)
             RET
@@ -677,7 +927,7 @@ TIMIN:      LD      (SPISRSAVE),SP                                       ; CP/M 
             ;
             ; Reset the interrupt counter.
             LD      HL,CONTF                                             ; CTC Control register, set to reload the 100ms interrupt time period.
-            LD      (HL),080H                                              ; Select Counter 2, latch counter, read lsb first, mode 0 and binary.
+            LD      (HL),080H                                            ; Select Counter 2, latch counter, read lsb first, mode 0 and binary.
             PUSH    HL
             DEC     HL
             LD      E,(HL)
@@ -1011,148 +1261,12 @@ SWEP12:     DEC     H
             LD      C,A
             JP      SWEP01
 
-
-
             ;-------------------------------------------------------------------------------
             ; END OF TIMER INTERRUPT                                                                      
             ;-------------------------------------------------------------------------------
 
-            ; 
-            ; BC:DE:HL contains the time in milliseconds (100msec resolution) since 01/01/1980.
-            ; HL contains lower 16 bits, DE contains middle 16 bits, BC contains upper 16bits, allows for a time from 00:00:00 to 23:59:59, for > 500000 days!
-TIMESET:    DI      
-            PUSH    BC
-            PUSH    DE
-            PUSH    HL
+            ; Method to clear memory either to 0 or a given pattern.
             ;
-            LD      (TIMESEC),HL                                         ; Load lower 16 bits.
-            EX      DE,HL
-            LD      (TIMESEC+2),HL                                       ; Load middle 16 bits.
-            PUSH    BC
-            POP     HL
-            LD      (TIMESEC+4),HL                                       ; Load upper 16 bits.
-            ;
-            LD      HL,CONTF
-            LD      (HL),074H                                            ; Set Counter 1, read/load lsb first then msb, mode 2 rate generator, binary
-            LD      (HL),0B0H                                            ; Set Counter 2, read/load lsb first then msb, mode 0 interrupt on terminal count, binary
-            DEC     HL
-            LD      DE,TMRTICKINTV                                       ; 100Hz coming into Timer 2 from Timer 1, set divisor to set interrupts per second.
-            LD      (HL),E                                               ; Place current time in Counter 2
-            LD      (HL),D
-            DEC     HL
-            LD      (HL),03BH                                            ; Place divisor in Counter 1, = 315, thus 31500/315 = 100
-            LD      (HL),001H
-            NOP     
-            NOP     
-            NOP     
-            LD      A, 0C3H                                              ; Install the interrupt vector for when interrupts are enabled.
-            LD      HL,TIMIN
-            LD      (00038H),A
-            LD      (00039H),HL
-            ;
-            POP     HL
-            POP     DE
-            POP     BC
-           ;EI      
-            RET    
-
-            ; Time Read;
-            ; Returns BC:DE:HL where HL is lower 16bits, DE is middle 16bits and BC is upper 16bits of milliseconds since 01/01/1980.
-TIMEREAD:   LD      HL,(TIMESEC+4)
-            PUSH    HL
-            POP     BC
-            LD      HL,(TIMESEC+2)
-            EX      DE,HL
-            LD      HL,(TIMESEC)
-            RET
-
-?MODE:      LD      HL,KEYPF
-            LD      (HL),08AH
-            LD      (HL),007H
-            LD      (HL),005H
-            LD      (HL),001H
-            RET     
-
-            ; Method to check if a key has been pressed and stored in buffer.. 
-CHKKY:     ;CALL    ?SAVE
-            LD      A, (KEYCOUNT)
-            OR      A
-            JR      Z,CHKKY2
-           ;CALL    ?LOAD
-            LD      A,0FFH
-            RET
-CHKKY2:    ;CALL    ?FLAS
-           ;CALL    ?LOAD
-            XOR     A
-            RET
-
-GETKY:      PUSH    HL
-            LD      A,(KEYCOUNT)
-            OR      A
-            JR      Z,GETKY2
-GETKY1:     DI                                                           ; Disable interrupts, we dont want a race state occurring.
-            LD      A,(KEYCOUNT)
-            DEC     A                                                    ; Take 1 off the total count as we are reading a character out of the buffer.
-            LD      (KEYCOUNT),A
-            LD      HL,(KEYREAD)                                         ; Get the position in the buffer where the next available character resides.
-            LD      A,(HL)                                               ; Read the character and save.
-            PUSH    AF
-            INC     L                                                    ; Update the read pointer and save.
-            LD      A,L
-            AND     KEYBUFSIZE-1
-            LD      L,A
-            LD      (KEYREAD),HL
-            POP     AF
-            EI                                                           ; Interrupts back on so keys and RTC are actioned.
-            JR      ?PRCKEY                                              ; Process the key, action any non ASCII keys.
-            ;
-GETKY2:    ;CALL    ?SAVE                                                ; No key available so loop and exercise the flashing cursor until one becomes
-GETKY3:     LD      A,(KEYCOUNT)                                         ; available.
-            OR      A
-           ;CALL    ?FLAS
-            JR      Z,GETKY3                 
-           ;CALL    ?LOAD
-            JR      GETKY1
-            ;
-?PRCKEY:    ;PUSH   AF
-            ;CALL   ?PRTHX
-            ;POP    AF
-            CP      CR                                                   ; CR
-            JR      NZ,?PRCKY3
-            JR      ?PRCKYE
-;?PRCKY1:    CP      GRAPHALPHA                                           ; GRAPH -> ALPHA
-;            JR      NZ,?PRCKY2
-;            XOR     A
-;            LD      (KANAF),A
-;            JR      GETKY2
-;?PRCKY2:    CP      ALPHAGRAPH                                           ; ALPHA -> GRAPH
-;            JR      NZ,?PRCKY3
-;            LD      A,001H
-;            LD      (KANAF),A
-;            JR      GETKY2
-?PRCKY3:    CP      HOMEKEY                                              ; HOME
-            JR      NZ,?PRCKY4
-            JR      GETKY2
-?PRCKY4:    CP      CLRKEY                                               ; CLR
-            JR      NZ,?PRCKY5
-            JR      GETKY2
-?PRCKY5:    CP      INSERT                                               ; INSERT
-            JR      NZ,?PRCKY6
-            JR      GETKY2
-?PRCKY6:    CP      DBLZERO                                              ; 00
-            JR      NZ,?PRCKY7
-            LD      A,'0'
-            LD      (KEYBUF),A                                           ; Place a character into the keybuffer so we double up on 0
-            JR      ?PRCKYX
-?PRCKY7:    CP      BREAKKEY                                             ; Break key processing.
-            JR      NZ,?PRCKY8
-
-?PRCKY8:
-?PRCKYX:    
-?PRCKYE:    
-            POP     HL
-            RET
-
 CLR8Z:      XOR     A
 CLR8:       LD      BC,00800H
 CLRMEM:     PUSH    DE
@@ -1174,83 +1288,9 @@ L09E8:      LD      (HL),D
             DJNZ    ?DINT                   
             RET  
 
-
-            ; HL = Start
-            ; DE = End
-DUMPX:      LD      A,1
-DUM1:       LD      (TMPCNT),A
-DUM3:       LD      B,010h
-            LD      C,02Fh
-            CALL    NLPHL
-DUM2:       CALL    SPHEX
-            INC     HL
-            PUSH    AF
-            LD      A,(DSPXY)
-            ADD     A,C
-            LD      (DSPXY),A
-            POP     AF
-            CP      020h
-            JR      NC,L0D51
-            LD      A,02Eh
-L0D51:     ;CALL    ?ADCN
-           ;CALL    ?PRNT3
-            CALL    ?PRNT
-            LD      A,(DSPXY)
-            INC     C
-            SUB     C
-            LD      (DSPXY),A
-            DEC     C
-            DEC     C
-            DEC     C
-            PUSH    HL
-            SBC     HL,DE
-            POP     HL
-            JR      NC,DUM7
-            LD      A,0F8h
-            LD      (0E000h),A
-            NOP
-            LD      A,(0E001h)
-            CP      0FEh
-            JR      NZ,L0D78
-L0D78:      DJNZ    DUM2
-            LD      A,(TMPCNT)
-            DEC     A
-            LD      (TMPCNT),A
-            JR      NZ,DUM3
-DUM4:       CALL    CHKKY
-            CP      0FFH
-            JR      NZ,DUM4
-            CALL    GETKY
-            CP      'D'
-            JR      NZ,DUM5
-            LD      A,8
-            JR      DUM1
-DUM5:       CP      'U'
-            JR      NZ,DUM6
-            PUSH    DE
-            LD      DE,000FFH
-            SCF
-            SBC     HL,DE
-            POP     DE
-            LD      A,8
-            JR      DUM1
-DUM6:       CP      'X'
-            JR      Z,DUM7
-            JR      DUMPX
-DUM7:       CALL    ?NL
-            RET
-
-NLPHL:      CALL    ?NL
-            CALL    ?PRTHL
-            RET
-
-            ; SPACE PRINT AND DISP ACC
-            ; INPUT:HL=DISP. ADR.
-SPHEX:      CALL    ?PRTS                       ; SPACE PRINT
-            LD      A,(HL)
-            CALL    ?PRTHX                      ; DSP OF ACC (ASCII)
-            LD      A,(HL)
-            RET   
+            ;-------------------------------------------------------------------------------
+            ; START OF ROM DRIVE FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
             ; Comparing Strings
             ; IN    HL     Address of string1.
@@ -1387,9 +1427,9 @@ FINDMZFNO:  RET
            ;       DE     0 - use file size in header, > 0 file size to load.
            ; OUT   zero   Set if file loaded, reset if an error occurred.
            ;
-           ; Load program from RFS Bank 1 (MROM Bank)
+           ; Load program from RFS Bank 2 (User ROM Bank)
            ;
-MROMLOAD:   PUSH    BC
+UROMLOAD:   PUSH    BC
             PUSH    DE
             LD      A,B
             LD      (RFSBK2), A
@@ -1511,9 +1551,9 @@ ROMREAD3:   DJNZ    ROMREAD2
             ADD     HL,DE                                                ; Add the number of sectors.
             ; HL contains the number of sectors for the given tracks and sector.
             PUSH    HL
-            LD      A,(ROMDRV)
-            OR      A
-            JR      NZ,ROMREAD3A
+            CALL    ?GETMAPDSK
+            AND     03FH                                                 ; Mask out the controller id bits.
+            JR      NZ,ROMREAD3A                                         ; Only 2 ROM drives, so it it isnt drive 0 then it must be drive 1.
             LD      BC,(CPMROMDRV0)
             JR      ROMREAD3B
 ROMREAD3A:  LD      BC,(CPMROMDRV1)
@@ -1649,13 +1689,81 @@ MONPRTSTR:  LD      A,(DE)
             OR      A
             RET     Z
             INC     DE
-            CP      LF
-            JR      NZ,MONPRTSTR2
-            CALL    ?NL
-            JR      MONPRTSTR
 MONPRTSTR2: CALL    ?PRNT
             JR      MONPRTSTR
+            ;-------------------------------------------------------------------------------
+            ; END OF ROM DRIVE FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
+            ;-------------------------------------------------------------------------------
+            ; START OF SD CARD DRIVE FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ; Method to read a sector from the SD Card.
+            ; CPM Provides us with a track and sector, take these and calculate the LBA
+            ; within the SD Card.
+            ;
+            ; The SD Card is organised as follows:
+            ;       SECTOR   FUNCTION
+            ;       00000000 ---------------------------------------------------------------------------
+            ;                | ROM FILING SYSTEM IMAGE                                                 |
+            ;                |                                                                         |
+            ;       00000000 | RFS DIRECTORY ENTRY 000 (32BYTE)                                        |
+            ;                | ..                                                                      |
+            ;                | ..                                                                      |
+            ;       00001FE0 | RFS DIRECTORY ENTRY 255 (32BYTE)                                        |
+            ;       00002000 ---------------------------------------------------------------------------
+            ;                |                                                                         |
+            ;                |  CP/M DISK IMAGE 1                                                      |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                ---------------------------------------------------------------------------
+            ;                |                                                                         |
+            ;                |  CP/M DISK IMAGE 2                                                      |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                ---------------------------------------------------------------------------
+            ;                |                                                                         |
+            ;                |  CP/M DISK IMAGE 3                                                      |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                ---------------------------------------------------------------------------
+            ;                |                                                                         |
+            ;                |  CP/M DISK IMAGE ...                                                    |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                |                                                                         |
+            ;                ---------------------------------------------------------------------------
+            ;
+            ;       The ROM FILING SYSTEM resides at the beginning of the disk so we add this to the start sector for the CPM drive.
+            ;       Then the CPM disk is multiplied by the CPM disk size and this is added to the start sector.
+            ;       The disk is organised as 32 Sectors x 1024 tracks and 1 head. Thus the track is
+            ;       multiplied by 32 as we use LBA addressing (for older cards, the SD utilities will convert to byte
+            ;       address if necessary. This is added to the start sector. We then take the CPM host sector (from the deblocking
+            ;       algorithm) and add to the start sector. We now have the sector CPM is requesting.
+            ;
+SDCREAD:    CALL    ?SDCREAD
+            JP      READHST3
+
+SDCWRITE:   CALL    ?SDCWRITE
+            JP      WRITEHST3
+
+            ;-------------------------------------------------------------------------------
+            ; END OF SD CARD DRIVE FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+
+
+            ;-------------------------------------------------------------------------------
+            ; START OF CPM DEBLOCKING ALGORITHM
+            ;-------------------------------------------------------------------------------
 
             ;-------------------------------------------------------------------------------
             ; RWOPER                                                                      
@@ -1783,7 +1891,6 @@ SEKTRKCMP:  EX      DE, HL
             CP      (HL)                                                 ; sets flags
             RET
 
-
             ;------------------------------------------------------------------------------------------------
             ; Read physical sector from host
             ;
@@ -1792,9 +1899,11 @@ SEKTRKCMP:  EX      DE, HL
 READHST:    PUSH    BC
             PUSH    HL
             LD      A,(DISKTYPE)
-            CP      1
+            CP      DSKTYP_ROM                                           ; Is the drive a ROM?
             JP      Z,ROMREAD
-READHST2:   CALL    DSKREAD
+            CP      DSKTYP_SDC                                           ; Is the drive an SD Card?
+            JP      Z,SDCREAD
+READHST2:   CALL    ?DSKREAD                                             ; Floppy card, use the FDC Controller.
 READHST3:   POP     HL
             POP     BC
             RET
@@ -1806,576 +1915,26 @@ READHST3:   POP     HL
             ;------------------------------------------------------------------------------------------------
 WRITEHST:   PUSH    BC
             PUSH    HL
-            CALL    DSKWRITE
-            POP     HL
+            LD      A,(DISKTYPE)
+            CP      DSKTYP_ROM                                           ; Is the drive a ROM? We cannot (yet) write to the Flash ROM, so error.
+            JP      Z,WRITEHST4
+            CP      DSKTYP_SDC                                           ; Is the drive an SD Card?
+            JP      Z,SDCWRITE
+            CALL    ?DSKWRITE
+WRITEHST3:  POP     HL
             POP     BC
             RET
-
-
-           ;------------------------------------------------------------------------------------------------
-            ; Initialise drive and reset flags, Set motor off
-            ;
-            ;------------------------------------------------------------------------------------------------
-DSKINIT:    XOR     A                                                        
-            OUT     (FDC_MOTOR),A                                        ; Motor off
-            LD      (TRK0FD1),A                                          ; Track 0 flag drive 1
-            LD      (TRK0FD2),A                                          ; Track 0 flag drive 2
-            LD      (TRK0FD3),A                                          ; Track 0 flag drive 3
-            LD      (TRK0FD4),A                                          ; Track 0 flag drive 4
-            LD      (MOTON),A                                            ; Motor on flag
-            LD      (MTROFFTIMER),A                                      ; Clear the down counter for motor off.
-            RET
-
-            ; Function to create a mapping table between a CPM disk and a physical disk.
-SETDRVMAP:  PUSH    HL
-            PUSH    DE
-            PUSH    BC
-            ; Zero out the map.
-            LD      B,NDISKS
-            LD      HL,DISKMAP
-            LD      A,0FFH
-SETDRVMAP1: LD      (HL),A
-            INC     HL
-            DJNZ    SETDRVMAP1
-            LD      HL,DISKMAP                                           ; Place in the Map for next drive.
-            ; Now go through each disk from the Disk Parameter Base list.
-            LD      B,0                                                  ; Disk number count = CDISK.
-            LD      C,0                                                  ; Physical disk number.
-SETDRVMAP2: LD      A,B
-            CP      NDISKS
-            JR      Z,SETDRVMAP3
-            INC     B
-            PUSH    HL
-            PUSH    BC
-            ; For the Disk in A, find the parameter table.
-            RLC     A                                                    ; *2
-            RLC     A                                                    ; *4
-            RLC     A                                                    ; *8
-            RLC     A                                                    ; *16
-            LD      HL,CPMDPBASE                                         ; Base of disk description block.
-            LD      B,0
-            LD      C,A 
-            ADD     HL,BC                                                ; HL contains address of actual selected disk block.
-            LD      C,10
-            ADD     HL,BC                                                ; HL contains address of pointer to disk parameter block.
-            LD      E,(HL)
-            INC     HL
-            LD      D,(HL)                                               ; DE contains address of disk parameter block.
-            EX      DE,HL
-            LD      A,(HL)
-            LD      E,A
-            LD      BC,15
-            ADD     HL,BC                                                ; Move to configuuration byte which identifies the disk type.
-            ;
-            POP     BC
-            BIT     4,(HL)                                               ; Disk type = FDC
-            POP     HL
-            JR      NZ,SETDRVMAP4                                        ; Loop to next drive if it isnt an FDC controlled disk.
-            LD      A,C
-            INC     C
-            LD      (HL),A
-   ;    SCF
-   ;    CCF
-   ;    CALL DEBUG
-SETDRVMAP4: INC     HL
-            JR      SETDRVMAP2
-            ;
-SETDRVMAP3: POP     BC
-            POP     DE
-            POP     HL
-            RET
-
-            ; Function to setup the drive parameters according to the CFG byte in the disk parameter block.
-SETDRVCFG:  PUSH    HL
-            PUSH    DE
-            PUSH    BC
-            LD      A,(CDISK)
-            RLC     A                                                    ; *2
-            RLC     A                                                    ; *4
-            RLC     A                                                    ; *8
-            RLC     A                                                    ; *16
-            LD      HL,CPMDPBASE                                         ; Base of disk description block.
-            LD      B,0
-            LD      C,A 
-            ADD     HL,BC                                                ; HL contains address of actual selected disk block.
-            LD      C,10
-            ADD     HL,BC                                                ; HL contains address of pointer to disk parameter block.
-            LD      E,(HL)
-            INC     HL
-            LD      D,(HL)                                               ; DE contains address of disk parameter block.
-            EX      DE,HL
-            LD      A,(HL)
-            LD      E,A
-
-            LD      BC,15
-            ADD     HL,BC                                                ; Move to configuuration byte.
-            XOR     A
-            BIT     2,(HL)
-            JR      Z,SETDRV0
-            INC     A
-SETDRV0:    LD      (INVFDCDATA),A                                       ; Data inversion is set according to drive parameter.
-            LD      A,4
-            BIT     1,(HL)
-            JR      Z,SETDRV1
-            LD      A,2
-            BIT     0,(HL)
-            JR      Z,SETDRV1
-            LD      A,1
-SETDRV1:    LD      (SECTORCNT),A                                        ; Set the disk sector size.
-            LD      D,A
-            CP      4
-            LD      A,E
-            JR      Z,SETDRV1A
-            OR      A
-            RR      A
-            LD      E,A
-            LD      A,D
-            CP      2
-            LD      A,E
-            JR      Z,SETDRV1A
-            OR      A
-            RR      A                                                    ; Convert sectors per track from 128 bytes to 256 byte sectors.
-SETDRV1A:   INC     A                                                    ; Add 1 to ease comparisons.
-            LD      (SECPERTRK),A                                        ; Only cater for 8bit, ie. 256 sectors.
-            DEC     A
-            OR      A
-            RR      A
-            INC     A                                                    ; Add 1 to ease comparisons.
-            LD      (SECPERHEAD),A                                       ; Convert sectors per track to sectors per head.
-            ;
-            XOR     A                                                    ; Disk type = FDC
-            BIT     4,(HL)
-            JR      Z,SETDRV2
-            LD      A,1                                                  ; Disk type = ROMFS
-            BIT     3,(HL)
-            JR      Z,SETDRV2
-            LD      A,2                                                  ; Disk type = SD Card
-SETDRV2:    LD      (DISKTYPE),A
-            XOR     A                                                    ; Select ROMFS Image 0 = DRV0
-            BIT     5,(HL)
-            JR      Z,SETDRV3
-            LD      A,1                                                  ; Select ROMFS Image 1 = DRV1
-SETDRV3:    LD      (ROMDRV),A      
-            POP     BC
-            POP     DE
-            POP     HL
-            RET
-
-            ; Select fdc drive (make active) based on value in DISKMAP[CDISK].
-SELDRIVE:   LD      A,(CDISK)
-            LD      HL,DISKMAP
-            LD      C,A
-            LD      B,0
-            ADD     HL,BC
-            LD      A,(HL)                                               ; Get the physical number after mapping from the CDISK.
-            CP      0FFH
-            RET     Z                                                    ; This isnt a physical disk, no need to perform any actions, exit.
-            LD      (FDCDISK),A
-       ;SCF
-       ;CCF
-       ;CALL DEBUG
-            CALL    DSKMTRON                                             ; yes, set motor on and wait
-            LD      A,(FDCDISK)                                          ; select drive no
-            OR      084H                                                     
-            OUT     (FDC_MOTOR),A                                        ; Motor on for drive 0-3
-            XOR     A                                                        
-            LD      (FDCCMD),A                                           ; clr latest FDC command byte
-            LD      HL,00000H                                                
-SELDRV2:    DEC     HL                                                       
-            LD      A,H                                                      
-            OR      L                                                        
-            JP      Z,SELDRVERR                                          ; Reset and print message that this is not a valid disk.
-            IN      A,(FDC_STR)                                          ; Status register.
-            CPL                                                              
-            RLCA                                                             
-            JR      C,SELDRV2                                            ; Wait on Drive Ready Bit (bit 7)
-            LD      A,(FDCDISK)                                          ; Drive number
-            LD      C,A
-            LD      HL,TRK0FD1                                           ; 1 track 0 flag for each drive
-            LD      B,000H                                                   
-            ADD     HL,BC                                                ; Compute related flag 1002/1003/1004/1005
-            BIT     0,(HL)                                                   
-            JR      NZ,SELDRV3                                           ; If the drive hasnt been intialised to track 0, intialise and set flag.
-            CALL    DSKSEEKTK0                                           ; Seek track 0.
-            SET     0,(HL)                                               ; Set bit 0 of trk 0 flag
-SELDRV3:    CALL    SETDRVCFG
-            RET
-
-            ; Turn disk motor on if not already running.
-DSKMTRON:   LD      A,255                                                ; Ensure motor is kept running whilst we read/write.
-            LD      (MTROFFTIMER),A
-            LD      A,(MOTON)                                            ; Test to see if motor is on, if it isnt, switch it on.
-            RRCA
-            JR      NC, DSKMOTORON
-            RET
-DSKMOTORON: PUSH    BC
-            LD      A,080H
-            OUT     (FDC_MOTOR),A                                        ; Motor on
-            LD      B,010H                                               ; 
-DSKMTR2:    CALL    MTRDELAY                                             ; 
-            DJNZ    DSKMTR2                                              ; Wait until becomes ready.
-            LD      A,001H                                               ; Set motor on flag.
-            LD      (MOTON),A                                            ; 
-            POP     BC
-            RET      
-
-FDCDLY1:    PUSH    DE
-            LD      DE,00007H
-            JP      MTRDEL2
-
-MTRDELAY:   PUSH    DE
-            LD      DE,01013H
-MTRDEL2:    DEC     DE
-            LD      A,E
-            OR      D
-            JR      NZ,MTRDEL2                                           
-            POP     DE
-            RET    
-
-DSKWRITE:   LD      A,MAXWRRETRY
-            LD      (RETRIES),A
-            LD      A,(SECTORCNT)
-            LD      B,A
-            LD      A,(HSTSEC)
-DSKWRITE0A: DJNZ    DSKWRITE0B
-            JR      DSKWRITE1
-DSKWRITE0B: OR      A
-            RL      A
-            JR      DSKWRITE0A
-DSKWRITE1:  INC     A
-            LD      (SECTORNO), A                                        ; Convert from Host 512 byte sector into local sector according to paraameter block.
-            LD      HL,(HSTTRK)
-            LD      (TRACKNO),HL
-
-DSKWRITE2:  CALL    SETTRKSEC                                            ; Set current track & sector, get load address to HL
-DSKWRITE3:  CALL    SETHEAD                                              ; Set side reg
-            CALL    SEEK                                                 ; Command 1b output (seek)
-            JP      NZ,SEEKRETRY                                         ; 
-            CALL    OUTTKSEC                                             ; Set track & sector reg
-
-            LD      IX, 0F3FEH                                           ; As below. L03FE
-            LD      IY,WRITEDATA                                         ; Write sector from memory.
-            DI     
-            ;
-            IF ENADEBUG = 1
-              SCF
-              CALL  DEBUG
-            ENDIF
-
-            LD      A,0B4H                                               ; Write Sector multipe with Side Compare for side 1.
-            CALL    DISKCMDWAIT
-            LD      D,2                                                  ; Regardless of 4x128, 2x256 or 1x512, we always read 512bytes by the 2x INI instruction with B=256.
-STRTDATWR:  LD      B,0                                                  ; 256 bytes to load.
-            JP      (IX)
-
-WRITEDATA:  OUTI    
-            JP      NZ, 0F3FEH                                           ; This is crucial, as the Z80 is running at 2MHz it is not fast enough so needs
-                                                                         ; hardware acceleration in the form of a banked ROM, if disk not ready jumps to IX, if
-                                                                         ; data ready, jumps to IY.
-            DEC     D
-            JP      NZ,0F3FEH                                            ; If we havent read all sectors to form a 512 byte block, go for next sector.
-            JR      DATASTOP      
-
-            ; Read disk starting at the first logical sector in param block 1009/100A
-            ; Continue reading for the given size 100B/100C and store in the location 
-            ; Pointed to by the address stored in the parameter block. 100D/100E
-DSKREAD:    LD      A,MAXRDRETRY
-            LD      (RETRIES),A
-            LD      A,(SECTORCNT)
-            LD      B,A
-            LD      A,(HSTSEC)
-DSKREAD0A:  DJNZ    DSKREAD0B
-            JR      DSKREAD1
-DSKREAD0B:  OR      A
-            RL      A
-            JR      DSKREAD0A
-DSKREAD1:   INC     A
-            LD      (SECTORNO), A                                        ; Convert from Host 512 byte sector into local sector according to paraameter block.
-            LD      HL,(HSTTRK)
-            LD      (TRACKNO),HL
-DSKREAD2:   CALL    SETTRKSEC                                            ; Set current track & sector, get load address to HL
-DSKREAD3:   CALL    SETHEAD                                              ; Set side reg
-            CALL    SEEK                                                 ; Command 1b output (seek)
-            JP      NZ,SEEKRETRY                                         ; 
-            CALL    OUTTKSEC                                             ; Set track & sector reg
-    ;   SCF
-    ;   CALL DEBUG
-            LD      IX, 0F3FEH                                           ; As below. L03FE
-            LD      IY,READDATA                                          ; Read sector into memory.
-            DI     
-            ;
-            LD      A,094H                                               ; Read Sector multiple with Side Compare for side 1.
-            CALL    DISKCMDWAIT
-            LD      D,2                                                  ; Regardless of 4x128, 2x256 or 1x512, we always read 512bytes by the 2x INI instruction with B=256.
-STRTDATRD:  LD      B,0                                                  ; 256 bytes to load.
-            JP      (IX)
-
-            ; Get data from disk sector to staging area.
-READDATA:   INI     
-            JP      NZ,0F3FEH                                            ; This is crucial, as the Z80 is running at 2MHz it is not fast enough so needs
-                                                                         ; hardware acceleration in the form of a banked ROM, if disk not ready jumps to IX, if
-                                                                         ; data ready, jumps to IY.
-            DEC     D
-            JP      NZ,0F3FEH                                            ; If we havent read all sectors to form a 512 byte block, go for next sector.
-            ;
-            ;
-DATASTOP:   LD      A,0D8H                                               ; Force interrupt command, Immediate interrupt (I3 bit 3=1) of multiple sector read.
-            CPL    
-            OUT     (FDC_CR),A
-            CALL    WAITRDY                                              ; Wait for controller to become ready, acknowledging interrupt.
-           ;CALL    CHECKTIMER
-            IN      A,(FDC_STR)                                          ; Check for errors.
-            CPL     
-            AND     0FFH
-       ;SCF
-       ;CCF
-       ;CALL DEBUG
-            JR      NZ,SEEKRETRY   
-UPDSECTOR:  PUSH    HL
-            LD      A,(SECTORCNT)
-            LD      HL,SECTORNO
-            ADD     A,(HL)                                               ; Update sector to account for sectors read. NB. All reads will start at such a position
-            LD      (HL), A                                              ; that a read will not span a track or head. Ensure that disk formats meet an even 512byte format.
-            POP     HL
-MOTOROFF:   LD      A,MTROFFMSECS                                         ; Schedule motor to be turned off.
-            LD      (MTROFFTIMER),A
-    ;   SCF
-    ;   CCF
-    ;   CALL DEBUG
-            XOR     A                                                    ; Successful read, return 0
-            EI
-            RET    
-
-SEEKRETRY:  LD      B,A                                                  ; Preserve the FDC Error byte.
-            LD      A,(RETRIES)
-            DEC     A
-            LD      (RETRIES),A
-            LD      A,B
-            JP      Z,RETRIESERR
-            CALL    DSKSEEKTK0
-            LD      A, (READOP) 
-            OR      A
-            LD      A,(TRACKNO)                                          ; NB. Track number is 16bit, FDC only uses lower 8bit and assumes little endian read.
-            JP      Z, DSKWRITE2                                         ; Try write again.
-            JP      DSKREAD2                                             ; Try the read again.
-
-DISKCMDWAIT:LD      (FDCCMD),A
-            CPL    
-            OUT     (FDC_CR),A
-            CALL    WAITBUSY
-            RET     
-
-            ; Send a command to the disk controller.
-DSKCMD:     LD      (FDCCMD),A                                           ; Store latest FDC command.
-            CPL                                                          ; Compliment it (FDC bit value is reversed).
-            OUT     (FDC_CR),A                                           ; Send command to FDC.
-            CALL    WAITRDY                                              ; Wait to become ready.
-            IN      A,(FDC_STR)                                          ; Get status register.
-            CPL                                                          ; Inverse (FDC is reverse bit logic).
-            RET   
-
-;CHECKTIMER: PUSH    AF
-;            LD      A,(TIMFG)
-;            CP      0F0H
-;            JR      NZ,CHKTIM1                                          
-;            EI     
-;CHKTIM1:    POP     AF
-;            RET     
-
-            ; Seek to programmed track.
-SEEK:       LD      A,01BH                                               ; Seek command, load head, verify stepping 6ms.
-            CALL    DSKCMD
-            AND     099H
-            RET
-
-            ; Set current track & sector, get load address to HL
-SETTRKSEC:  CALL    SELDRIVE
-            LD      A,(TRACKNO)                                          ; NB. Track number is 16bit, FDC only uses lower 8bit and assumes little endian read.
-            LD      HL, HSTBUF
-            RET     
-
-            ; Compute side/head.
-SETHEAD:    CPL                                                          ; 
-            OUT     (FDC_DR),A                                           ; Output track no for SEEK command.
-            PUSH    HL
-            LD      HL,SECPERHEAD
-            LD      A,(SECTORNO)                                         ; Check sector, if greater than sector per track, change head.
-            CP      (HL)
-            POP     HL
-            JR      NC,SETHD2                                            ; Yes, even, set side/head 1
-            LD      A,001H                                               ; No, odd, set side/head 0
-            JR      SETHD3                   
-
-            ; Set side/head register.
-SETHD2:     XOR     A                                                    ; Side 0
-SETHD3:    ;CALL DEBUG 
-            CPL                                                           ; Side 1
-            OUT     (FDC_SIDE),A                                         ; Side/head register.
-            RET     
-
-            ; Set track and sector register.
-OUTTKSEC:   PUSH    HL
-            LD      HL,SECPERHEAD
-            ;
-            LD      C,FDC_DR                                             ; Port for data retrieval in the INI instruction in main block.                 
-            LD      A,(TRACKNO)                                          ; Current track number, NB. Track number is 16bit, FDC only uses lower 8bit and assumes little endian read.
-            CPL                             
-            OUT     (FDC_TR),A                                           ; Track reg
-            ;
-            LD      A,(SECTORNO)                                         ; Current sector number
-            CP      (HL)
-            JR      C,OUTTKSEC2
-            SUB     (HL)
-            INC     A                                                    ; Account for the +1 added to ease comparisons.
-OUTTKSEC2: ;CALL DEBUG 
-            CPL                             
-            OUT     (FDC_SCR),A                                          ; Sector reg
-            POP     HL
-            RET                       
-
-            ; Seek to track 0.
-DSKSEEKTK0: CALL    DSKMTRON                                             ; Make sure disk is spinning.
-            LD      A,00BH                                               ; Restore command, seek track 0.
-            CALL    DSKCMD                                               ; Send command to FDC.
-            AND     085H                                                 ; Process result.
-            XOR     004H   
-            RET     Z      
-            JP      DSKSEEKERR
-
-            ; Wait for the drive to become ready.
-WAITRDY:    PUSH    DE
-            PUSH    HL
-            CALL    FDCDLY1
-            LD      E,007H
-WAITRDY2:   LD      HL,00000H
-WAITRDY3:   DEC     HL
-            LD      A,H
-            OR      L
-            JR      Z,WAITRDY4                                           
-            IN      A,(FDC_STR)
-            CPL     
-            RRCA    
-            JR      C,WAITRDY3                                          
-            POP     HL
-            POP     DE
-            RET     
-
-WAITRDY4:   DEC     E
-            JR      NZ,WAITRDY2                                        
-            POP     HL
-            POP     DE
-            JP      WAITRDYERR
-
-WAITBUSY:   PUSH    DE
-            PUSH    HL
-            CALL    FDCDLY1
-            LD      E,007H                                               ; 7 Chances of a 16bit down count delay waiting for DRQ.
-WAITBUSY2:  LD      HL,00000H
-WAITBUSY3:  DEC     HL
-            LD      A,H
-            OR      L
-            JR      Z,WAITBUSY4                                          ; Down counter expired, decrement retries, error on 0.
-            IN      A,(FDC_STR)                                          ; Get the FDC Status
-            CPL                                                          ; Switch to positive logic.
-            RRCA                                                         ; Shift Busy flag into Carry.
-            JR      NC,WAITBUSY3                                         ; Busy not set, decrement counter and retry.
-            POP     HL
-            POP     DE
-            RET     
-
-WAITBUSY4:  DEC     E
-            JR      NZ,WAITBUSY2                                         
-            POP     HL
-            POP     DE
-            JP      DSKERR
-
-
-            ; Error processing. Consists of printing a message followed by debug data (if enabled) and returning with carry set
-            ; to indicate error.
-DSKERR:     LD      DE,LOADERR                                           ; Loading error message
-            JR      HDLERROR                                             
-
-SELDRVERR:  LD      DE,SELDRVMSG                                         ; Select drive error message.
-            JR      HDLERROR                                              
-            
-WAITRDYERR: LD      DE,WAITRDYMSG                                        ; Waiting for ready timeout error message.
-            JR      HDLERROR                                               
- 
-DSKSEEKERR: LD      DE,DSKSEEKMSG                                        ; Disk seek to track error message.
-            JR      HDLERROR                                                
-
-RETRIESERR: BIT     2,A                                                  ; Data overrun error if 1.
-            LD      DE,DATAOVRMSG
-            JR      NZ, RETRIESERR2
-            BIT     3,A                                                  ; CRC error if 1.
-            LD      DE,CRCERRMSG
-            JR      NZ,RETRIESERR2
-            LD      DE,RETRIESMSG                                        ; Data sector read error message.
-RETRIESERR2:
-
-            ; Process error, dump debug data and return fail code.
-HDLERROR:   CALL    ERRPRTSTR
-            XOR     A
-            IF ENADEBUG = 1
-              CALL  DEBUG
-            ENDIF
-            CALL    DSKINIT
-            CALL    DSKMTRON
-            LD      A,001H                                               ; Indicate error by setting 1 in A register.
-            EI
-            RET
-
-ERRPRTSTR:  EX      DE,HL
-            LD      DE,DISKERRMSG
-            CALL    MONPRTSTR
-            EX      DE,HL
-            JP      MONPRTSTR
+WRITEHST4:  LD      A,1                                                  ; Error, cannot write.
+            JR      WRITEHST3
 
             ;-------------------------------------------------------------------------------
-            ;  SPI I/O Routines.                                                                      
-            ;                                                                              
-            ;  Basic Input and Output routines to send and receive data with an SD card.
+            ; END OF CPM DEBLOCKING ALGORITHM
             ;-------------------------------------------------------------------------------
 
-            ;
-            ; Function to initialise the SPI hardware.
-            ;
-;SPI_INIT:   LD      A,DOUT_HIGH | CLOCK_HIGH | CS_LOW                    ; Clock and MOSI High.
-;            OUT     (SPI_OUT),A
-;            RET
 
-            ;
-            ; Function to output a byte to the SPI port and read a byte being returned by the slave simultaneously.
-            ; Input;  A = Char to send
-            ; Output: C = Char received.
-            ;
-;SPI_IO:     PUSH    DE
-;            LD      E,A                                                  ; E = Character to send.
-;            LD      C,0                                                  ; C = Character being read.
-;            LD      B,008H
-;SPI0:       LD      A,E
-;            RLCA
-;            LD      E,A
-;            LD      A,DOUT_LOW  | CLOCK_HIGH | CS_LOW                    ; Output a 0
-;            JR      NC,SPI1
-;            LD      A,DOUT_HIGH | CLOCK_HIGH | CS_LOW                    ; Output a 1
-;SPI1:       OUT     (SPI_OUT),A
-;            LD      D,A                                                  ; Preserve sent data.
-;            IN      A,(SPI_IN)                                           ; Input the received bit
-;            AND     DIN_HIGH                                             ; Mask and add to the byte being assembled.
-;            OR      C
-;            RRCA
-;            LD      C,A                                                  ; Store assembled byte.
-;            LD      A,D
-;            AND     DOUT_HIGH | CLOCK_LOW | CS_LOW                       ; Bring clock low preserving output data.
-;            OUT     (SPI_OUT),A
-;            DJNZ    SPI0                                                 ; Perform actions for the full 8 bits.
-;            LD      A,DOUT_HIGH | CLOCK_HIGH | CS_LOW                    ; Return clock and MOSI to high.
-;            OUT     (SPI_OUT),A
-;            POP     DE
-;            RET
-;
-
+            ;-------------------------------------------------------------------------------
+            ; START OF DEBUGGING FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
             ; Debug routine to print out all registers and dump a section of memory for analysis.
             ;
 DEBUG:      IF ENADEBUG = 1
@@ -2492,6 +2051,13 @@ DEBUG:      IF ENADEBUG = 1
            
             POP     AF
             JR      C, SKIPDUMP
+            LD      HL,DPBASE                                            ; Dump the startup vectors.
+            LD      DE, 1000H
+            ADD     HL, DE
+            EX      DE,HL
+            LD      HL,DPBASE
+            CALL    DUMPX
+
             LD      HL,00000h                                            ; Dump the startup vectors.
             LD      DE, 00A0H
             ADD     HL, DE
@@ -2518,6 +2084,83 @@ SKIPDUMP:   POP     HL
             POP     BC
             POP     AF
             RET
+
+            ; HL = Start
+            ; DE = End
+DUMPX:      LD      A,1
+DUM1:       LD      (TMPCNT),A
+DUM3:       LD      B,010h
+            LD      C,02Fh
+            CALL    NLPHL
+DUM2:       CALL    SPHEX
+            INC     HL
+            PUSH    AF
+            LD      A,(DSPXY)
+            ADD     A,C
+            LD      (DSPXY),A
+            POP     AF
+            CP      020h
+            JR      NC,L0D51
+            LD      A,02Eh
+L0D51:     ;CALL    ?ADCN
+           ;CALL    ?PRNT3
+            CALL    ?PRNT
+            LD      A,(DSPXY)
+            INC     C
+            SUB     C
+            LD      (DSPXY),A
+            DEC     C
+            DEC     C
+            DEC     C
+            PUSH    HL
+            SBC     HL,DE
+            POP     HL
+            JR      NC,DUM7
+            LD      A,0F8h
+            LD      (0E000h),A
+            NOP
+            LD      A,(0E001h)
+            CP      0FEh
+            JR      NZ,L0D78
+L0D78:      DJNZ    DUM2
+            LD      A,(TMPCNT)
+            DEC     A
+            LD      (TMPCNT),A
+            JR      NZ,DUM3
+DUM4:       CALL    ?CHKKY
+            CP      0FFH
+            JR      NZ,DUM4
+            CALL    ?GETKY
+            CP      'D'
+            JR      NZ,DUM5
+            LD      A,8
+            JR      DUM1
+DUM5:       CP      'U'
+            JR      NZ,DUM6
+            PUSH    DE
+            LD      DE,000FFH
+            SCF
+            SBC     HL,DE
+            POP     DE
+            LD      A,8
+            JR      DUM1
+DUM6:       CP      'X'
+            JR      Z,DUM7
+            JR      DUMPX
+DUM7:       CALL    ?NL
+            RET
+
+NLPHL:      CALL    ?NL
+            CALL    ?PRTHL
+            RET
+
+            ; SPACE PRINT AND DISP ACC
+            ; INPUT:HL=DISP. ADR.
+SPHEX:      CALL    ?PRTS                       ; SPACE PRINT
+            LD      A,(HL)
+            CALL    ?PRTHX                      ; DSP OF ACC (ASCII)
+            LD      A,(HL)
+            RET   
            
 DRVMSG:     DB      "DRV=",  000H
 FDCDRVMSG:  DB      ",FDC=", 000H
@@ -2532,6 +2175,13 @@ INFOMSG3:   DB      ",DE=",  000H
 INFOMSG4:   DB      ",HL=",  000H
 INFOMSG5:   DB      ",SP=",  000H
             ENDIF
+            ;-------------------------------------------------------------------------------
+            ; END OF DEBUGGING FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF STATIC LOOKUP TABLES AND CONSTANTS
+            ;-------------------------------------------------------------------------------
 
 KTBL:       ; Strobe 0           
             DB      '"'
@@ -2807,7 +2457,8 @@ KTBLC:      ; CTRL ON
             DB      CTRL_RB
             DB      NOKEY
 
-            ; SIGN ON BANNER
+
+
 CBIOSSIGNON:DB      "** CBIOS v1.11, (C) P.D. Smart, 2020 **", CR, NUL
 CPMSIGNON:  DB      "CP/M v2.23 (48K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",CR, LF, NUL
 CPMROMFNAME:DB      "CPM223",              NUL
@@ -2815,15 +2466,13 @@ CPMRDRVFN0: DB      "CPM22-DRV0",          NUL
 CPMRDRVFN1: DB      "CPM22-DRV1",          NUL
 ROMLDERRMSG:DB      "ROM LOAD",        CR, NUL
 ROMFDERRMSG:DB      "ROM FIND",        CR, NUL
-DISKERRMSG: DB      "DISK ERROR - ",   NUL
-LOADERR:    DB      "LOADING",         CR, NUL
-SELDRVMSG:  DB      "SELECT",          CR, NUL
-WAITRDYMSG: DB      "WAIT",            CR, NUL
-DSKSEEKMSG: DB      "SEEK",            CR, NUL
-RETRIESMSG: DB      "RETRIES",         CR, NUL
-DATAOVRMSG: DB      "DATA OVERRUN",    CR, NUL
-CRCERRMSG:  DB      "CRC ERROR",       CR, NUL
 
+            ;-------------------------------------------------------------------------------
+            ; END OF STATIC LOOKUP TABLES AND CONSTANTS
+            ;-------------------------------------------------------------------------------
+
+; Disk Parameter Header template.
+DPBTMPL:    DW      0000H, 0000H, 0000H, 0000H, CDIRBUF
 
             ; Allocate space for 8 disk parameter block definitions in ROM.
             ;
@@ -2928,6 +2577,30 @@ DPB3:       DW      144                                                  ; SPT -
                                                                          ;       Bit 4:3 = Disk type, 00 = FDC, 10 = ROM, 11 = SD Card, 01 = Unused
                                                                          ;       Bit 5   = ROMFS Image, 0 = DRV0, 1 = DRV1
 
+; 16Mb SD Hard Disk drives (not hot-swappable).
+; This drive has 2048 blocks (small due to size of RAM needed, more blocks more RAM) of 8192 bytes = 16Mb
+; There are 1024 directory entries thus AL0/AL1 needs to ave the top four bits set as each block can hold 256 directory entries.
+; This implementation limits the sectors per track to 255 (8 bit) even though CPM supports 16bit sectors, so the
+; physical drive make up is: 32 Sectors (128 CPM sectors of 128 bytes each) x 1024 tracks, 1 head = 16777216bytes.
+; This size has been chosen to maximise the use of the SD Card space and the number of files/programs which can be online
+; at the same time. On the MZ80A, memory is more of a premium so keeping the DRM as low as possible saves RAM.
+;
+DPB4:       DW      128                                                  ; SPT - 128 bytes sectors per track (= 36 sectors of 512 bytes)
+            DB      6                                                    ; BSH - block shift factor
+            DB      63                                                   ; BLM - block mask
+            DB      3                                                    ; EXM - Extent mask
+            DW      2047                                                 ; DSM - Storage size (blocks - 1)
+            DW      511                                                  ; DRM - Number of directory entries - 1
+            DB      192                                                  ; AL0 - 1 bit set per directory block
+            DB      0                                                    ; AL1 -            "
+            DW      0                                                    ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
+            DW      0                                                    ; OFF - Reserved tracks
+            DB      27                                                   ; CFG - MZ80A Addition, configuration flag:
+                                                                         ;       Bit 1:0 = FDC: Sector Size, 00 = 128, 10 = 256, 11 = 512, 01 = Unused.
+                                                                         ;       Bit 2   = Invert, 1 = Invert data, 0 = Use data as read (on MB8866 this is inverted).
+                                                                         ;       Bit 4:3 = Disk type, 00 = FDC, 10 = ROM, 11 = SD Card, 01 = Unused
+                                                                         ;       Bit 5   = ROMFS Image, 0 = DRV0, 1 = DRV1
+            
             ALIGN_NOPS SCRN
 
             ; Bring in additional macros.
