@@ -27,6 +27,7 @@
 *.pof
 *.qdf
 *.srf
+*.o
 Manuals/
 software/asm/CPM22-BIOS.asm
 software/asm/MZ80AFI.asm.bak
