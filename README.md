@@ -54,10 +54,10 @@ The following table describes each major file which forms the Rom Filing System:
 | rfs.asm                | User       | 2K   | 0    | Primary Rom Filing System and MZ700/MZ800 Monitor tools.                                                                                                                |
 | rfs_bank1.asm          | User       | 2K   | 1    | Floppy disk controller functions.                                                                                                                                       |
 | rfs_bank2.asm          | User       | 2K   | 2    | SD Card controller functions.                                                                                                                                           |
-| rfs_bank3.asm          | User       | 2K   | 3    | Memory monitor utilities and help screen functions.                                                                                                                     |
+| rfs_bank3.asm          | User       | 2K   | 3    | Memory monitor utility functions and tape/SD copy utilities.                                                                                                            |
 | rfs_bank4.asm          | User       | 2K   | 4    | CMT functions.                                                                                                                                                          |
 | rfs_bank5.asm          | User       | 2K   | 5    | Unused.                                                                                                                                                                 |
-| rfs_bank6.asm          | User       | 2K   | 6    | Unused.                                                                                                                                                                 |
+| rfs_bank6.asm          | User       | 2K   | 6    | Message printing routines, static messages, ascii conversion and help screen.                                                                                           |
 | rfs_bank7.asm          | User       | 2K   | 7    | Memory Test utility and 8253 Timer test.                                                                                                                                |
 | cbios_bank1.asm        | User       | 2K   | 8    | CPM CBIOS Utilities and Audio functions.                                                                                                                                |
 | cbios_bank2.asm        | User       | 2K   | 9    | CPM CBIOS Screen and ANSI Terminal functions.                                                                                                                           |
@@ -122,7 +122,8 @@ some of which original from the MZ700/MZ800 and others are custom. The full set 
 | 8       | n/a                                 | Switch to 80 Character mode if the 40/80 Column display upgrade has been added\.   |
 | B       | n/a                                 | Enable/Disable key entry beep\.                                                    |
 | C       | n/a                                 | Initialise memory from 0x1200 \- Top of RAM\.                                      |
-| D       | \<address>\[\<address2>\]           | List/Dump memory from \<address> for in hex and ascii for 80 bytes or upto \<address2\>\. |
+| D       | \<address>\[\<address2>\]           | Dump memory from \<address> to \<address2> (or 20 lines) in hex and ascii. When a screen is full, the output is paused until a key is pressed.<br> Recognised keys are:<br> 'D' - page down, 'U' - page up, 'X' - exit, all other keys list another screen of data\.|
+| EC      | \<name> or \<file number>           | Erase file from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, erased\. |
 | F       | n/a                                 | Boot from Floppy Disk                                                              |
 | f       | n/a                                 | Execute the original Floppy Disk AFI code @ 0xF000                                 |
 | H       | n/a                                 | Help screen of all these commands\.                                                |
@@ -140,7 +141,9 @@ some of which original from the MZ700/MZ800 and others are custom. The full set 
 | R       | n/a                                 | Run a memory test on the main memory\.                                             |
 | S       | \<start addr> \<end addr> \<exec addr> | Save a block of memory to tape\. You will be prompted to enter the filename\.   |
 | SC      | \<start addr> \<end addr> \<exec addr> | Save a block of memory to SD Card\. You will be prompted to enter the filename\.   |
+| SD2T    | \<name> or \<file number>           | Copy a file from SD Card to Tape\. The SD Card is searched for a file with \<name> or \<file number> and if found, copied to a tape in the CMT\. |
 | T       | n/a                                 | Test the 8253 timer\.                                                              |
+| T2SD    | n/a                                 | Copy a file from Tape onto the SD Card. A program is loaded from Tape and written to a free position in the SD Card\. |
 | V       | n/a                                 | Verify a file just written to tape with the original data stored in memory         |
 
 
