@@ -720,14 +720,16 @@ LOADROM1:   DI
             CALL    MFINDMZF                                             ; Try and find the file in User ROM via MROM utility.
             JR      NZ, LROMNTFND
             ;
-            LD      A,(ROMBK1)
+            PUSH    BC
+            LD      A,(ROMBK1)                                           ; Page in monitor so we can print a message.
             LD      (RFSBK1), A
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
             LD      BC,NAME
             LD      HL,PRINTMSG
             CALL    BKSW0to6
-            LD      A,(WRKROMBK1)
+            LD      A,(WRKROMBK1)                                        ; Revert to MROM bank to load the application.
             LD      (RFSBK1), A
+            POP     BC
 
             ;
             CALL    MROMLOAD                                             ; Load the file from User ROM via MROM utility.
