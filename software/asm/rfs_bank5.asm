@@ -88,14 +88,13 @@ BKSW5to7:   PUSH    AF
             PUSH    AF
             LD      A, ROMBANK7                                              ; Required bank to call.
             ;
-BKSW5_0:    PUSH    BC                                                       ; Save BC for caller.
-            LD      BC, BKSWRET5                                             ; Place bank switchers return address on stack.
-            PUSH    BC
-            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+BKSW5_0:    PUSH    HL                                                       ; Place function to call on stack
+            LD      HL, BKSWRET5                                             ; Place bank switchers return address on stack.
+            EX      (SP),HL
             LD      (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
+            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
             JP      (HL)                                                     ; Jump to required function.
-BKSWRET5:   POP     BC
-            POP     AF                                                       ; Get bank which called us.
+BKSWRET5:   POP     AF                                                       ; Get bank which called us.
             LD      (RFSBK2), A                                              ; Return to that bank.
             POP     AF
             RET                                                              ; Return to caller.

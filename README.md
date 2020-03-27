@@ -1,19 +1,22 @@
 ## Overview
 
-The Sharp MZ80A as with most vintage computers had limited storage. In order to expand the storage it is often the case that the resident software has to be enhanced which was impossible
-given the storage space (ie. 4K Monitor rom). The Sharp MZ80A has a 4K Monitor ROM, a 2K User ROM/RAM and space within the memory map to add a further 4K ROM typically for the floppy disk
-drive.
+The Sharp MZ80A came with 48K RAM and 4K ROM and apart from the option to add a 2K User RAM/ROM and a 4K Floppy Drive ROM, there was no further possibility to expand the machine memory
+capabilities at the hardware level and thus no additional firmware could be added for use at power-on. Add-ons had to rely on loading control firmware into RAM via tape or floppy, thus depleting valuable application space. Some machines of the same era
+utilised a scheme called 'banking' whereby much larger memories would occupy a smaller block within the CPU address space and be selected according to features required and hardware attached. The 
+BBC Micro was such a machine with upto 16 banks of 16Kb, it made the machine much more useable.
 
 One of the seperate projects I've been working on was a 40/80 Column switchable display and colour output. This upgrade requires different software, either a complete rewrite of the original
 monitor or a patched copy for 80 column mode. Wanting to keep the machine as original as possible, using a rewritten ROM is out of the question thus I would need 2 ROMS, original for 40Column
 and a patched one for 80Column.
 
-Thus was born the need for Rom Paging, ie. Use a modern Flash RAM to house multiple 4K Roms which can be *switched in* according to the hardware upgrade.
+Thus was born the need for Rom Paging in the Sharp MZ80A, ie. Use a modern Flash RAM to house multiple 4K Roms which can be *switched in* to the 4K Monitor ROM address space according to the
+hardware upgrade being used.
 
 It was also seen when using large Flash RAM's it was possible to store programs that would normally be present on tape or floppy and load at much higher speed making use of the computer that
 much easier.
 
-This upgrade uses the 4K Monitor ROM and 2K User ROM space to map in 2x512Kbyte Flash RAM's providing paged roms and a Rom Filing System storing most commonly used programs.
+This upgrade goes a bit further and uses the 4K Monitor ROM and 2K User ROM space to map in 2x512Kbyte Flash RAM's providing multiple paged roms (theoretical 256 x 2K slots and 128 x 4K slots)
+and the required custom software to control the banking called the Rom Filing System.
 
 This page along with the [CP/M](/sharpmz-upgrades-cpm) page forms the start of the RFS documentation which is still in its infancy. Within this repository are the schematics, PCB Gerber files and the software to implement the Rom Filing
 System hardware and software.

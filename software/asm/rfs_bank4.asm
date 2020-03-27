@@ -88,14 +88,13 @@ BKSW4to7:   PUSH    AF
             PUSH    AF
             LD      A, ROMBANK7                                              ; Required bank to call.
             ;
-BKSW4_0:    PUSH    BC                                                       ; Save BC for caller.
-            LD      BC, BKSWRET4                                             ; Place bank switchers return address on stack.
-            PUSH    BC
-            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+BKSW4_0:    PUSH    HL                                                   ; Place function to call on stack
+            LD      HL, BKSWRET4                                             ; Place bank switchers return address on stack.
+            EX      (SP),HL
             LD      (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
+            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
             JP      (HL)                                                     ; Jump to required function.
-BKSWRET4:   POP     BC
-            POP     AF                                                       ; Get bank which called us.
+BKSWRET4:   POP     AF                                                       ; Get bank which called us.
             LD      (RFSBK2), A                                              ; Return to that bank.
             POP     AF
             RET                                                              ; Return to caller.
@@ -105,42 +104,61 @@ BKSWRET4:   POP     BC
            ; START OF CMT CONTROLLER FUNCTIONALITY
            ;-------------------------------------------------------------------------------
 
-;       Programm load
-;
-;       cmd. 'L'
-;
-LOADTAPENX: LD      L,0FFH
+            ; CMT Utility to Load a program from tape.
+            ;
+            ; Three entry points:
+            ; LOADTAPE = Load the first program shifting to lo memory if required and execute.
+            ; LOADTAPENX = Load the first program and return without executing.
+            ; LOADTAPECP = Load the first program to address 0x1200 and return.
+            ;
+LOADTAPECP: LD      A,0FFH
+            LD      (CMTAUTOEXEC),A
+            JR      LOADTAPE2
+LOADTAPENX: LD      A,0FFH
             JR      LOADTAPE1
-LOADTAPE:   LD      L,000H
-LOADTAPE1:  PUSH    HL                                                   ; Preserve auto execute flag.
+LOADTAPE:   LD      A,000H
+LOADTAPE1:  LD      (CMTAUTOEXEC),A
+            XOR     A
+LOADTAPE2:  LD      (CMTCOPY),A                                          ; Set cmt copy mode, 0xFF if we are copying.
+            LD      A,0FFH                                               ; If called interbank, set a result code in memory to detect success.
+            LD      (RESULT),A
             CALL    ?RDI
             JP      C,?ERX2
-            CALL    NL
-            LD      DE,MSG?2                                             ; 'LOADING '
-            RST     018h
-            LD      DE,NAME
-            RST     018h
+            LD      DE,MSGLOAD                                           ; 'LOADING '
+            LD      BC,NAME
+            LD      HL,PRINTMSG
+            CALL    BKSW4to6
             XOR     A
-            LD      (BUFER),A
-            LD      HL,(DTADR)
+            LD      (CMTLOLOAD),A
+
+            LD      HL,(DTADR)                                           ; Common code, store load address in case we shift or manipulate loading.
+            LD      (DTADRSTORE),HL
+
+            LD      A,(CMTCOPY)                                          ; If were copying we always load at 0x1200.
+            OR      A
+            JR      Z,LOADTAPE3
+            LD      HL,01200H
+            LD      (DTADR),HL
+
+LOADTAPE3:  LD      HL,(DTADR)                                           ; If were loading and the load address is below 0x1200, shift it to 0x1200 to load then move into correct location.
             LD      A,H
             OR      L
-            JR      NZ,LE941
-            LD      HL,(EXADR)
-            LD      A,H
-            OR      L
-            JR      NZ,LE941
+            JR      NZ,LOADTAPE4
             LD      A,0FFh
-            LD      (BUFER),A
+            LD      (CMTLOLOAD),A
             LD      HL,01200h
             LD      (DTADR),HL
-LE941:      CALL    ?RDD
+LOADTAPE4:  CALL    ?RDD
             JP      C,?ERX2
-            POP     HL                                                   ; Get back the auto execute flag.
-            LD      A,L
+            LD      HL,(DTADRSTORE)                                      ; Restore the original load address into the CMT header.
+            LD      (DTADR),HL
+            LD      A,(CMTCOPY)
             OR      A
-            JR      Z,LOADTAPE4                                          ; Dont execute.
-            LD      A,(BUFER)
+            JR      NZ,LOADTAPE6
+LOADTAPE5:  LD      A,(CMTAUTOEXEC)                                      ; Get back the auto execute flag.
+            OR      A
+            JR      NZ,LOADTAPE6                                         ; Dont execute..
+            LD      A,(CMTLOLOAD)
             CP      0FFh
             JR      Z,LOADTAPELM                                         ; Execute at low memory?
             LD      BC,00100h
@@ -152,56 +170,127 @@ LOADTAPELM: LD      A,(MEMSW)                                            ; Perfo
             LD      BC,(SIZE)
             LDIR
             LD      BC,00100h
-            JP      00000h
-LOADTAPE4:  RET
-
-;
-;       Programm save
-;
-;       cmd. 'S'
-;
-SAVEX:      CALL    HEXIY                                                ; Start address
-            LD      (DTADR),HL                                           ; data adress buffer
-            LD      B,H
-            LD      C,L
-            CALL    INC4DE
-            CALL    HEXIY                                                ; End address
-            SBC     HL,BC                                                ; byte size
-            INC     HL
-            LD      (SIZE),HL                                            ; byte size buffer
-            CALL    INC4DE
-            CALL    HEXIY                                                ; execute address
-            LD      (EXADR),HL                                           ; buffer
-            CALL    NL
-            LD      DE,MSGSAVE                                           ; 'FILENAME? '
-            RST     018h
-            CALL    GETLHEX                                              ; filename input
-            CALL    INC4DE
-            CALL    INC4DE
-            LD      HL,NAME                                              ; name buffer
-SAVX1:      INC     DE
-            LD      A,(DE)
-            LD      (HL),A                                               ; filename trans.
-            INC     HL
-            CP      00Dh                                                 ; end code
-            JR      NZ,SAVX1
-            LD      A,OBJCD                                              ; attribute: OBJ
-            LD      (ATRB),A
-            CALL    ?WRI
-?ERX1:      JP      C,?ERX2
-            CALL    ?WRD                                                 ; data
-            JR      C,?ERX1
-            CALL    NL
-            LD      DE,MSGOK                                             ; 'OK!'
-            RST     018h
+            LD      HL,(EXADR)                                           ; Fetch exec address and run.
+            JP      (HL)
+LOADTAPE6:  LD      DE,MSGCMTDATA
+            PUSH    HL                                                   ; Load address as parameter 2.
+            LD      HL,(EXADR)
+            PUSH    HL                                                   ; Execution address as parameter 1.
+            LD      BC,(SIZE)                                            ; Size as BC parameter.
+            LD      HL,PRINTMSG
+            CALL    BKSW4to6
+            POP     BC
+            POP     BC                                                   ; Waste parameters.
+            XOR     A                                                    ; Success.
+            LD      (RESULT),A
             RET
 
+
+            ; SA1510 Routine to write a tape header. Copied into the RFS and modified to merge better
+            ; with the RFS interface.
+            ;
+CMTWRI:     DI      
+            PUSH    DE
+            PUSH    BC
+            PUSH    HL
+            LD      D,0D7H
+            LD      E,0CCH
+            LD      HL,IBUFE
+            LD      BC,00080H
+            CALL    CKSUM
+            CALL    MOTOR
+            JR      C,CMTWRI2                 
+            LD      A,E
+            CP      0CCH
+            JR      NZ,CMTWRI1                
+            PUSH    HL
+            PUSH    DE
+            PUSH    BC
+            LD      DE,MSGCMTWRITE
+            LD      BC,NAME
+            LD      HL,PRINTMSG
+            CALL    BKSW4to6
+            POP     BC
+            POP     DE
+            POP     HL
+CMTWRI1:    CALL    GAP
+            CALL    WTAPE
+CMTWRI2:    POP     HL
+            POP     BC
+            POP     DE
+            CALL    MSTOP
+            PUSH    AF
+            LD      A,(TIMFG)
+            CP      0F0H
+            JR      NZ,CMTWRI3                
+            EI      
+CMTWRI3:    POP     AF
+            RET     
+
+
+            ; Method to save an application stored in memory to a cassette in the CMT. The start, size and execution address are either given in BUFER via the 
+            ; command line and the a filename is prompted for and read, or alternatively all the data is passed into the function already set in the CMT header.
+            ; The tape is then opened and the header + data are written out.
+            ;
+SAVECMT:    LD      A,0FFH                                               ; Set SDCOPY to indicate this is a copy command and not a command line save.
+            JR      SAVEX1
+            ;
+            ; Normal entry point, the cmdline contains XXXXYYYYZZZZ where XXXX=start, YYYY=size, ZZZZ=exec addr. A filenname is prompted for and read.
+            ; The data is stored in the CMT header prior to writing out the header and data..
+            ;
+SAVEX:      LD      HL,GETCMTPARM                                        ; Get the CMT parameters.
+            CALL    BKSW4to3
+            LD      A,C
+            OR      A
+            RET     NZ                                                   ; Exit if an error occurred.
+
+            XOR     A
+SAVEX1:     LD      (SDCOPY),A
+            LD      A,0FFH
+            LD      (RESULT),A                                           ; For interbank calls, pass result via a memory variable. Assume failure unless updated.
+            LD      A,OBJCD                                              ; Set attribute: OBJ
+            LD      (ATRB),A
+            CALL    CMTWRI                                               ; Commence header write. Header doesnt need updating for header write.
+?ERX1:      JP      C,?ERX2
+
+            LD      A,(SDCOPY)
+            OR      A
+            JR      Z,SAVEX2
+            LD      DE,(DTADR)
+            LD      A,D                                                  ; If copying and address is below 1000H, then data is held at 1200H so update header for write.
+            CP      001H
+            JR      NC,SAVEX2
+            LD      DE,01200H
+            LD      (DTADR),DE
+SAVEX2:     CALL    ?WRD                                                 ; data
+            JR      C,?ERX1
+            LD      DE,MSGSAVEOK                                         ; 'OK!'
+            LD      HL,PRINTMSG
+            CALL    BKSW4to6
+            LD      A,0                                                  ; Success.
+            LD      (RESULT),A
+            RET
+?ERX2:      CP      002h
+            JR      NZ,?ERX3
+            LD      (RESULT),A                                           ; Set break key pressed code.
+            RET     Z
+?ERX3:      LD      DE,MSGE1                                             ; 'CHECK SUM ER.'
+            LD      HL,PRINTMSG
+            CALL    BKSW4to6
+            RET
+
+
+            ; Method to verify that a tape write occurred free of error. After a write, the tape is read and compared with the memory that created it.
+            ;
 VRFYX:      CALL    ?VRFY
             JP      C,?ERX2
             LD      DE,MSGOK                                             ; 'OK!'
-            RST     018h
+            LD      HL,PRINTMSG
+            CALL    BKSW4to6
             RET
 
+            ; Method to toggle the audible key press sound, ie a beep when a key is pressed.
+            ;
 SGX:        LD      A,(SWRK)
             RRA
             CCF
@@ -209,90 +298,16 @@ SGX:        LD      A,(SWRK)
             LD      (SWRK),A
             RET
 
-?ERX2:      CP      002h
-            RET     Z
-            CALL    NL
-            LD      DE,MSGE1                                             ; 'CHECK SUM ER.'
-            RST     018h
-            RET
-
-HEXIY:      EX      (SP),IY
-            POP     AF
-            CALL    HLHEX
-            JR      C,HEXIY                                              ; Exit if the input is invalid
-            JP      (IY)
-HEXIY2:     POP     AF                                                   ; Waste the intermediate caller address
-            RET                                                          ; Return to command processor.
-
-        ;     INCREMENT DE REG.
-INC4DE:     INC     DE
-            INC     DE
-            INC     DE
-            INC     DE
-            RET  
-
-GETLHEX:    EX      (SP),HL
-            POP     BC
-            LD      DE,BUFER
-            CALL    GETL
-            LD      A,(DE)
-            CP      01Bh
-            JR      Z,HEXIY2
-            JP      (HL)
-
-
-;FNINP:     CALL     NL
-;           LD       DE,MSGSV                                             ; 'FILENAME? '
-;           RST      018h
-;           LD       DE,BUFER
-;           CALL     GETL
-;           LD       A,(DE)
-;           CP       #1B
-;           JR       NZ,LEAF3
-;          ;LD       HL,ST1X
-;          ;EX       (SP),HL
-;           RET
-;
-;LEAF3:     LD       B,000h
-;           LD       DE,011ADh
-;           LD       HL,BUFER
-;           LD       A,(DE)
-;           CP       00Dh
-;           JR       Z,LEB20
-;LEB00:     CP       020h
-;           JR       NZ,LEB08
-;           INC      DE
-;           LD       A,(DE)
-;           JR       LEB00
-;LEB08:     CP       022h
-;           JR       Z,LEB14
-;LEB0C:     LD       (HL),A
-;           INC      HL
-;           INC      B
-;           LD       A,011h
-;           CP       B
-;           JR       Z,FNINP
-;LEB14:     INC      DE
-;           LD       A,(DE)
-;           CP       022h
-;           JR       Z,LEB1E
-;           CP       00Dh
-;           JR       NZ,LEB0C
-;LEB1E:     LD       A,00dh
-;LEB20:     LD       (HL),A
-;           RET
-;
-
             ;-------------------------------------------------------------------------------
             ; END OF CMT CONTROLLER FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
             ;--------------------------------------
             ;
-            ; Message table
+            ; Message table - Refer to bank 6 for
+            ;                 all messages.
             ;
             ;--------------------------------------
-MSGSAVE:    DB      "FILENAME? ",            00DH
 
             ALIGN   0EFFFh
             DB      0FFh

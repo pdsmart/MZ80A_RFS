@@ -34,7 +34,7 @@ MODE80C     EQU     0
 
             ;===========================================================
             ;
-            ; USER ROM BANK 3 - Monitor memory and help utilities.
+            ; USER ROM BANK 3 - Monitor memory utilities.
             ;
             ;===========================================================
             ORG     UROMADDR
@@ -92,48 +92,110 @@ BKSW3to7:   PUSH    AF
             PUSH    AF
             LD      A, ROMBANK7                                              ; Required bank to call.
             ;
-BKSW3_0:    PUSH    BC                                                       ; Save BC for caller.
-            LD      BC, BKSWRET3                                             ; Place bank switchers return address on stack.
-            PUSH    BC
-            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+BKSW3_0:    PUSH    HL                                                       ; Place function to call on stack
+            LD      HL, BKSWRET3                                             ; Place bank switchers return address on stack.
+            EX      (SP),HL
             LD      (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
+            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
             JP      (HL)                                                     ; Jump to required function.
-BKSWRET3:   POP     BC
-            POP     AF                                                       ; Get bank which called us.
+BKSWRET3:   POP     AF                                                       ; Get bank which called us.
             LD      (RFSBK2), A                                              ; Return to that bank.
             POP     AF
             RET                                                              ; Return to caller.
 
 
 
-           ;-------------------------------------------------------------------------------
-           ; START OF MEMORY CMDLINE TOOLS FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
+            ;-------------------------------------------------------------------------------
+            ; START OF TAPE/SD CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
 
-;
-;       Memory correction
-;       command 'M'
-;
-MCORX:      CALL    GETHEX                                               ; correction address
+            ; Method to copy an application on a tape to an SD stored application. The tape drive is read and the first
+            ; encountered program is loaded into memory at 0x1200. The CMT header is populated with the correct details (even if
+            ; the load address isnt 0x1200, the CMT Header contains the correct value).
+            ; A call is then made to write the application to the SD card.
+            ;
+TAPE2SD:    ; Load from tape into memory, filling the tape CMT header and loading data into location 0x1200.
+            LD      HL,LOADTAPECP                                        ; Call the Loadtape command, non execute version to get the tape contents into memory.
+            CALL    BKSW3to4
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,TAPE2SDERR
+            ; Save to SD Card.
+            LD      HL,SAVESDCARDX
+            CALL    BKSW3to2
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,TAPE2SDERR
+            LD      DE,MSGT2SDOK
+            JR      TAPE2SDERR2
+TAPE2SDERR: LD      DE,MSGT2SDERR
+TAPE2SDERR2:LD      HL,PRINTMSG
+            CALL    BKSW3to6
+            RET
+
+            ; Method to copy an SD stored application to a Cassette tape in the CMT.
+            ; The directory entry number or filename is passed to the command and the entry is located within the SD
+            ; directory structure. The file is then loaded into memory and the CMT header populated. A call is then made
+            ; to write out the data to tap.
+            ;
+SD2TAPE:    ; Load from SD, fill the CMT header then call CMT save.
+            LD      HL,LOADSDCP
+            CALL    BKSW3to2
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,SD2TAPEERR
+            LD      HL,SAVECMT
+            CALL    BKSW3to4
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,SD2TAPEERR
+            RET
+SD2TAPEERR: LD      DE,MSGSD2TERR
+            JR      TAPE2SDERR2
+            RET
+            ;-------------------------------------------------------------------------------
+            ; END OF TAPE/SD CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+
+            ;-------------------------------------------------------------------------------
+            ; START OF MEMORY CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ;
+            ;       Memory correction
+            ;       command 'M'
+            ;
+MCORX:      CALL    READ4HEX                                             ; correction address
+            RET     C
 MCORX1:     CALL    NLPHL                                                ; corr. adr. print
             CALL    SPHEX                                                ; ACC ASCII display
             CALL    PRNTS                                                ; space print
-            CALL    BGETLX                                               ; get data & check data
-            CALL    HLHEX                                                ; HLASCII(DE)
-            JR      C,MCRX3
-            CALL    DOT4DE                                               ; INC DE * 4
-            INC     DE
-            CALL    _2HEX                                                ; data check
-            JR      C,MCORX1
-            CP      (HL)
-            JR      NZ,MCORX1
-            INC     DE
+            LD      DE,BUFER                                             ; Input the data.
+            CALL    GETL
             LD      A,(DE)
+            CP      01Bh                                                 ; If . pressed, exit.
+            RET     Z
+            PUSH    HL
+            POP     BC
+            CALL    HLHEX                                                ; If the existing address is no longer hex, reset. HLASCII(DE). If it is hex, take as the address to store data into.
+            JR      C,MCRX3                                              ; Line is corrupted as the address is no longer in Hex, reset.
+            INC     DE
+            INC     DE
+            INC     DE
+            INC     DE
+            INC     DE                                                   ;
+            CALL    _2HEX                                                ; Get value entered.
+            JR      C,MCORX1                                             ; Not hex, reset.
+            CP      (HL)                                                 ; Not same as memory, reset.
+            JR      NZ,MCORX1
+            INC     DE                                                   ; 
+            LD      A,(DE)                                               ; Check if no data just CR, if so, move onto next address.
             CP      00Dh                                                 ; not correction
             JR      Z,MCRX2
-            CALL    _2HEX                                                ; ACCHL(ASCII)
-            JR      C,MCORX1
-            LD      (HL),A                                               ; data correct
+            CALL    _2HEX                                                ; Get the new entered data. ACCHL(ASCII)
+            JR      C,MCORX1                                             ; New data not hex, reset.
+            LD      (HL),A                                               ; data correct so store.
 MCRX2:      INC     HL
             JR      MCORX1
 MCRX3:      LD      H,B                                                  ; memory address
@@ -141,17 +203,52 @@ MCRX3:      LD      H,B                                                  ; memor
             JR      MCORX1
 
 
-DUMPX:      CALL    GETHEX
-            CALL    DOT4DE
+            ; Dump method when called interbank as HL cannot be passed.
+            ;
+            ; BC = Start
+            ; DE = End
+DUMPBC:     PUSH    BC
+            POP     HL
+            JR      DUMP
+
+            ; Command line utility to dump memory.
+            ; Get start and optional end addresses from the command line, ie. XXXX[XXXX]
+            ; Paging is implemented, 23 lines at a time, pressing U goes back 100H, pressing D scrolls down 100H
+            ;
+DUMPX:      CALL    HLHEX                                                ; Get start address if present into HL
+            JR      NC,DUMPX1
+            LD      DE,(DUMPADDR)                                        ; Setup default start and end.
+            JR      DUMPX2
+DUMPX1:     INC     DE
+            INC     DE
+            INC     DE
+            INC     DE
             PUSH    HL
-            CALL    HLHEX
-            POP     DE
-            JR      C,DUM4
-DUM1:       EX      DE,HL
-DUM3:       LD      B,008h
-            LD      C,017h
-            CALL    NLPHL
-DUM2:       CALL    SPHEX
+            CALL    HLHEX                                                ; Get end address if present into HL
+            POP     DE                                                   ; DE = Start address
+            JR      NC,DUMPX4                                            ; Both present? Then display.
+DUMPX2:     LD      A,(SCRNMODE)
+            OR      A
+            LD      HL,000A0h                                            ; Make up an end address based on 160 bytes from start for 40 column mode.
+            JR      Z,DUMPX3
+            LD      HL,00140h                                            ; Make up an end address based on 320 bytes from start for 80 column mode.
+DUMPX3:     ADD     HL,DE
+DUMPX4:     EX      DE,HL
+            ;
+            ; HL = Start
+            ; DE = End
+DUMP:       LD      A,23
+DUMP0:      LD      (TMPCNT),A
+            LD      A,(SCRNMODE)                                         ; Configure output according to screen mode, 40/80 chars.
+            OR      A
+            JR      NZ,DUMP1
+            LD      B,008H                                               ; 40 Char, output 23 lines of 40 char.
+            LD      C,017H
+            JR      DUMP2
+DUMP1:      LD      B,010h                                               ; 80 Char, output 23 lines of 80 char.
+            LD      C,02Fh
+DUMP2:      CALL    NLPHL
+DUMP3:      CALL    SPHEX
             INC     HL
             PUSH    AF
             LD      A,(DSPXY)
@@ -159,9 +256,9 @@ DUM2:       CALL    SPHEX
             LD      (DSPXY),A
             POP     AF
             CP      020h
-            JR      NC,L0D51
+            JR      NC,DUMP4
             LD      A,02Eh
-L0D51:      CALL    ?ADCN
+DUMP4:      CALL    ?ADCN
             CALL    PRNT3
             LD      A,(DSPXY)
             INC     C
@@ -173,32 +270,49 @@ L0D51:      CALL    ?ADCN
             PUSH    HL
             SBC     HL,DE
             POP     HL
-            JR      Z,L0D85
-            LD      A,0F8h
-            LD      (0E000h),A
-            NOP
-            LD      A,(0E001h)
-            CP      0FEh
-            JR      NZ,L0D78
-            CALL    ?BLNK
-L0D78:      DJNZ    DUM2
-L0D7A:      CALL    ?KEY
+            JR      NC,DUMP9
+DUMP5:      DJNZ    DUMP3
+            LD      A,(TMPCNT)
+            DEC     A
+            JR      NZ,DUMP0
+DUMP6:      CALL    GETKY                                                ; Pause, X to quit, D to go down a block, U to go up a block.
             OR      A
-            JR      Z,L0D7A
-            CALL    BRKEY
-            JP      NZ,DUM3
-L0D85:      RET                     ; JR       LEA76
-DUM4:       LD      HL,000A0h
-            ADD     HL,DE
-            JR      DUM1            
+            JR      Z,DUMP6
+            CP      'D'
+            JR      NZ,DUMP7
+            LD      A,8
+            JR      DUMP0
+DUMP7:      CP      'U'
+            JR      NZ,DUMP8
+            PUSH    DE
+            LD      DE,00100H
+            OR      A
+            SBC     HL,DE
+            POP     DE
+            LD      A,8
+            JR      DUMP0
+DUMP8:      CP      'X'
+            JR      Z,DUMP9
+            JR      DUMP
+DUMP9:      LD      (DUMPADDR),HL                                        ; Store last address so we can just press D for next page,
+            CALL    NL
+            RET
 
-           ; Clear memory.
-INITMEMX:   LD      DE,MSG_INITM
-            CALL    MSG
-            CALL    LETNL
+
+            ; Cmd tool to clear memory.
+            ; Read cmd line for an init byte, if one not present, use 00H
+            ;
+INITMEMX:   CALL    _2HEX
+            JR      NC,INITMEMX1
+            LD      A,000H
+INITMEMX1:  PUSH    AF
+            LD      DE,MSGINITM
+            LD      HL,PRINTMSG
+            CALL    BKSW1to6
             LD      HL,1200h
             LD      BC,0D000h - 1200h
-CLEAR1:     LD      A,00h
+            POP     DE
+CLEAR1:     LD      A,D
             LD      (HL),A
             INC     HL
             DEC     BC
@@ -207,79 +321,107 @@ CLEAR1:     LD      A,00h
             JP      NZ,CLEAR1
             RET
 
-BGETLX:     EX      (SP),HL
-            POP     BC
+
+            ; Method to get the CMT parameters from the command line.
+            ; The parameters which should be given are:
+            ; XXXXYYYYZZZZ - where XXXX = Start Address, YYYY = End Address, ZZZZ = Execution Address.
+            ; If the start, end and execution address parameters are correct, prompt for a filename which will be written into the CMT header.
+            ; Output:  Reg C = 0 - Success
+            ;                = 1 - Error.
+GETCMTPARM: CALL    READ4HEX                                             ; Start address
+            JR      C,GETCMT1
+            LD      (DTADR),HL                                           ; data adress buffer
+            LD      B,H
+            LD      C,L
+            CALL    READ4HEX                                             ; End address
+            JR      C,GETCMT1
+            LD      (SIZE),HL                                            ; byte size buffer
+            CALL    READ4HEX                                             ; Execution address
+            JR      C,GETCMT1
+            LD      (EXADR),HL                                           ; buffer
+            CALL    NL
+            LD      DE,MSGSAVE                                           ; 'FILENAME? '
+            LD      HL,PRINTMSG
+            CALL    BKSW2to6                                             ; Print out the filename.
             LD      DE,BUFER
             CALL    GETL
-            LD      A,(DE)
-            CP      01Bh
-            JP      Z,GETHEX2
-            JP      (HL)
-
-GETHEX:     EX      (SP),IY
-            POP     AF
-            CALL    HLHEX
-            JR      C,GETHEX2
-            JP      (IY)
-GETHEX2:    POP     AF                                                   ; Waste the intermediate caller address
-            RET    
+            LD      HL,BUFER+10
+            LD      DE,NAME                                              ; name buffer
+            LD      BC,FNSIZE
+            LDIR                                                         ; C = 0 means success.
+            RET 
+GETCMT1:    LD      C,1                                                  ; C = 1 means an error occured.
+            RET 
 
     
-           ;    INCREMENT DE REG.
-DOT4DE:    INC      DE
-           INC      DE
-           INC      DE
-           INC      DE
-           RET   
+            ; Method to read 4 bytes from a buffer pointed to by DE and attempt to convert to a 16bit number. If it fails, print out an error
+            ; message and return with C set.
+            ;
+            ; Input:  DE = Address of digits to conver.
+            ; Output: HL = 16 bit number.
 
-           ;    SPACE PRINT AND DISP ACC
-           ;    INPUT:HL=DISP. ADR.
-SPHEX:     CALL     PRNTS                                                ; SPACE PRINT
-           LD       A,(HL)
-           CALL     PRTHX                                                ; DSP OF ACC (ASCII)
-           LD       A,(HL)
-           RET
+READ4HEX:   CALL    HLHEX
+            JR      C,READ4HEXERR
+            INC     DE
+            INC     DE
+            INC     DE
+            INC     DE
+            OR      A                                                    ; Clear carry flag.
+            RET
+READ4HEXERR:LD      DE,MSGREAD4HEX                                       ; Load up error message, print and exit.
+            LD      HL,PRINTMSG
+            CALL    BKSW1to6
+            SCF
+            RET
 
-           ;    NEW LINE AND PRINT HL REG (ASCII)
-NLPHL:     CALL     NL
-           CALL     PRTHL
-           RET  
-           ;-------------------------------------------------------------------------------
-           ; END OF MEMORY CMDLINE TOOLS FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
+            ;    SPACE PRINT AND DISP ACC
+            ;    INPUT:HL=DISP. ADR.
+SPHEX:      CALL    PRNTS                                                ; SPACE PRINT
+            LD      A,(HL)
+            CALL    PRTHX                                                ; DSP OF ACC (ASCII)
+            LD      A,(HL)
+            RET
 
-           ;-------------------------------------------------------------------------------
-           ; START OF PRINTER CMDLINE TOOLS FUNCTIONALITY
-           ;-------------------------------------------------------------------------------
-PTESTX:    LD       A,(DE)
-           CP       '&'                                                  ; plotter test
-           JR       NZ,PTST1X
-PTST0X:    INC      DE
-           LD       A,(DE)
-           CP       'L'                                                  ; 40 in 1 line
-           JR       Z,.LPTX
-           CP       'S'                                                  ; 80 in 1 line
-           JR       Z,..LPTX
-           CP       'C'                                                  ; Pen change
-           JR       Z,PENX
-           CP       'G'                                                  ; Graph mode
-           JR       Z,PLOTX
-           CP       'T'                                                  ; Test
-           JR       Z,PTRNX
+            ;    NEW LINE AND PRINT HL REG (ASCII)
+NLPHL:      CALL    NL
+            CALL    PRTHL
+            RET  
+            ;-------------------------------------------------------------------------------
+            ; END OF MEMORY CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+
+            ;-------------------------------------------------------------------------------
+            ; START OF PRINTER CMDLINE TOOLS FUNCTIONALITY
+            ;-------------------------------------------------------------------------------
+PTESTX:     LD      A,(DE)
+            CP      '&'                                                  ; plotter test
+            JR      NZ,PTST1X
+PTST0X:     INC     DE
+            LD      A,(DE)
+            CP      'L'                                                  ; 40 in 1 line
+            JR      Z,.LPTX
+            CP      'S'                                                  ; 80 in 1 line
+            JR      Z,..LPTX
+            CP      'C'                                                  ; Pen change
+            JR      Z,PENX
+            CP      'G'                                                  ; Graph mode
+            JR      Z,PLOTX
+            CP      'T'                                                  ; Test
+            JR      Z,PTRNX
 ;
-PTST1X:    CALL     PMSGX
-ST1X2:     RET
-.LPTX:     LD       DE,LLPT                                              ; 01-09-09-0B-0D
-           JR       PTST1X
-..LPTX:    LD       DE,SLPT                                              ; 01-09-09-09-0D
-           JR       PTST1X
-PTRNX:     LD       A,004h                                               ; Test pattern
-           JR       LE999
-PLOTX:     LD       A,002h                                               ; Graph mode
-LE999:     CALL     LPRNTX
-           JR       PTST0X
-PENX:      LD       A,01Dh                                               ; 1 change code (text mode)
-           JR       LE999
+PTST1X:     CALL    PMSGX
+ST1X2:      RET
+.LPTX:      LD      DE,LLPT                                              ; 01-09-09-0B-0D
+            JR      PTST1X
+..LPTX:     LD      DE,SLPT                                              ; 01-09-09-09-0D
+            JR      PTST1X
+PTRNX:      LD      A,004h                                               ; Test pattern
+            JR      LE999
+PLOTX:      LD      A,002h                                               ; Graph mode
+LE999:      CALL    LPRNTX
+            JR      PTST0X
+PENX:       LD      A,01Dh                                               ; 1 change code (text mode)
+            JR      LE999
 ;
 ;
 ;       1 char print to $LPT
@@ -287,36 +429,36 @@ PENX:      LD       A,01Dh                                               ; 1 cha
 ;        in: ACC print data
 ;
 ;
-LPRNTX:    LD       C,000h                                               ; RDAX test
-           LD       B,A                                                  ; print data store
-           CALL     RDAX
-           LD       A,B
-           OUT      (0FFh),A                                             ; data out
-           LD       A,080h                                               ; RDP high
-           OUT      (0FEh),A
-           LD       C,001h                                               ; RDA test
-           CALL     RDAX
-           XOR      A                                                    ; RDP low
-           OUT      (0FEh),A
-           RET
+LPRNTX:     LD      C,000h                                               ; RDAX test
+            LD      B,A                                                  ; print data store
+            CALL    RDAX
+            LD      A,B
+            OUT     (0FFh),A                                             ; data out
+            LD      A,080h                                               ; RDP high
+            OUT     (0FEh),A
+            LD      C,001h                                               ; RDA test
+            CALL    RDAX
+            XOR     A                                                    ; RDP low
+            OUT     (0FEh),A
+            RET
 ;
 ;       $LPT msg.
 ;       in: DE data low address
 ;       0D msg. end
 ;
-PMSGX:     PUSH     DE
-           PUSH     BC
-           PUSH     AF
-PMSGX1:    LD       A,(DE)                                               ; ACC = data
-           CALL     LPRNTX
-           LD       A,(DE)
-           INC      DE
-           CP       00Dh                                                 ; end ?
-           JR       NZ,PMSGX1
-           POP      AF
-           POP      BC
-           POP      DE
-           RET
+PMSGX:      PUSH    DE
+            PUSH    BC
+            PUSH    AF
+PMSGX1:     LD      A,(DE)                                               ; ACC = data
+            CALL    LPRNTX
+            LD      A,(DE)
+            INC     DE
+            CP      00Dh                                                 ; end ?
+            JR      NZ,PMSGX1
+            POP     AF
+            POP     BC
+            POP     DE
+            RET
 
 ;
 ;       RDA check
@@ -351,86 +493,13 @@ SLPT:       DB      01H                                                  ; TEXT 
             ; END OF PRINTER CMDLINE TOOLS FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-            ;-------------------------------------------------------------------------------
-            ; START OF HELP SCREEN FUNCTIONALITY
-            ;-------------------------------------------------------------------------------
-
-            ; Simple help screen to display commands.
-HELP:       CALL    NL
-            LD      DE, HELPSCR
-            CALL    PRTSTR
-            RET
-
-            ; Modification of original MSG function, use NULL terminated strings not CR terminated and include page pause.
-PRTSTR:     PUSH    AF
-            PUSH    BC
-            PUSH    DE
-            LD      A,0
-            LD      (TMPLINECNT),A
-PRTSTR1:    LD      A,(DE)
-            CP      000H
-            JR      Z,PRTSTRE
-            CP      00DH
-            JR      Z,PRTSTR3
-PRTSTR2:    CALL    PRNT
-            INC     DE
-            JR      PRTSTR1                   
-PRTSTR3:    PUSH    AF
-            LD      A,(TMPLINECNT)
-            CP      24
-            JR      Z,PRTSTR5
-            INC     A
-PRTSTR4:    LD      (TMPLINECNT),A
-            POP     AF
-            JR      PRTSTR2
-PRTSTR5:    CALL    GETKY
-            CP      ' '
-            JR      NZ,PRTSTR5
-            XOR     A
-            JR      PRTSTR4
-PRTSTRE:    POP     DE
-            POP     BC
-            POP     AF
-            RET     
-
-            ; Help text. Use of lower case, due to Sharp's non standard character set, is not easy, you have to manually code each byte
-            ; hence using upper case.
-HELPSCR:    DB      "4     - 40 COL MODE.",                                 00DH
-            DB      "8     - 80 COL MODE.",                                 00DH
-            DB      "B     - TOGGLE KEYBOARD BELL.",                        00DH
-            DB      "C     - CLEAR MEMORY $1200-$D000.",                    00DH
-            DB      "DXXXX[YYYY] - DUMP MEM XXXX TO YYYY.",                 00DH
-            DB      "F[X]  - BOOT FD DRIVE X.",                             00DH
-            DB  0AAH,"     - BOOT FD ORIGINAL ROM.",                        00DH
-            DB      "H     - THIS HELP SCREEN.",                            00DH
-            DB      "IR/IC - RFS DIR LISTING ROM/SD CARD.",                 00DH
-            DB      "JXXXX - JUMP TO LOCATION XXXX.",                       00DH
-            DB      "LT[FN]- LOAD TAPE, FN=FILENAME",                       00DH
-            DB      "LR[FN]- LOAD ROM, FN=NO OR NAME",                      00DH
-            DB      "LC[FN]- LOAD SDCARD, FN=NO OR NAME",                   00DH
-            DB      "      - ADD NX FOR NO EXEC, IE.LRNX.",                 00DH
-            DB      "MXXXX - EDIT MEMORY STARTING AT XXXX.",                00DH
-            DB      "P     - TEST PRINTER.",                                00DH
-            DB      "R     - TEST DRAM MEMORY.",                            00DH
-            DB      "ST[XXXXYYYYZZZZ] - SAVE MEM TO TAPE.",                 00DH
-            DB      "SC[XXXXYYYYZZZZ] - SAVE MEM TO CARD.",                 00DH
-            DB      "        XXXX=START,YYYY=END,ZZZZ=EXEC",                00DH
-            DB      "T     - TEST TIMER.",                                  00DH
-            DB      "V     - VERIFY TAPE SAVE.",                            00DH
-            DB      000H
-
-            ;-------------------------------------------------------------------------------
-            ; END OF HELP SCREEN FUNCTIONALITY
-            ;-------------------------------------------------------------------------------
-
 
             ;--------------------------------------
             ;
-            ; Message table
+            ; Message table - Refer to bank 6 for
+            ;                 all messages.
             ;
             ;--------------------------------------
-
-MSG_INITM:  DB      "INIT MEMORY",           00DH
 
             ALIGN   0EFFFh
             DB      0FFh

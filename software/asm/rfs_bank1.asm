@@ -89,14 +89,13 @@ BKSW1to7:  PUSH     AF
            PUSH     AF
            LD       A, ROMBANK7                                              ; Required bank to call.
            ;
-BKSW1_0:   PUSH     BC                                                       ; Save BC for caller.
-           LD       BC, BKSWRET1                                             ; Place bank switchers return address on stack.
-           PUSH     BC
-           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+BKSW1_0:   PUSH     HL                                                       ; Place function to call on stack
+           LD       HL, BKSWRET1                                             ; Place bank switchers return address on stack.
+           EX       (SP),HL
            LD       (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
+           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
            JP       (HL)                                                     ; Jump to required function.
-BKSWRET1:  POP      BC
-           POP      AF                                                       ; Get bank which called us.
+BKSWRET1:  POP      AF                                                       ; Get bank which called us.
            LD       (RFSBK2), A                                              ; Return to that bank.
            POP      AF
            RET                                                               ; Return to caller.
@@ -133,9 +132,9 @@ FLOPPY:    PUSH     DE                                                       ; P
            CP       00Dh                                                     ; 
            JR       NZ,GETBOOTDSK                                            ; 
            CALL     DSKINIT                                                  ; Initialise disk and flags.
-L000F:     CALL     NL                                                       ; Prompt for the boot drive as non given in call.
-           LD       DE,BOOTDRV                                               ; 
-           CALL     MSG                                                      ; 
+L000F:     LD       DE,MSGBOOTDRV                                            ; 
+           LD       HL,PRINTMSG
+           CALL     BKSW1to6
            LD       DE,011A3H                                                ; 
            CALL     GETL                                                     ; 
            LD       A,(DE)                                                   ; 
@@ -164,11 +163,12 @@ L0049:     LD       C,(HL)                                                   ;
            INC      HL                                                       ; 
            INC      DE                                                       ; 
            DJNZ     L0049                                                    ; 
-           CALL     NL                                                       ; Ok, we have a bootable disk, so indicate we are booting it...
-           LD       DE,IPLLOAD                                               ; 
-           CALL     MSG                                                      ; 
+           LD       DE,MSGIPLLOAD                                            ; 
+           LD       HL,PRINTMSG
+           CALL     BKSW1to6
            LD       DE,0CE07H                                                ; Program name stored at 8th byte in boot sector.
-           CALL     MSG                                                      ; 
+           LD       HL,PRTFN
+           CALL     BKSW1to6
            LD       HL,(0CE16H)                                              ; Get the load address
            LD       (IX+005H),L                                              ; And store in parameter block at 100D/100E
            LD       (IX+006H),H                                              ; 
@@ -187,13 +187,12 @@ NOTCPM:    LD       HL,(0CE14H)                                              ; G
            LD       HL,(0CE18H)                                              ; Get the execution address
            JP       (HL)                                                     ; And execute.
 
-DSKLOADERR:LD       DE,LOADERR                                               ; Loading error message
+DSKLOADERR:LD       DE,MSGLOADERR                                            ; Loading error message
            JR       L008F                                                    ; (+003h)
 
-L008C:     LD       DE,DSKNOTMST                                             ; This is not a boot/master disk message.
-L008F:     CALL     NL
-           CALL     MSG
-           CALL     NL
+L008C:     LD       DE,MSGDSKNOTMST                                          ; This is not a boot/master disk message.
+L008F:     LD       HL,PRINTMSG
+           CALL     BKSW1to6
            LD       DE,ERRTONE                                               ; Play error tone.
            CALL     MELDY
            ;
@@ -493,14 +492,13 @@ L0300:     IN      A,(0D8H)	                                 	             ; Sta
 
            ;--------------------------------------
            ;
-           ; Message table
+           ; Message table - Refer to bank 6 for
+           ;                 all messages.
            ;
            ;--------------------------------------
-BOOTDRV:   DB       "FLOPPY BOOT DRIVE ?", 00DH
-LOADERR:   DB       "DISK LOADING ERROR", 00DH
-IPLLOAD:   DB       "DISK LOADING ", 00DH
+
+           ; Error tone.
 ERRTONE:   DB       "A0", 0D7H, "ARA", 0D7H, "AR", 00DH
-DSKNOTMST: DB       "THIS IS NOT A BOOT DISK", 00Dh
 
            ; Identifier to indicate this is a valid boot disk
 DSKID:     DB       002H, "IPLPRO"

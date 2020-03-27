@@ -2087,7 +2087,7 @@ SKIPDUMP:   POP     HL
 
             ; HL = Start
             ; DE = End
-DUMPX:      LD      A,1
+DUMPX:      LD      A,23
 DUM1:       LD      (TMPCNT),A
 DUM3:       LD      B,010h
             LD      C,02Fh
@@ -2102,9 +2102,7 @@ DUM2:       CALL    SPHEX
             CP      020h
             JR      NC,L0D51
             LD      A,02Eh
-L0D51:     ;CALL    ?ADCN
-           ;CALL    ?PRNT3
-            CALL    ?PRNT
+L0D51:      CALL    ?PRNT
             LD      A,(DSPXY)
             INC     C
             SUB     C
@@ -2116,12 +2114,6 @@ L0D51:     ;CALL    ?ADCN
             SBC     HL,DE
             POP     HL
             JR      NC,DUM7
-            LD      A,0F8h
-            LD      (0E000h),A
-            NOP
-            LD      A,(0E001h)
-            CP      0FEh
-            JR      NZ,L0D78
 L0D78:      DJNZ    DUM2
             LD      A,(TMPCNT)
             DEC     A
@@ -2138,8 +2130,8 @@ DUM4:       CALL    ?CHKKY
 DUM5:       CP      'U'
             JR      NZ,DUM6
             PUSH    DE
-            LD      DE,000FFH
-            SCF
+            LD      DE,00100H
+            OR      A
             SBC     HL,DE
             POP     DE
             LD      A,8

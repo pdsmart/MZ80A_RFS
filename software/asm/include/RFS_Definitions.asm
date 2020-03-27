@@ -55,15 +55,14 @@ MELDY       EQU     00030h
 MONIT:      EQU     00000h
 SS:         EQU     00089h
 ST1:        EQU     00095h
-MSGE1       EQU     00118h
 HLHEX       EQU     00410h
 _2HEX       EQU     0041Fh
 ?MODE:      EQU     0074DH
 ?KEY        EQU     008CAh
 PRNT3       EQU     0096Ch
-MSG?2       EQU     000F7h
 ?ADCN       EQU     00BB9h
 ?DACN       EQU     00BCEh
+?DSP:       EQU     00DB5H
 ?BLNK       EQU     00DA6h
 ?DPCT       EQU     00DDCh
 PRTHL:      EQU     003BAh
@@ -73,6 +72,11 @@ DPCT:       EQU     00DDCh
 DLY12:      EQU     00DA7h
 DLY12A:     EQU     00DAAh
 ?RSTR1:     EQU     00EE6h
+MOTOR:      EQU     006A3H
+CKSUM:      EQU     0071AH
+GAP:        EQU     0077AH
+WTAPE:      EQU     00485H
+MSTOP:      EQU     00700H
 
 ; Debugging
 ENADEBUG    EQU     0                                                    ; Enable debugging logic, 1 = enable, 0 = disable
@@ -291,6 +295,15 @@ SDDIR_EXEC  EQU     019H
 SDDIR_FNSZ  EQU     FNSIZE
 SDDIR_ENTSZ EQU     32
 
+;
+; Rom Filing System constants for the SD Card.
+;
+SDDIR_DIRENT   EQU  256                                                  ; Directory entries in the RFS directory.
+SDDIR_DIRENTSZ EQU  32                                                   ; Size of a directory entry.
+SDDIR_DIRSIZE  EQU  SDDIR_DIRENT * SDDIR_DIRENTSZ                        ; Total size of the directory.
+SDDIR_BLOCKSZ  EQU  65536                                                ; Size of a file block per directory entry.
+SDDIR_IMGSZ    EQU  SDDIR_DIRSIZE + (SDDIR_DIRENT * SDDIR_BLOCKSZ)       ; Total size of the RFS image.
+
 ;-----------------------------------------------
 ;    SA-1510 MONITOR WORK AREA (MZ80A)
 ;-----------------------------------------------
@@ -350,20 +363,23 @@ TMPLINECNT: EQU     01021H                                               ; Tempo
 TMPSTACKP:  EQU     01023H                                               ; Temporary stack pointer save.
 SDVER:      EQU     01025H
 SDCAP:      EQU     01026H
-; Variables sharing the CMT buffer, normally the CMT and SD are not used at the same 
-; time. This frees up memory needed by the SD card.
+; Variables sharing the BUFER buffer, normally the BUFER is only used to get keyboard input and so long as data in BUFER is processed
+; before calling the CMT/SD commands and not inbetween there shouldnt be any issue. Also the space used is at the top end of the buffer which is not used so often.
+; This frees up memory needed by the CMT and SD card.
 SECTORBUF:  EQU     0CE00H                                               ; Working buffer to place an SD card sector.
-SDBYTECNT   EQU     COMNT+2                                              ; Bytes to read/write to/from a sector.
-SDOFFSET    EQU     COMNT+4                                              ; Offset into sector prior to data read/write.
-SDSTARTSEC  EQU     COMNT+6                                              ; Starting sector of data to read/write from/to SD card.
-SDLOADADDR  EQU     COMNT+10                                             ; Address to read/write data from/to SD card.
-SDLOADSIZE  EQU     COMNT+12                                             ; Total remaining byte count data to read/write from/to SD card.
-SDAUTOEXEC  EQU     COMNT+14                                             ; Flag to indicate if a loaded image should be executed (=0xFF)
-SDBUF:      EQU     COMNT+15                                             ; SD Card command fram buffer for the command and response storage.
-DIRSECBUF:  EQU     COMNT+26                                             ; Directory sector in cache.
-RESULT:     EQU     COMNT+27
-BYTECNT:    EQU     COMNT+29
-WRITECNT:   EQU     COMNT+31
+SDSTARTSEC  EQU     BUFER+50+0                                           ; Starting sector of data to read/write from/to SD card.
+SDLOADADDR  EQU     BUFER+50+4                                           ; Address to read/write data from/to SD card.
+SDLOADSIZE  EQU     BUFER+50+6                                           ; Total remaining byte count data to read/write from/to SD card.
+SDAUTOEXEC  EQU     BUFER+50+8                                           ; Flag to indicate if a loaded image should be executed (=0xFF)
+SDBUF:      EQU     BUFER+50+9                                           ; SD Card command fram buffer for the command and response storage.
+DIRSECBUF:  EQU     BUFER+50+20                                          ; Directory sector in cache.
+DUMPADDR:   EQU     BUFER+50+22                                          ; Address used by the D(ump) command so that calls without parameters go onto the next block.
+CMTLOLOAD:  EQU     BUFER+50+24                                          ; Flag to indicate that a tape program is loaded into hi memory then shifted to low memory after ROM pageout.
+CMTCOPY:    EQU     BUFER+50+25                                          ; Flag to indicate that a CMT copy operation is taking place.
+CMTAUTOEXEC:EQU     BUFER+50+26                                          ; Auto execution flag, run CMT program when loaded if flag clear.
+DTADRSTORE: EQU     BUFER+50+27                                          ; Backup for load address if actual load shifts to lo memory or to 0x1200 for copy.
+SDCOPY:     EQU     BUFER+50+29                                          ; Flag to indicate an SD copy is taking place, either CMT->SD or SD->CMT.
+RESULT:     EQU     BUFER+50+30                                          ; Result variable needed for interbank calls when a result is needed.
 
 ; Quickdisk work area
 ;QDPA       EQU     01130h                                               ; QD code 1

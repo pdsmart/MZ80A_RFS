@@ -109,14 +109,13 @@ BKSW0to7:   PUSH    AF
             PUSH    AF
             LD      A, ROMBANK7                                          ; Required bank to call.
             ;
-BKSW0_0:    PUSH    BC                                                   ; Save BC for caller.
-            LD      BC, BKSWRET0                                         ; Place bank switchers return address on stack.
-            PUSH    BC
-            LD      (RFSBK2), A                                          ; Bank switch in user rom space, A=bank.
+BKSW0_0:    PUSH    HL                                                   ; Place function to call on stack
+            LD      HL, BKSWRET0                                         ; Place bank switchers return address on stack.
+            EX      (SP),HL
             LD      (TMPSTACKP),SP                                       ; Save the stack pointer as some old code corrupts it.
+            LD      (RFSBK2), A                                          ; Bank switch in user rom space, A=bank.
             JP      (HL)                                                 ; Jump to required function.
-BKSWRET0:   POP     BC
-            POP     AF                                                   ; Get bank which called us.
+BKSWRET0:   POP     AF                                                   ; Get bank which called us.
             LD      (RFSBK2), A                                          ; Return to that bank.
             POP     AF
             RET                                                          ; Return to caller.
@@ -161,7 +160,8 @@ SIGNON1:    CALL    DPCT
             DEC     E
             JR      NZ,SIGNON1
             LD      DE,MSGSON                                            ; Sign on message,
-            RST     018h
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
 
             LD      HL, SDINIT                                           ; SD Card Initialisation
             CALL    BKSW0to2                                             ; Call the initialisation routine.
@@ -180,7 +180,7 @@ ST1X:       CALL    NL                                                   ; Comma
 CMDCMP:     LD      HL,CMDTABLE
 CMDCMP0:    LD      DE,BUFER+1                                           ; First command byte after the * prompt.
             LD      A,(HL)
-            CP      00DH
+            CP      000H
             JR      Z,ST1X                                               ; Skip processing on lines where just CR pressed.
             BIT     7,A                                                  ; Bit 7 set on command properties indicates table end, exit if needed.
             JR      NZ,CMDNOCMP
@@ -234,7 +234,8 @@ CMDCMP6:    LD      DE,CMDCMPEND                                         ; Put r
             JP      (HL)
 
 CMDNOCMP:   LD      DE,MSGBADCMD
-            RST     018H
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
 CMDCMPEND:  JP      ST1X
 
             ; Monitor command table. This table contains the list of recognised commands along with the 
@@ -257,13 +258,16 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 018H | 001H
             DB      'D'                                                  ; Dump Memory.
             DW      DUMPX
+            DB      000H | 000H | 010H | 002H
+            DB      "EC"                                                 ; Erase file.
+            DW      ERASESD
             DB      000H | 000H | 008H | 001H
             DB      'F'                                                  ; RFS Floppy boot code.
             DW      FLOPPY
             DB      000H | 000H | 008H | 001H
             DB      0AAH                                                 ; Original Floppy boot code.
             DW      FDCK
-            DB      000H | 000H | 018H | 001H
+            DB      000H | 000H | 030H | 001H
             DB      'H'                                                  ; Help screen.
             DW      HELP
             DB      000H | 000H | 000H | 002H
@@ -287,10 +291,10 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 002H
             DB      "LR"                                                 ; Load from ROM
             DW      LOADROM
-            DB      000H | 000H | 000H | 004H
+            DB      000H | 000H | 010H | 004H
             DB      "LCNX"                                               ; Load from SDCARD without auto execution.
             DW      LOADSDCARDX
-            DB      000H | 000H | 000H | 002H
+            DB      000H | 000H | 010H | 002H
             DB      "LC"                                                 ; Load from SD CARD
             DW      LOADSDCARD
             DB      000H | 000H | 020H | 001H
@@ -305,6 +309,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 038H | 001H
             DB      'R'                                                  ; Memory test.
             DW      MEMTEST
+            DB      000H | 000H | 018H | 004H
+            DB      "SD2T"                                               ; Copy SD Card to Tape.
+            DW      SD2TAPE
             DB      000H | 000H | 010H | 002H
             DB      "SC"                                                 ; Save to SD CARD
             DW      SAVESDCARD
@@ -314,6 +321,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 020H | 001H
             DB      'S'                                                  ; Save to CMT
             DW      SAVEX
+            DB      000H | 000H | 018H | 004H
+            DB      "T2SD"                                               ; Copy Tape to SD Card.
+            DW      TAPE2SD
             DB      000H | 000H | 038H | 001H
             DB      'T'                                                  ; Timer test.
             DW      TIMERTST
@@ -540,8 +550,8 @@ DIRROM:     DI                                                           ; Disab
             LD      (TMPLINECNT),A
             ;
             LD      DE,MSGRDIRLST                                        ; Print out header.
-            RST     018h
-            CALL    NL
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
             ;
             ; Scan MROM Bank
             ; B = Bank Page
@@ -712,11 +722,10 @@ LOADROM1:   DI
             ;
             LD      A,(ROMBK1)
             LD      (RFSBK1), A
-            LD      DE,MSGLDROM
-            RST     018H
-            LD      DE,NAME
-            RST     018H
-            CALL    NL
+            LD      DE,MSGLOAD+1                                         ; Skip initial CR.
+            LD      BC,NAME
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
             LD      A,(WRKROMBK1)
             LD      (RFSBK1), A
 
@@ -727,9 +736,9 @@ LOADROM1:   DI
 LROMNTFND:  POP     HL                                                   ; Dont need execute flag anymore so waste it.
             LD      A,(ROMBK1)
             LD      (RFSBK1),A
+            LD      HL,PRINTMSG
             LD      DE,MSGNOTFND                                         ; Not found
-            RST     018h
-
+            CALL    BKSW0to6
 LOADROMEND: EI
             RET
 
@@ -738,11 +747,12 @@ LOADROMEND: EI
             ;
 LROMLOAD:   PUSH    BC
             ;
-            LD      DE,MSGLDROM
-            RST     018H
-            LD      DE,NAME
-            RST     018H
-            CALL    NL
+            PUSH    BC
+            LD      DE,MSGLOAD+1
+            LD      BC,NAME
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
+            POP     BC
             ;
             LD      A,B
             LD      (WRKROMBK1),A
@@ -838,25 +848,6 @@ LROMLOAD5:  POP     HL                                                   ; Retri
             JP      (HL)                                                 ; Execution address.
 LROMLOAD9:  RET
 
-
-            ; Load a program from the SD Card into RAM and/or execute it.
-            ;
-            ; DE points to a number or filename to load.
-LOADSDCARDX:LD      A,0FFH
-            JR      LOADSDCARD0
-LOADSDCARD: LD      A,000H
-LOADSDCARD0:LD      (SDAUTOEXEC),A
-            PUSH    DE
-            LD      HL,0FFFFh                                            ; Tag the filenumber as invalid.
-            LD      (TMPCNT), HL 
-            CALL    ConvertStringToNumber                                ; See if a file number was given instead of a filename.
-            JR      NZ, LOADSDCARD1                                      ; 
-            LD      (TMPCNT), HL                                         ; Store filenumber making load by filenumber valid.
-LOADSDCARD1:POP     DE
-            LD      HL,LOADSDE
-            CALL    BKSW0to2                                             ; Call the main functionality in Bank2.
-LOADSDCARD2:RET
-
             ;-------------------------------------------------------------------------------
             ; END OF RFS COMMAND FUNCTIONS.
             ;-------------------------------------------------------------------------------
@@ -864,21 +855,11 @@ LOADSDCARD2:RET
 
             ;--------------------------------------
             ;
-            ; Message table
+            ; Message table - Refer to bank 6 for
+            ;                 all messages.
             ;
             ;--------------------------------------
            
-MSGSON:     DB      "+ RFS ", 0ABh, "1.1 **",00DH
-MSGOK:      DB      "OK!",                   00DH
-MSGNOTFND:  DB      "NOT FOUND",             00DH
-MSGRDIRLST: DB      "ROM DIRECTORY:",        00DH
-MSGTRM:     DB                               00DH
-MSGSV:      DB      "FILENAME? ",            00DH
-MSGBADCMD:  DB      "???",                   00DH
-MSGLDROM:   DB      "LOADING ",              00DH
-
-
-
             ; Bring in additional resources.
             USE_CMPSTRING:    EQU   1
             USE_SUBSTRING:    EQU   0
