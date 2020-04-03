@@ -31,16 +31,31 @@ sectors no longer exists*).
 
 ### RFS Hardware
 
-![image](../images/MZ80A_RFS_v1_1.png)
-
 It is quite easy to make upgrades for older tech these days by using one of the plethora of microcontrollers such as the Raspberry Pi. I did consider using one as a ROM emulator but then the goal of this project and the other
-Sharp MZ80A upgrades, excepting the Transzputer, was to use old tech and keep the machine original. Thus the hardware uses 74 series components and Flash RAMS.
+Sharp MZ80A upgrades, excepting the Transzputer, was to use old tech and keep the machine original. Thus the hardware uses discrete components such as the 74 series and Flash RAMS.
 
-The basic circuit above employs address decoding, creating a select line at 0xEFFD-0xEFFF, latches to hold the upper address lines of the Flash RAM and the Flash RAM's themselves. Quite basic in fact.
+![image](../images/MZ80A_RFS_v2_0-2.png)
 
-The next version will be slightly more advanced as it will contain a coded latch (pattern buffer) to enable latch selection within the same address space as the Flash RAM, which will free up the address space to allow writing
-into the Flash RAM from the MZ80A. Given the MZ80A design, tri-state buffers are needed on the Monitor ROM as this is read only. It will also include an SD Card controller, currently the design uses bitbanging but I have a more complex
-shift register experiment on patch board, it uses more logic ic's but will afford greateer performance. Bigbanging works but on a Z80, the speed is comparable with a floppy disk drive rather than a hard drive or ROM drive.
+Version 2 of the hardware builds on the experiences learnt making version 1. It adds a coded latch (a programmable number of reads required in the 0xEFF8-0xEFFF region) in order to enable the control registers and I/O otherwise
+both read and write access is to the memory. It also adds two additional (optional) memories for increased storage and RAM. The additional two devices can be both Flash RAM or 1 Flash RAM and 1 Static RAM. The Static RAM is to
+increase the capability of CP/M, such as number of SD drives available and the memory available to TPA applications.
+
+The schematic has been split into two distinct functions, Memory and Control logic. Above is the new Memory schematic which retains the single 512K Flash RAM which replaces the Monitor ROM, write access is not possible as the underlying
+Sharp hardware blocks write on Monitor ROM select. In the User ROM socket are 3 devices, the 512K Flash RAM from version 1 but with write access and an additional 2 devices.
+
+![image](../images/MZ80A_RFS_v2_0-3.png)
+
+
+The second schematic is the control logic. This creates the needed memory select lines from the main board in combination with address decoding and programmable latches for the upper address lines.
+
+A coded latch is added (74HCT191) which only enables I/O when a read is made to the region 0xEFF8-0xEFFF for a programmable number of times, set by the latch U14 bits 3:5. At start up these bits will be 0 and to enable the I/O a read 
+will be needed in the region 0xE800-exEFF7 to reset the 74HCT191 which must then be followed by 16 reads to the range 0xEFF8-0xEFFF. Once the I/O is enabled, the latch value can be changed along with other registers. As soon as a read is made
+into the region 0xE800-0xEFF7 then the I/O control is disabled and reads/writes are sent to the selected memory device.
+
+In addition it adds 2 SPI circuits, only one of which will be assembled on the PCB according to choice. The first is a software bitbang SPI using the Z80 to form the correct serial and clock signals in order to talk to an SD Card.
+This method uses few hardware components but is much slower. The second is a hardware SPI running at 8MHz which is capable of transferring/receiving a byte in less time that the Z80 takes to perform a read, this allows for performance
+similar to the Flash RAM storage. On the hardware SPI it is possible via U14 bit 0 to manually clock the SPI logic, this is intentional as initial connections with an SD Card should begin at 100KHz or less, once established and parameters
+set then the 8MHz hardware clock is used.
 
 ### RFS Software
 
@@ -319,10 +334,7 @@ XX000000 -----------------------------------------------------------------------
 
 
 #### To Do
-1) Remake the PCB to use standard DIP Flash RAM packages and the updated hardware plus SD Card hardware.<br/>
-2) Add Mux to allow Z80 writing into the Monitor ROM Flash.<br/>
-3) Add a coded latch such that it is possible to write to the Flash RAM (didnt originally consider writing to the Flash RAM) without upsetting the page register.<br/>
-4) Update Basic SA-5510 so that it loads/saves from SD Card.<br/>
+1) Update Basic SA-5510 so that it loads/saves from SD Card.<br/>
 
 ## Credits
 
