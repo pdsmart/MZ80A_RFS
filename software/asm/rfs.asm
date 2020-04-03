@@ -321,6 +321,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 020H | 001H
             DB      'S'                                                  ; Save to CMT
             DW      SAVEX
+            DB      000H | 000H | 000H | 004H
+            DB      "TEST"                                               ; A test function used in debugging.
+            DW      LOCALTEST
             DB      000H | 000H | 018H | 004H
             DB      "T2SD"                                               ; Copy Tape to SD Card.
             DW      TAPE2SD
@@ -338,6 +341,12 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             ;-------------------------------------------------------------------------------
             ; END OF RFS INITIALISATION AND COMMAND ENTRY PROCESSOR FUNCTIONALITY.
             ;-------------------------------------------------------------------------------
+
+            ; A method used when testing hardware, scope and code will change but one of its purposes is to generate a scope signal pattern.
+            ;
+LOCALTEST:  LD      A,(00000H)
+            LD      (00000H),A
+            JP      LOCALTEST
 
             ;-------------------------------------------------------------------------------
             ; START OF RFS COMMAND FUNCTIONS.
