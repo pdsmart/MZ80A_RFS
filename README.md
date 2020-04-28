@@ -24,20 +24,22 @@ System hardware and software.
 ## Rom Filing System
 
 
-The Rom Filing System is a hardware and software upgrade for the Sharp MZ80A. The hardware replaces the Monitor ROM and User ROM's on the motherboard by a daughter card with lifer sockets where 2x512Kbyte Flash RAM's are sited.
-One of the Flash RAM's is paged into the Monitor ROM socket and the other into the User ROM's socket. The first 32Kbytes (8 slots x 4K) of the Monitor Flash RAM and the first 24Kybtes (12 slots of 2K) of the User Flash RAM is
+The Rom Filing System is a hardware and software upgrade for the Sharp MZ80A. The hardware replaces the Monitor and User ROM's on the motherboard by a daughter card with lifter sockets where 2x512Kbyte Flash RAM's are sited.
+One of the Flash RAM's is paged into the Monitor ROM socket and the other into the User ROM socket. The first 32Kbytes (8 slots x 4K) of the Monitor Flash RAM and the first 24Kybtes (12 slots of 2K) of the User Flash RAM is
 dedicated to paged ROMs with the remainder being used to store Sharp MZF format binary images compacted within 256byte sectors. (*NB. This may change to 128 byte sectors as the original reason for choosing 256 byte
 sectors no longer exists*).
 
 ### RFS Hardware
 
-It is quite easy to make upgrades for older tech these days by using one of the plethora of microcontrollers such as the Raspberry Pi. I did consider using one as a ROM emulator but then the goal of this project and the other
-Sharp MZ80A upgrades, excepting the Transzputer, was to use old tech and keep the machine original. Thus the hardware uses discrete components such as the 74 series and Flash RAMS.
+It is quite easy to make upgrades for older tech these days by using one of the plethora of ready made development boards such as the Raspberry Pi or standalone microcontrollers such as the STM32 series. I did consider using an STM32F series
+microcontroller as a ROM emulator as they have the price, performance and packaging advantages but then the goal of this project and the goals of the other Sharp MZ80A upgrades (excluding the Tranzputer) was to use old tech and keep the machine
+original. Unlike a commercial project where part choice to provide the required functionality is imperative to keep costs low, with this project the focus is on the learning journey using parts such as the 74 series which were available at the
+time of the Sharp, excepting of course the larger Flash RAM and Static RAMs which came a few years later but necessary for the functionality.
 
 ![image](../images/MZ80A_RFS_v2_0-2.png)
 
-Version 2 of the hardware builds on the experiences learnt making version 1. It adds a coded latch (a programmable number of reads required in the 0xEFF8-0xEFFF region) in order to enable the control registers and I/O otherwise
-both read and write access is to the memory. It also adds two additional (optional) memories for increased storage and RAM. The additional two devices can be both Flash RAM or 1 Flash RAM and 1 Static RAM. The Static RAM is to
+Version 2 of the hardware builds on the experiences learnt making version 1. It adds a coded latch (a programmable number of reads required in the 0xEFF8-0xEFFF region) in order to enable access to the control registers and I/O otherwise
+both read and write access is performed on memory. It also adds two additional (optional) memories for increased storage and RAM. The additional two devices can be both Flash RAM or 1 Flash RAM and 1 Static RAM. The Static RAM is to
 increase the capability of CP/M, such as number of SD drives available and the memory available to TPA applications.
 
 The schematic has been split into two distinct functions, Memory and Control logic. Above is the new Memory schematic which retains the single 512K Flash RAM which replaces the Monitor ROM, write access is not possible as the underlying
@@ -127,8 +129,8 @@ The procedure to build a ROM is:-<br/>
 
 ### RFS Monitor
   
-Upon boot, the typical SA1510 signon banner will appear and be appended with "+ RFS" if all works well. The usual '\* ' prompt appears and you can then issue any of the original SA-1519 commands along with an enhanced set
-some of which original from the MZ700/MZ800 and others are custom. The full set of commands are listed in the table below:
+Upon boot, the typical SA-1510 monitor signon banner will appear and be appended with "+ RFS" if all works well. The usual '\* ' prompt appears and you can then issue any of the original SA-1510 commands along with a set of enhanced
+commands, some of which were seen on the MZ700/ MZ800 range and others are custom. The full set of commands are listed in the table below:
 
 
 | Command | Parameters                          | Description                                                                        |
@@ -136,10 +138,10 @@ some of which original from the MZ700/MZ800 and others are custom. The full set 
 | 4       | n/a                                 | Switch to 40 Character mode if the 40/80 Column display upgrade has been added\.   |
 | 8       | n/a                                 | Switch to 80 Character mode if the 40/80 Column display upgrade has been added\.   |
 | B       | n/a                                 | Enable/Disable key entry beep\.                                                    |
-| C       | n/a                                 | Initialise memory from 0x1200 \- Top of RAM\.                                      |
-| D       | \<address>\[\<address2>\]           | Dump memory from \<address> to \<address2> (or 20 lines) in hex and ascii. When a screen is full, the output is paused until a key is pressed.<br> Recognised keys are:<br> 'D' - page down, 'U' - page up, 'X' - exit, all other keys list another screen of data\.|
-| EC      | \<name> or \<file number>           | Erase file from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, erased\. |
-| F       | n/a                                 | Boot from Floppy Disk                                                              |
+| C       | \[\<8 bit value\>\]                 | Initialise memory from 0x1200 \- Top of RAM with 0x00 or provided value\.          |
+| D       | \<address>\[\<address2>\]           | Dump memory from \<address> to \<address2> (or 20 lines) in hex and ascii. When a screen is full, the output is paused until a key is pressed\. <br><br>Subsequent 'D' commands without an address value continue on from last displayed address\.<br><br> Recognised keys during paging are:<br> 'D' - page down, 'U' - page up, 'X' - exit, all other keys list another screen of data\.|
+| EC      | \<name> or <br>\<file number>       | Erase file from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, erased\. |
+| F       | \[\<drive number\>\]                | Boot from the given Floppy Disk, if no disk number is given, you will be prompted to enter one\. |
 | f       | n/a                                 | Execute the original Floppy Disk AFI code @ 0xF000                                 |
 | H       | n/a                                 | Help screen of all these commands\.                                                |
 | IR      | n/a                                 | Paged directory listing of the files stored in ROM\. Each file title is preceded with a hex number which can be used to identify the file\. |
@@ -147,16 +149,16 @@ some of which original from the MZ700/MZ800 and others are custom. The full set 
 | J       | \<address>                          | Jump \(start execution\) at location \<address>\.                                  |
 | L \| LT | n/a                                 | Load file into memory from Tape and execute\.                                      |
 | LTNX    | n/a                                 | Load file into memory from Tape, dont execute\.                                    |
-| LR      | \<name> or \<file number>           | Load file into memory from ROM\. The ROM is searched for a file with \<name> or \<file number> and if found, loaded and executed\. |
-| LRNX    | \<name> or \<file number>           | Load file into memory from ROM\. The ROM is searched for a file with \<name> or \<file number> and if found, loaded and not executed\. |
-| LC      | \<name> or \<file number>           | Load file into memory from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, loaded and executed\. |
-| LCNX    | \<name> or \<file number>           | Load file into memory from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, loaded and not executed\. |
-| M       | \<address>                          | Edit and change memory locations starting at \<address>\.                         |
-| P       | n/a                                 | Run a connected printer test\.                                                     |
-| R       | n/a                                 | Run a memory test on the main memory\.                                             |
-| S       | \<start addr> \<end addr> \<exec addr> | Save a block of memory to tape\. You will be prompted to enter the filename\.   |
-| SC      | \<start addr> \<end addr> \<exec addr> | Save a block of memory to SD Card\. You will be prompted to enter the filename\.   |
-| SD2T    | \<name> or \<file number>           | Copy a file from SD Card to Tape\. The SD Card is searched for a file with \<name> or \<file number> and if found, copied to a tape in the CMT\. |
+| LR      | \<name> or <br>\<file number>       | Load file into memory from ROM\. The ROM is searched for a file with \<name> or \<file number> and if found, loaded and executed\. |
+| LRNX    | \<name> or <br>\<file number>       | Load file into memory from ROM\. The ROM is searched for a file with \<name> or \<file number> and if found, loaded and not executed\. |
+| LC      | \<name> or <br>\<file number>       | Load file into memory from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, loaded and executed\. |
+| LCNX    | \<name> or <br>\<file number>       | Load file into memory from SD Card\. The SD Card is searched for a file with \<name> or \<file number> and if found, loaded and not executed\. |
+| M       | \<address>                          | Edit and change memory locations starting at \<address>\.                          |
+| P       | n/a                                 | Run a test on connected printer\.                                                  |
+| R       | n/a                                 | Run a memory test on main mmemory\.                                                |
+| S       | \<start addr> \<end addr> \<exec addr> | Save a block of memory to tape\. You will be prompted to enter the filename\. <br><br>Ie\. S120020001203 - Save starting at 0x1200 up until 0x2000 and set execution address to 0x1203\.  |
+| SC      | \<start addr> \<end addr> \<exec addr> | Save a block of memory to SD Card\. You will be prompted to enter the filename\. |
+| SD2T    | \<name> or <br>\<file number>       | Copy a file from SD Card to Tape\. The SD Card is searched for a file with \<name> or \<file number> and if found, copied to a tape in the CMT\. |
 | T       | n/a                                 | Test the 8253 timer\.                                                              |
 | T2SD    | n/a                                 | Copy a file from Tape onto the SD Card. A program is loaded from Tape and written to a free position in the SD Card\. |
 | V       | n/a                                 | Verify a file just written to tape with the original data stored in memory         |
