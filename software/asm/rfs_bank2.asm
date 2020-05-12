@@ -1,16 +1,22 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
 ;- Name:            rfs_bank2.asm
-;- Created:         October 2018
+;- Created:         July 2019
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series Rom Filing System.
 ;-                  This assembly language program is written to utilise the banked flashroms added with
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         October 2018 - Merged 2 utilities to create this compilation.
+;- History:         July 2019 - Merged 2 utilities to create this compilation.
+;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded
+;                               latch adds additional instruction overhead as the control latches share
+;                               the same address space as the Flash RAMS thus the extra hardware to
+;                               only enable the control registers if a fixed number of reads is made
+;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
+;                               that no loop instruction is ever placed into EFF8H - EFFFH.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -37,14 +43,31 @@
             ;--------------------------------
             ; Common code spanning all banks.
             ;--------------------------------
-ROMFS2:     NOP
-            XOR     A                                                         ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
-            LD      (RFSBK1),A
-            LD      (RFSBK2),A                                                ; and start up - ie. SA1510 Monitor.
-            ALIGN_NOPS 0E829H
+            NOP
+            LD      B,16                                                     ; If we read the bank control reset register 15 times then this will enable bank control and then the 16th read will reset all bank control registers to default.
+ROMFS2_0:   LD      A,(BNKCTRLRST)
+            DJNZ    ROMFS2_0                                                 ; Apply the default number of coded latch reads to enable the bank control registers.
+            LD      A,BNKCTRLDEF                                             ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+            LD      (BNKCTRL),A
+            NOP
+            NOP
+            NOP
+            XOR     A                                                        ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+            LD      (BNKSELMROM),A
+            NOP
+            NOP
+            NOP
+            LD      (BNKSELUSER),A                                           ; and start up - ie. SA1510 Monitor - this occurs as User Bank 0 is enabled and the jmp to 0 is coded in it.
+            ;
+            ; No mans land... this should have switched to Bank 0 and at this point there is a jump to 00000H.
+            JP      00000H                                                   ; This is for safety!!
 
+
+            ;------------------------------------------------------------------------------------------
             ; Bank switching code, allows a call to code in another bank.
             ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+            ;------------------------------------------------------------------------------------------
+            ALIGN_NOPS UROMBSTBL
             ;
 BKSW2to0:   PUSH    AF
             LD      A, ROMBANK2                                              ; Calling bank (ie. us).
@@ -90,13 +113,12 @@ BKSW2_0:    PUSH    HL                                                       ; P
             LD      HL, BKSWRET2                                             ; Place bank switchers return address on stack.
             EX      (SP),HL
             LD      (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
-            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+            LD      (BNKSELUSER), A                                          ; Repeat the bank switch B times to enable the bank control register and set its value.
             JP      (HL)                                                     ; Jump to required function.
 BKSWRET2:   POP     AF                                                       ; Get bank which called us.
-            LD      (RFSBK2), A                                              ; Return to that bank.
+            LD      (BNKSELUSER), A                                          ; Return to that bank.
             POP     AF
-            RET                                                               ; Return to caller.
-
+            RET  
 
             ;-------------------------------------------------------------------------------
             ; GENERAL PURPOSE FUNCTIONS.
@@ -148,23 +170,64 @@ ADD32:      LD      BC,(SDSTARTSEC+2)
             EX      DE,HL
             RET
 
+            ; A function from the z88dk stdlib, a delay loop with T state accuracy.
+            ; 
+            ; enter : hl = tstates >= 141
+            ; uses  : af, bc, hl
+T_DELAY:    LD      BC,-141
+            ADD     HL,BC
+            LD      BC,-23
+TDELAYLOOP: ADD     HL,BC
+            JR      C, TDELAYLOOP
+            LD      A,L
+            ADD     A,15
+            JR      NC, TDELAYG0
+            CP      8
+            JR      C, TDELAYG1
+            OR      0
+TDELAYG0:   INC     HL
+TDELAYG1:   RRA
+            JR      C, TDELAYB0
+            NOP
+TDELAYB0:   RRA
+            JR      NC, TDELAYB1
+            OR      0
+TDELAYB1:   RRA
+            RET     NC
+            RET
 
 
             ;-------------------------------------------------------------------------------
             ; START OF SD CONTROLLER FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-            ; Method to initialise the SD card.
+            ;-------------------------------------------------------------------------------
+            ; Hardware SPI SD Controller (HW_SPI_ENA = 1)
+            ; This logic uses the RFS PCB v2+ hardware shift registers to communicate with
+            ; an SD Card. It is the fastest solution available but has a high IC count.
             ;
-SDINIT:     LD      A,000H                                               ; CS to high
+            ; Software SPI SD Controller (SW_SPI_ENA = 1)
+            ; This logic uses the RFS PCB v2+ logic to simulate the SPI interface with 
+            ; bitbanging techniques. It is similar to the Parallel Port SD Controller
+            ; but uses logic on the RFS board rather than the parallel port interface.
+            ;
+            ; Parallel Port SD Controller (PP_SPI_ENA = 1)
+            ; This logic uses the standard Sharp MZ-80A Parallel Port for simulating the
+            ; SPI interface with bitbanging techniques. This interface is then used to 
+            ; communicate with an SD Card.
+            ;-------------------------------------------------------------------------------
+
+            ; Method to initialise the SD card. Assume that the RFS control registers are enabled, the default state within the RFS environment.
+            ;
+SDINIT:     LD      A,0FFH                                               ; CS to inactive (high)
             CALL    SPICS
             ;
             CALL    SPIINIT                                              ; Train SD with our clock.
             ;
-            LD      A,0FFH                                               ; CS to low
+            LD      A,000H                                               ; CS to active (low)
             CALL    SPICS
-            LD      BC,0FFFFH
-     
+            LD      BC,01FFFH                                            ; Number of retries before giving up, card not responding.
+            ;
 SDINIT1:    LD      A,CMD0                                               ; Command 0
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00000H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
@@ -274,27 +337,6 @@ SD_EXIT:    LD      L,A                                                  ; Retur
             LD      H,0
             RET
 
-            ; Method to initialise communications with the SD card. We basically train it to our clock characteristics.
-            ; This is important, as is maintaining the same clock for read or write otherwise the card may not respond.
-SPIINIT:    LD      B,80
-SPIINIT1:   LD      A,DOUT_HIGH | CLOCK_HIGH  | CS_HIGH                   ; Output a 1
-            OUT     (SPI_OUT),A
-            LD      A,DOUT_HIGH | CLOCK_LOW   | CS_HIGH                   ; Output a 1
-            OUT     (SPI_OUT),A
-            DJNZ    SPIINIT1
-            RET
-
-            ; Method to set the Chip Select level on the SD card. The Chip Select is active LOW.
-            ;
-            ; A = 0    - Set CS HIGH
-            ; A = 0xFF - Set CS LOW
-SPICS:      OR      A
-            LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH                   ; Set CS High if parameter = 0 (ie. disable)
-            JR      Z, SPICS0
-            LD      A,DOUT_HIGH | CLOCK_LOW  | CS_LOW                    ; Set CS Low if parameter != 0 (ie. disable)
-SPICS0:     OUT     (SPI_OUT),A
-            RET
-
             ; Method to send a command to the card and receive back a response.
             ;
             ; A = CMD to send
@@ -346,8 +388,6 @@ SDCMD4:     POP     HL
             INC     HL
             POP     BC                                                   ; Get back number of expected bytes. HL = place in buffer to store response.
             DJNZ    SDCMD3
-            LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH
-            OUT     (SPI_OUT),A
             RET
 
             ; Method to send an Application Command to the SD Card. This involves sending CMD55 followed by the required command.
@@ -406,72 +446,146 @@ SDACMD3:    POP     BC                                                   ; Succe
             XOR     A
             RET
 
+            ; Method to initialise communications with the SD card. We basically train it to our clock characteristics.
+            ; This is important, as is maintaining the same clock for read or write otherwise the card may not respond.
+SPIINIT:    IF HW_SPI_ENA = 1
+              ; Hardware SPI on the RFS v2+ PCB.
+              LD      B,10
+              LD      A, 0FFH                                            ; We need to send 80 '1's, so preload the data register with all 1's, future transmits dont require this as it self loads with 1's.
+              LD      (HWSPIDATA),A
+SPIINIT1:     LD      (HWSPISTART),A                                     ; Commence transmission of an 8bit byte. Runs 1 8MHz, so 1 byte in 1uS, it takes the Z80 2uS for its quickest instruction at 2MHz clock.
+              DJNZ    SPIINIT1
+              RET
+
+            ELSE
+
+              ; Software SPI on the RFS v2+ PCB.
+              IF SW_SPI_ENA = 1
+
+              ELSE
+
+              ; Software SPI on the centronics parallel port.
+              LD      B,80
+SPIINIT1:     LD      A,DOUT_HIGH | CLOCK_HIGH  | CS_HIGH                ; Output a 1
+              OUT     (SPI_OUT),A
+              LD      A,DOUT_HIGH | CLOCK_LOW   | CS_HIGH                ; Output a 1
+              OUT     (SPI_OUT),A
+              DJNZ    SPIINIT1
+              RET
+              ENDIF
+            ENDIF
+
+            ; Method to set the Chip Select level on the SD card. The Chip Select is active LOW.
+            ;
+            ; A = 0    - Set CS LOW (active)
+            ; A = 0xFF - Set CS HIGH (active)
+SPICS:      IF HW_SPI_ENA = 1
+              ; Hardware SPI on the RFS v2+ PCB.
+              OR    A
+              LD    A,(ROMCTL)
+              SET   1,A                                                  ; If we are inactivating CS then set CS high and disable clock by setting BBCLK to low.
+              RES   0,A
+              JR    NZ, SPICS0
+              RES   1,A                                                  ; If we are activating CS then set CS low and enable clock by setting BBCLK to high.
+              SET   0,A
+SPICS0:       LD    (BNKCTRL),A
+              LD    (ROMCTL),A
+              RET
+
+            ELSE
+
+              ; Software SPI on the RFS v2+ PCB.
+              IF SW_SPI_ENA = 1
+
+              ELSE
+
+              ; Software SPI on the centronics parallel port.
+              OR    A
+              LD    A,DOUT_HIGH | CLOCK_LOW  | CS_LOW                    ; Set CS Low if parameter = 0 (ie. enable)
+              JR    Z, SPICS0
+              LD    A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH                   ; Set CS High if parameter != 0 (ie. disable)
+SPICS0:       OUT   (SPI_OUT),A
+              RET
+              ENDIF
+            ENDIF
+
             ; Method to send a byte to the SD card via the SPI protocol.
-            ; This method uses the bitbang technique, change if hardware spi is available.
+            ; This method uses the hardware shift registers.
             ;
             ; Input A = Byte to send.
             ;
-SPIOUT:     RLCA                                                         ; 65432107
-            RLCA                                                         ; 54321076
-            RLCA                                                         ; 43210765  - Adjust so that starting bit is same position as Data line.
-            LD      E,A                                                  ; E = Character to send.
-            LD      B,8                                                  ; B = Bit count
-SPIOUT0:    LD      A,E
-            AND     DOUT_MASK                                            ; Data bit to data line, clock and cs low.
-            RLC     E
-SPIOUT1:    OUT     (SPI_OUT),A
-            OR      CLOCK_HIGH                                           ; Clock high
-            OUT     (SPI_OUT),A
-            AND     CLOCK_MASK                                           ; Clock low
-            OUT     (SPI_OUT),A
-            DJNZ    SPIOUT0                                              ; Perform actions for the full 8 bits.
-            RET
+SPIOUT:     IF HW_SPI_ENA = 1
+              ; Hardware SPI on the RFS v2+ PCB.
+              LD    (HWSPIDATA),A
+              LD    (HWSPISTART),A
+              RET
+
+            ELSE
+
+              ; Software SPI on the RFS v2+ PCB.
+              IF SW_SPI_ENA = 1
+
+              ELSE
+
+              ; Software SPI on the centronics parallel port.
+              RLCA                                                       ; 65432107
+              RLCA                                                       ; 54321076
+              RLCA                                                       ; 43210765  - Adjust so that starting bit is same position as Data line.
+              LD    E,A                                                  ; E = Character to send.
+              LD    B,8                                                  ; B = Bit count
+SPIOUT0:      LD    A,E
+              AND   DOUT_MASK                                            ; Data bit to data line, clock and cs low.
+              RLC   E
+SPIOUT1:      OUT   (SPI_OUT),A
+              OR    CLOCK_HIGH                                           ; Clock high
+              OUT   (SPI_OUT),A
+              AND   CLOCK_MASK                                           ; Clock low
+              OUT   (SPI_OUT),A
+              DJNZ  SPIOUT0                                              ; Perform actions for the full 8 bits.
+              RET
+              ENDIF
+            ENDIF
 
             ; Method to receive a byte from the SD card via the SPI protocol.
-            ; This method uses the bitbang technique, change if hardware spi is available.
+            ; This method uses the hardware shift registers.
             ; NB. Timing must be very similar in SPIOUT and SPIIN.
             ;
             ; Output: A = received byte.
             ;
-SPIIN:      LD      BC,00800H | SPI_OUT                                  ; B = Bit count, C = clock port
-            LD      L,0                                                  ; L = Character being read.
-            LD      D,DOUT_HIGH | CLOCK_LOW   | CS_LOW                   ; Output a 0
-            OUT     (C),D                                                ; To start ensure clock is low and CS is low.
-            LD      E,DOUT_HIGH | CLOCK_HIGH  | CS_LOW                   ; Output a 0
-SPIIN1:     OUT     (C),E                                                ; Clock to high.
-            IN      A,(SPI_IN)                                           ; Input the received bit
-            OUT     (C),D                                                ; Clock to low.
-            SRL     A
-            RL      L
-            DJNZ    SPIIN1                                               ; Perform actions for the full 8 bits.
-            LD      A,L                                                  ; return value
-            RET
+SPIIN:      IF HW_SPI_ENA = 1
+              ; Hardware SPI on the RFS v2+ PCB.
+              LD    (HWSPISTART),A                                       ; Commence transmission to receive back data from the SD card, we just send 1's.
+              LD    A,(HWSPIDATA)                                        ; Get the data byte.
+              RET
+            
+            ELSE
 
-            ; A function from the z88dk stdlib, a delay loop with T state accuracy.
-            ; 
-            ; enter : hl = tstates >= 141
-            ; uses  : af, bc, hl
-T_DELAY:    LD      BC,-141
-            ADD     HL,BC
-            LD      BC,-23
-TDELAYLOOP: ADD     HL,BC
-            JR      C, TDELAYLOOP
-            LD      A,L
-            ADD     A,15
-            JR      NC, TDELAYG0
-            CP      8
-            JR      C, TDELAYG1
-            OR      0
-TDELAYG0:   INC     HL
-TDELAYG1:   RRA
-            JR      C, TDELAYB0
-            NOP
-TDELAYB0:   RRA
-            JR      NC, TDELAYB1
-            OR      0
-TDELAYB1:   RRA
-            RET     NC
-            RET
+              ; Software SPI on the RFS v2+ PCB.
+              IF SW_SPI_ENA = 1
+
+              ELSE
+
+              ; Software SPI on the centronics parallel port.
+              LD    BC,00800H | SPI_OUT                                  ; B = Bit count, C = clock port
+              LD    L,0                                                  ; L = Character being read.
+              LD    D,DOUT_HIGH | CLOCK_LOW   | CS_LOW                   ; Output a 0
+              OUT   (C),D                                                ; To start ensure clock is low and CS is low.
+              LD    E,DOUT_HIGH | CLOCK_HIGH  | CS_LOW                   ; Output a 0
+SPIIN1:       OUT   (C),E                                                ; Clock to high.
+              IN    A,(SPI_IN)                                           ; Input the received bit
+              OUT   (C),D                                                ; Clock to low.
+              SRL   A
+              RL    L
+              DJNZ  SPIIN1                                               ; Perform actions for the full 8 bits.
+              LD    A,L                                                  ; return value
+              RET
+              ENDIF
+            ENDIF
+            ;-------------------------------------------------------------------------------
+            ; End of SPI SD Controller
+            ;-------------------------------------------------------------------------------
+
+
 
             ; Method to skip over an SD card input stream to arrive at the required bytes,
             ;
@@ -529,7 +643,7 @@ LBATOADDR:  LD      HL,(SDSTARTSEC+1)
             ;
 SD_READ:    PUSH    HL                                                   ; Store the load address.
             PUSH    BC                                                   ; Store the read size.
-            LD      A,0
+            LD      A,000H
             CALL    SPICS                                                ; Set CS low (active).
 
             LD      HL,(SDCAP)                                           ; Test to see if CT_BLOCK is available.
@@ -596,7 +710,7 @@ SD_READ4:   PUSH    HL                                                   ; Start
             POP     HL
             LD      A,0                                                  ; And exit with success.
 SD_READ5:   PUSH    AF
-            LD      A,0
+            LD      A,0FFH                                               ; De-activate CS.
             CALL    SPICS
             POP     AF
             RET
@@ -615,7 +729,7 @@ SD_READ6:   POP     BC
 SD_WRITE:   PUSH    HL
             PUSH    BC
 
-            LD      A,0FFH                                               ; Activate CS (set low).
+            LD      A,000H                                               ; Activate CS (set low).
             CALL    SPICS
 
             ; Open transaction.
@@ -707,7 +821,7 @@ SD_WRITE8:  LD      A,H                                                  ; End o
             XOR     A                                                    ; Success code.
             POP     HL                                                   ; Get the updated return address to pass back to caller.
 SD_WRITE9:  PUSH    AF
-            LD      A,000H                                               ; Disable SD Card Chip Select to finish.
+            LD      A,0FFH                                               ; Disable SD Card Chip Select to finish.
             CALL    SPICS
             POP     AF
             RET

@@ -1,16 +1,22 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
 ;- Name:            rfs_bank1.asm
-;- Created:         October 2018
+;- Created:         July 2019
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series Rom Filing System.
 ;-                  This assembly language program is written to utilise the banked flashroms added with
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         October 2018 - Merged 2 utilities to create this compilation.
+;- History:         July 2019 - Merged 2 utilities to create this compilation.
+;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded
+;                               latch adds additional instruction overhead as the control latches share
+;                               the same address space as the Flash RAMS thus the extra hardware to
+;                               only enable the control registers if a fixed number of reads is made
+;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
+;                               that no loop instruction is ever placed into EFF8H - EFFFH.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -37,17 +43,30 @@
            ;--------------------------------
            ; Common code spanning all banks.
            ;--------------------------------
-ROMFS1:    NOP
+           NOP
+           LD      B,16                                                      ; If we read the bank control reset register 15 times then this will enable bank control and then the 16th read will reset all bank control registers to default.
+ROMFS1_0:  LD      A,(BNKCTRLRST)
+           DJNZ    ROMFS1_0                                                  ; Apply the default number of coded latch reads to enable the bank control registers.
+           LD      A,BNKCTRLDEF                                              ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+           LD      (BNKCTRL),A
+           NOP
+           NOP
+           NOP
            XOR     A                                                         ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
-           LD      (RFSBK1),A
-           LD      (RFSBK2),A                                                ; and start up - ie. SA1510 Monitor.
-           ALIGN_NOPS 0E829H
-
-           ; After switching in Bank 0, it will automatically continue processing in Bank 0 at the XOR A instructionof ROMFS:
-
+           LD      (BNKSELMROM),A
+           NOP
+           NOP
+           NOP
+           LD      (BNKSELUSER),A                                            ; and start up - ie. SA1510 Monitor - this occurs as User Bank 0 is enabled and the jmp to 0 is coded in it.
            ;
+           ; No mans land... this should have switched to Bank 0 and at this point there is a jump to 00000H.
+           JP      00000H                                                    ; This is for safety!!
+
+           ;------------------------------------------------------------------------------------------
            ; Bank switching code, allows a call to code in another bank.
            ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+           ;------------------------------------------------------------------------------------------
+           ALIGN_NOPS UROMBSTBL
            ;
 BKSW1to0:  PUSH     AF
            LD       A, ROMBANK1                                              ; Calling bank (ie. us).
@@ -93,12 +112,12 @@ BKSW1_0:   PUSH     HL                                                       ; P
            LD       HL, BKSWRET1                                             ; Place bank switchers return address on stack.
            EX       (SP),HL
            LD       (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
-           LD       (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+           LD       (BNKSELUSER), A                                          ; Repeat the bank switch B times to enable the bank control register and set its value.
            JP       (HL)                                                     ; Jump to required function.
 BKSWRET1:  POP      AF                                                       ; Get bank which called us.
-           LD       (RFSBK2), A                                              ; Return to that bank.
+           LD       (BNKSELUSER), A                                          ; Return to that bank.
            POP      AF
-           RET                                                               ; Return to caller.
+           RET      
 
 FDCCMD     EQU      01000H
 MOTON      EQU      01001H

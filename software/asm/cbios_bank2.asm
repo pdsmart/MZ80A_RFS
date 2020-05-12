@@ -9,10 +9,15 @@
 ;-                  CPM TPA programs.
 ;-
 ;- Credits:         ANSITERM utilises a heavily customised version of Ewen McNeill's Amstrad CPC EwenTerm
+;                   Ansi Parser.
+;
 ;                   (C) Oct 2000 - only the ansiterm.22b module was used with a lot stripped out.
 ;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         January 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
+;- History:         Jan 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
+;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;                              additional and different hardware. The SPI is now onboard the PCB and
+;                              not using the printer interface card.
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -39,19 +44,33 @@
             ; Common code spanning all banks to ensure that a Monitor is selected upon power up/reset.
             ;-----------------------------------------------------------------------------------------
             NOP
-            XOR     A                                                    ; We shouldnt arrive here after a reset, ensure MROM and UROM are set to bank 0
-            LD      (RFSBK1),A                                           ; then a restart will take place as Bank 0 will jump to vector 00000H
-            LD      (RFSBK2),A                                           
+            LD      B,16                                                 ; If we read the bank control reset register 15 times then this will enable bank control and then the 16th read will reset all bank control registers to default.
+CBIOS2_0:   LD      A,(BNKCTRLRST)
+            DJNZ    CBIOS2_0                                             ; Apply the default number of coded latch reads to enable the bank control registers.
+            LD      A,BNKCTRLDEF                                         ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+            LD      (BNKCTRL),A
             NOP
-            ; After switching in Bank 0, it will automatically continue processing in Bank 0 at the XOR A instructionof ROMFS:
+            NOP
+            NOP
+            XOR     A                                                    ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+            LD      (BNKSELMROM),A
+            NOP
+            NOP
+            NOP
+            LD      (BNKSELUSER),A                                       ; and start up - ie. SA1510 Monitor - this occurs as User Bank 0 is enabled and the jmp to 0 is coded in it.
+            ;
+            ; No mans land... this should have switched to Bank 0 and at this point there is a jump to 00000H.
+            JP      00000H                                               ; This is for safety!!
+
 
             ;-------------------------------------------------------------------------------
             ; Jump table for entry into this pages functions.
             ;-------------------------------------------------------------------------------
-            JP      ?PRNT                                                ;  9  QPRNT
-            JP      ?PRTHX                                               ; 12  QPRTHX
-            JP      ?PRTHL                                               ; 15  QPRTHL
-            JP      ?ANSITERM                                            ; 18  QANSITERM
+            ALIGN_NOPS UROMJMPTBL
+            JP      ?PRNT                                                ; QPRNT
+            JP      ?PRTHX                                               ; QPRTHX
+            JP      ?PRTHL                                               ; QPRTHL
+            JP      ?ANSITERM                                            ; QANSITERM
 
             ;-------------------------------------------------------------------------------
             ; START OF SCREEN FUNCTIONALITY

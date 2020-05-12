@@ -12,7 +12,10 @@
 ;-                  come from the Z80-MBC2 project, (C) SuperFabius.
 ;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         January 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
+;- History:         Jan 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
+;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;                              additional and different hardware. The SPI is now onboard the PCB and
+;                              not using the printer interface card.
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -64,25 +67,25 @@
             ; CBIOS Bank 1 - Utilities and Audio.
 BANK8:      PUSH    AF
             LD      A,ROMBANK8
-            LD      (RFSBK2),A
+            LD      (BNKSELUSER),A
             POP     AF
             RET
             ; CBIOS Bank 2 - Screen / ANSI Terminal
 BANK9:      PUSH    AF
             LD      A,ROMBANK9
-            LD      (RFSBK2),A
+            LD      (BNKSELUSER),A
             POP     AF
             RET
             ; CBIOS Bank 3 - SD Card.
 BANK10:     PUSH    AF
             LD      A,ROMBANK10
-            LD      (RFSBK2),A
+            LD      (BNKSELUSER),A
             POP     AF
             RET
             ; CBIOS Bank 4
 BANK11:     PUSH    AF
             LD      A,ROMBANK11
-            LD      (RFSBK2),A
+            LD      (BNKSELUSER),A
             POP     AF
             RET
 
@@ -102,7 +105,7 @@ BANKTOBANK_:LD      (USRBANKSAV),A                                       ; Save 
             SRL     A
             SRL     A
             SRL     A
-            LD      (RFSBK2),A
+            LD      (BNKSELUSER),A
             LD      (HLSAVE),HL                                          ; Save HL (exec address) whilst we get AF from stack.
             POP     HL                                                   ; HL = return address in original bank.
             POP     AF                                                   ; AF to pass to called routine.
@@ -114,15 +117,16 @@ BANKTOBANK_:LD      (USRBANKSAV),A                                       ; Save 
 BKTOBKRET:  PUSH    AF
             LD      A,(USRBANKSAV)
             AND     00FH                                                 ; We just want the bank number we are returning to.
-            LD      (RFSBK2),A                                           ; Switch back bank.
+            LD      (BNKSELUSER),A                                           ; Switch back bank.
             POP     AF                                                   ; Restore A and flags to pass back to caller.
             RET
 
 
 ; Public methods for User Rom CBIOS Bank 1 - Utility functions.
 ?REBOOT:    LD      A,ROMBANK8                                           ; Method to exit CPM and return to the Sharp MZ80A Monitor.
-            LD      (RFSBK2),A
-            JP      QREBOOT
+            SCF
+            CALL    SELUSRBNK                                            ; Ensure Rom Control is enabled
+            JP      QREBOOT                                              ; Reboot has to take place from User ROM as the monitor ROM is swapped back to default position.
 
 ?MLDY:      CALL    BANK8                                                ; Method to sound a melody given an input array of notes to play.
             JP      QMELDY
@@ -236,7 +240,7 @@ BKTOBKRET:  PUSH    AF
             ; in the header at $1108 to ensure correct startup.
             ; LD A,($E00C)   ; - Switch ROM to location $C000
             ; LD A,ROMBANK2  ; - Switch to the CBIOS rom in bank 2 of the monitor rom bank.
-            ; LD ($EFFC),A   ; - Perform the bank switch.
+            ; LD ($EFFD),A   ; - Perform the bank switch.
             ; JP $C000       ; - Go to BOOT_
             ;-------------------------------------------------------------------------------
 BOOT_:      LD      SP,BIOSSTACK
@@ -631,6 +635,29 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
             LD      SP,(SPSAVE)                                          ; Restore the CPM stack.
             RET
 
+
+            ; Function to select a User Bank. If Carry is clear upon entry, on exit the control registers will be disabled. If carry is set then the control registers are left active.
+            ; During normal operations the control registers are enabled. When access is needed to the full User ROM space, ie for drive read/write then the registers are disabled after
+            ; setting the correct bank.
+            ;
+SELUSRBNK:  PUSH    BC
+            PUSH    AF
+            LD      A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
+            RRA
+            RRA
+            CPL
+            AND     00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
+            LD      B,A                                                  ; Set value to B for loop.
+            LD      A,(BNKCTRLDIS)
+SELUSRBNK1: LD      A,(BNKSELUSER)
+            DJNZ    SELUSRBNK1
+            POP     AF
+            POP     BC
+            LD      (BNKSELUSER),A                                       ; Select the required bank.
+            JR      C,SELUSRBNK2                                         ; If Carry is set by caller then leave the control registers active.
+            LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
+SELUSRBNK2: RET
+
             ;-------------------------------------------------------------------------------
             ;  INIT                                                                      
             ;                                                                              
@@ -638,6 +665,7 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
             ;-------------------------------------------------------------------------------
 INIT:       DI
             IM      1
+            ;
             LD      HL,VARSTART                                          ; Start of variable area
             LD      BC,VAREND-VARSTART                                   ; Size of variable area.
             XOR     A
@@ -649,7 +677,18 @@ INIT:       DI
             LD      HL,ARAM
 STRT1:      CALL    CLR8
             LD      A,004H
-            LD      (TEMPW),A
+            LD      (TEMPW),A                                            ; Setup the tempo for sound output.
+
+            ; Initialise the Rom Paging Control Registers.
+            LD      B,16                                                 ; If we read the bank control reset register 16 times then this will enable bank control and the 16th read will reset all bank control registers to default.
+INIT1:      LD      A,(BNKCTRLRST)
+            DJNZ    INIT1                                                ; Apply the default number of coded latch reads to enable the bank control registers.
+            LD      A,BNKCTRLDEF                                         ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+            LD      (BNKCTRL),A
+            LD      (ROMCTL),A                                           ; Save to memory the value in the bank control register - this register is used for SPI etc so need to remember its setting.
+            LD      A,ROMBANK9                                           ; Screen Bank.
+            LD      (BNKSELUSER),A    
+            ;
 
             ; Setup keyboard buffer control.
             LD      A,0
@@ -676,10 +715,9 @@ STRT1:      CALL    CLR8
             LD      (DSPCTL), A
             CALL    ?MLDSP
             CALL    ?NL
-            LD      DE,CBIOSSIGNON
+            LD      DE,CBIOSSIGNON                                       ; Start of sign on message, as devices are detected they are added to the sign on.
             CALL    MONPRTSTR
-            CALL    ?NL
-            CALL    ?BEL
+            CALL    ?BEL                                                 ; Beep to indicate startup - for cases where screen is slow to startup.
             LD      A,0FFH
             LD      (SWRK),A
 
@@ -687,12 +725,20 @@ STRT1:      CALL    CLR8
             ; Initialise the SD Card subsystem (if connected).
             ;
             CALL    ?SDINIT
-            LD      A,(DRVAVAIL)
-            SET     2,A                                                  ; Assume the SD Card is present.
-            JR      Z,STRT2
+            LD      A,0                                                  ; No drives yet detected so zero available mask.
             RES     2,A                                                  ; No SD Card is present.
+            JR      NZ,STRT2
+            SET     2,A                                                  ; Assume the SD Card is present.
+            ;
+            PUSH    AF                                                   ; Output indicator that SDC drives are available.
+            LD      DE,SDAVAIL
+            CALL    MONPRTSTR
+            POP     AF
+            SET     7,A
+            ;
             ; Locate the CPM Image and store the Bank/Block to speed up warm boot.
 STRT2:      LD      (DRVAVAIL),A
+            ;
             LD      HL,CPMROMFNAME                                       ; Name of CPM File in rom.
             CALL    FINDMZF
             JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM! This shouldnt happen as we boot from ROM.
@@ -708,16 +754,36 @@ STRT2:      LD      (DRVAVAIL),A
             LD      (CPMROMDRV0),BC                                      ; If found store the bank and page the image is located at.
             LD      A,(DRVAVAIL)
             SET     1,A                                                  ; Indicate ROM drives are available.
+            ; 
+            PUSH    AF                                                   ; Output indicator that ROM 1 drive is available.
+            BIT     7,A
+            JR      Z,STRT2A
+            LD      A,','
+            CALL    ?PRNT
+STRT2A:     LD      DE,ROM1AVAIL
+            CALL    MONPRTSTR
+            POP     AF
+            SET     7,A
             LD      (DRVAVAIL),A
-
+            ;
 STRT3:      LD      HL,CPMRDRVFN1                                        ; Name of CPM Rom Drive File 1 in rom.
             CALL    FINDMZF
             JR      NZ,STRT4                                             ; Failed to find the drive image in the ROM!
             LD      (CPMROMDRV1),BC                                      ; If found store the bank and page the image is located at.
             LD      A,(DRVAVAIL)
             SET     1,A                                                  ; Indicate ROM drives are available.
+            ;
+            PUSH    AF                                                   ; Output indicator that ROM 2 drive is available.
+            BIT     7,A
+            JR      Z,STRT3A
+            LD      A,','
+            CALL    ?PRNT
+STRT3A:     LD      DE,ROM2AVAIL
+            CALL    MONPRTSTR
+            POP     AF
+            SET     7,A
             LD      (DRVAVAIL),A
-
+            ;
 STRT4:      LD      HL,NUMBERBUF
             LD      (NUMBERPOS),HL
             ;
@@ -729,9 +795,23 @@ STRT4:      LD      HL,NUMBERBUF
             JR      NZ,STRT5
             LD      A,(DRVAVAIL)
             SET     0,A                                                  ; Indicate Floppy drives are available.
-            LD      (DRVAVAIL),A
 
-STRT5:      LD      DE,DPBASE                                            ; Base of parameter block.
+            PUSH    AF                                                   ; Output indicator that FDC drives are available.
+            BIT     7,A
+            JR      Z,STRT4A
+            LD      A,','
+            CALL    ?PRNT
+STRT4A:     LD      DE,FDCAVAIL
+            CALL    MONPRTSTR
+            POP     AF
+            SET     7,A
+            LD      (DRVAVAIL),A
+            ;
+STRT5:      LD      DE,CBIOSIGNEND                                       ; Terminate the signon message which now includes list of drives detected.
+            CALL    MONPRTSTR
+            CALL    ?NL
+            ;
+            LD      DE,DPBASE                                            ; Base of parameter block.
             LD      A,0                                                  ; Using scratch area, setup the disk count, pointer to ALV memory and pointer to CSV memory.
             LD      (CDIRBUF),A
             LD      HL,CSVALVMEM
@@ -807,8 +887,6 @@ STRT10:     LD      A,(CDIRBUF)
             LD      DE,00000H
             LD      HL,00000H
             CALL    ?TIMESET
-
-            EI
             ;
             JR      CPMINIT
 
@@ -860,13 +938,12 @@ COPYDPB1:   LDI
             ; required, reinitialise any needed hardware and reload CCP+BDOS.
             ;-------------------------------------------------------------------------------
 WINIT:      DI
-
             ; Reload the CCP and BDOS from ROM.
             LD      DE,CPMBIOS-CBASE                                     ; Only want to load in CCP and BDOS.
             LD      BC,(CPMROMLOC)                                       ; Load up the Bank and Page where the CPM Image can be found.
             CALL    UROMLOAD
             LD      A,ROMBANK9                                           ; Screen Bank.
-            LD      (RFSBK2),A    
+            LD      (BNKSELUSER),A    
             ;
 CPMINIT:    LD      A,(DRVAVAIL)
             BIT     0,A
@@ -1378,7 +1455,8 @@ FINDMZF0:   LD      B,USRROMPAGES               ; First 16 pages are reserved in
             LD      C,0                         ; Block in page.
             LD      D,0                         ; File numbering start.
 FINDMZF1:   LD      A,B
-            LD      (RFSBK2), A                 ; Select bank.
+            OR      A                           ; Select the required user bank and Clear carry so that the control registers are disabled.
+            CALL    SELUSRBNK 
 FINDMZF2:   PUSH    BC                          ; Preserve bank count/block number.
             PUSH    DE                          ; Preserve file numbering.
             LD      HL,0E800h + RFS_ATRB        ; Add block offset to get the valid block.
@@ -1419,20 +1497,24 @@ FINDMZF5:   LD      A,B
             JR      FINDMZFNO
 
 FINDMZFYES:                                     ; Z Flag set by previous test.
-FINDMZFNO:  RET
+FINDMZFNO:  LD      A,ROMBANK9
+            SCF                                 ; Select the required user bank and Set carry so that the control registers remain enabled.
+            CALL    SELUSRBNK 
+            RET
 
 
-           ; Load Program from ROM
-           ; IN    BC     Bank and Block of MZF file.
-           ;       DE     0 - use file size in header, > 0 file size to load.
-           ; OUT   zero   Set if file loaded, reset if an error occurred.
-           ;
-           ; Load program from RFS Bank 2 (User ROM Bank)
-           ;
+            ; Load Program from ROM
+            ; IN    BC     Bank and Block of MZF file.
+            ;       DE     0 - use file size in header, > 0 file size to load.
+            ; OUT   zero   Set if file loaded, reset if an error occurred.
+            ;
+            ; Load program from RFS Bank 2 (User ROM Bank)
+            ;
 UROMLOAD:   PUSH    BC
             PUSH    DE
             LD      A,B
-            LD      (RFSBK2), A
+            OR      A                           ; Select the required user bank and Clear carry so that the control registers are disabled.
+            CALL    SELUSRBNK 
             ;
             LD      DE, IBUFE                   ; Copy the header into the work area.
             LD      HL, 0E800h                  ; Add block offset to get the valid block.
@@ -1469,7 +1551,8 @@ LROMLOAD1:  PUSH    HL
             ;  B = Bank
             ;  C = Block 
 LROMLOAD2:  LD      A, B
-            LD      (RFSBK2), A
+            OR      A                           ; Select the required user bank and Clear carry so that the control registers are disabled.
+            CALL    SELUSRBNK 
 
 LROMLOAD3:  PUSH    BC
             LD      HL, 0E800h
@@ -1523,7 +1606,8 @@ LROMLOAD7:  LD      A, B
 LROMLOAD8:  POP     BC
 LROMLOAD5:  PUSH    AF
             LD      A,ROMBANK9
-            LD      (RFSBK2), A                 ; Set the MROM bank back to original.
+            SCF                                 ; Select the required user bank and Set carry so that the control registers remain enabled.
+            CALL    SELUSRBNK 
             POP     AF
             RET
 
@@ -1612,7 +1696,8 @@ ROMREAD11:  DJNZ    ROMREAD10
             LD      C,A
             LD      B,E                                                  ; Currently only 8bit bank number, store in B.
             LD      A, E
-            LD      (RFSBK2), A                                          ; Starting bank.
+            OR      A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
+            CALL    SELUSRBNK 
             PUSH    BC
             PUSH    HL
             LD      DE,HSTBUF                                            ; Target is the host buffer.
@@ -1624,7 +1709,8 @@ ROMREAD11:  DJNZ    ROMREAD10
             ;  B = Bank
             ;  C = Block 
 ROMREAD12:  LD      A, B
-            LD      (RFSBK2), A
+            OR      A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
+            CALL    SELUSRBNK 
             ;
             LD      A,H                                                  ; If we reach the top of the user rom space, wrap around.
             CP      FDCROMADDR / 0100H                                   ; Compare high byte against high byte of floppy rom.
@@ -1671,9 +1757,10 @@ ROMREAD16:  LD      A, B
 ROMREAD17:  POP     BC
 ROMREAD18:  PUSH    AF
             LD      A,ROMBANK9                                           ; Reselect utilities bank.
-            LD      (RFSBK2), A                                          ; Set the MROM bank back to original.
+            SCF                                                          ; Select the required user bank and Set carry so that the control registers remain enabled.
+            CALL    SELUSRBNK 
             POP     AF
-            POP     HL
+            POP     HL                                                   ; HL/BC pushed onto stack in READHST, a jump was made this method not a call.
             POP     BC
             RET
 
@@ -2451,13 +2538,18 @@ KTBLC:      ; CTRL ON
 
 
 
-CBIOSSIGNON:DB      "** CBIOS v1.11, (C) P.D. Smart, 2020 **", CR, NUL
-CPMSIGNON:  DB      "CP/M v2.23 (48K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",CR, LF, NUL
-CPMROMFNAME:DB      "CPM223",              NUL
-CPMRDRVFN0: DB      "CPM22-DRV0",          NUL
-CPMRDRVFN1: DB      "CPM22-DRV1",          NUL
-ROMLDERRMSG:DB      "ROM LOAD",        CR, NUL
-ROMFDERRMSG:DB      "ROM FIND",        CR, NUL
+CBIOSSIGNON:DB      "** CBIOS v1.20, (C) P.D. Smart, 2020. Drives:",                   NUL
+CBIOSIGNEND:DB       " **",                                                        CR, NUL
+CPMSIGNON:  DB      "CP/M v2.23 (48K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",    CR, LF, NUL
+CPMROMFNAME:DB      "CPM223",                                                          NUL
+CPMRDRVFN0: DB      "CPM22-DRV0",                                                      NUL
+CPMRDRVFN1: DB      "CPM22-DRV1",                                                      NUL
+ROMLDERRMSG:DB      "ROM LOAD ERR",                                                CR, NUL
+ROMFDERRMSG:DB      "ROM FIND ERR",                                                CR, NUL
+SDAVAIL:    DB      "SD",                                                              NUL
+ROM1AVAIL:  DB      "ROM1",                                                            NUL
+ROM2AVAIL:  DB      "ROM2",                                                            NUL
+FDCAVAIL:   DB      "FDC",                                                             NUL
 
             ;-------------------------------------------------------------------------------
             ; END OF STATIC LOOKUP TABLES AND CONSTANTS

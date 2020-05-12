@@ -50,4 +50,9 @@ software/roms/cbios_bank6.rom
 software/roms/cbios_bank7.rom
 software/roms/cbios_bank8.rom
 software/src/sdtest.c
+software/CPM/tools/
+software/asm/rfs_bank2.prewriteread
+software/roms/SHARP_MZ80A_RFS_CPM_IMAGE_1.img
+software/roms/SHARP_MZ80A_RFS_IMAGE_1.img
+software/roms/cmp
 

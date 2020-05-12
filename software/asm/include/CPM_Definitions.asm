@@ -9,7 +9,10 @@
 ;- Credits:         
 ;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         Janaury 2020 - Initial version.
+;- History:         Jan 2020 - Initial version.
+;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;                              additional and different hardware. The SPI is now onboard the PCB and
+;                              not using the printer interface card.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -25,6 +28,13 @@
 ;- You should have received a copy of the GNU General Public License
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
+
+;-----------------------------------------------
+; Features.
+;-----------------------------------------------
+HW_SPI_ENA  EQU     1                                                    ; Set to 1 if hardware SPI is present on the RFS PCB v2 board.
+SW_SPI_ENA  EQU     0                                                    ; Set to 1 if software SPI is present on the RFS PCB v2 board.
+PP_SPI_ENA  EQU     0                                                    ; Set to 1 if using the SPI interface via the Parallel Port, ie. for RFS PCB v1 which doesnt have SPI onboard.
 
 ;-----------------------------------------------
 ; Entry/compilation start points.
@@ -109,42 +119,43 @@ ENADEBUG    EQU     1                                                    ; Enabl
 ;-------------------------------------------------------
 ; Function entry points in the CBIOS ROMS
 ;-------------------------------------------------------
+UROMJMPTBL  EQU     UROMADDR + 00020H                                    ; Position at beginning of each bank of an API jump table of public methods in the bank
 
 ; Public functions in CBIOS User ROM Bank 1 - utility functions, ie. Audio.
-QREBOOT     EQU      9 + UROMADDR
-QMELDY      EQU     12 + UROMADDR
-QTEMP       EQU     15 + UROMADDR
-QMSTA       EQU     18 + UROMADDR
-QMSTP       EQU     21 + UROMADDR
-QBEL        EQU     24 + UROMADDR
-QMODE       EQU     27 + UROMADDR
-QTIMESET    EQU     30 + UROMADDR
-QTIMEREAD   EQU     33 + UROMADDR
-QCHKKY      EQU     36 + UROMADDR
-QGETKY      EQU     39 + UROMADDR
+QREBOOT     EQU      0 + UROMJMPTBL
+QMELDY      EQU      3 + UROMJMPTBL
+QTEMP       EQU      6 + UROMJMPTBL
+QMSTA       EQU      9 + UROMJMPTBL
+QMSTP       EQU     12 + UROMJMPTBL
+QBEL        EQU     15 + UROMJMPTBL
+QMODE       EQU     18 + UROMJMPTBL
+QTIMESET    EQU     21 + UROMJMPTBL
+QTIMEREAD   EQU     24 + UROMJMPTBL
+QCHKKY      EQU     27 + UROMJMPTBL
+QGETKY      EQU     30 + UROMJMPTBL
 
 ; Public functions in CBIOS User ROM Bank 2 - Screen / ANSI terminal functions.
-QPRNT       EQU      9 + UROMADDR
-QPRTHX      EQU     12 + UROMADDR
-QPRTHL      EQU     15 + UROMADDR
-QANSITERM   EQU     18 + UROMADDR
+QPRNT       EQU      0 + UROMJMPTBL
+QPRTHX      EQU      3 + UROMJMPTBL
+QPRTHL      EQU      6 + UROMJMPTBL
+QANSITERM   EQU      9 + UROMJMPTBL
 
 ; Public functions in CBIOS User ROM Bank 3 - SD Card functions.
-SD_INIT      EQU      9 + UROMADDR
-SD_READ      EQU     12 + UROMADDR
-SD_WRITE     EQU     15 + UROMADDR
-SD_GETLBA    EQU     18 + UROMADDR
-SDC_READ     EQU     21 + UROMADDR
-SDC_WRITE    EQU     24 + UROMADDR
+SD_INIT      EQU     0 + UROMJMPTBL
+SD_READ      EQU     3 + UROMJMPTBL
+SD_WRITE     EQU     6 + UROMJMPTBL
+SD_GETLBA    EQU     9 + UROMJMPTBL
+SDC_READ     EQU    12 + UROMJMPTBL
+SDC_WRITE    EQU    15 + UROMJMPTBL
 
 ; Public functions in CBIOS User ROM Bank 4 - Floppy Disk Controller functions.
-QDSKINIT     EQU      9 + UROMADDR
-QSETDRVCFG   EQU     12 + UROMADDR
-QSETDRVMAP   EQU     15 + UROMADDR
-QSELDRIVE    EQU     18 + UROMADDR
-QGETMAPDSK   EQU     21 + UROMADDR
-QDSKREAD     EQU     24 + UROMADDR
-QDSKWRITE    EQU     27 + UROMADDR
+QDSKINIT     EQU     0 + UROMJMPTBL
+QSETDRVCFG   EQU     3 + UROMJMPTBL
+QSETDRVMAP   EQU     6 + UROMJMPTBL
+QSELDRIVE    EQU     9 + UROMJMPTBL
+QGETMAPDSK   EQU    12 + UROMJMPTBL
+QDSKREAD     EQU    15 + UROMJMPTBL
+QDSKWRITE    EQU    18 + UROMJMPTBL
 
 
 ;-----------------------------------------------
@@ -171,10 +182,32 @@ INVDSP:     EQU     0E014H
 NRMDSP:     EQU     0E015H
 SCLDSP:     EQU     0E200H
 SCLBASE:    EQU     0E2H
-RFSBK1:     EQU     0EFFCh                                               ; Select RFS Bank1 (MROM) 
-RFSBK2:     EQU     0EFFDh                                               ; Select RFS Bank2 (User ROM)
-RFSRST1:    EQU     0EFFEh                                               ; Reset RFS Bank1 to original.
-RFSRST2:    EQU     0EFFFh                                               ; Reset RFS Bank2 to original.
+BNKCTRLRST: EQU     0EFF8H                                               ; Bank control reset, returns all registers to power up default.
+BNKCTRLDIS: EQU     0EFF9H                                               ; Disable bank control registers by resetting the coded latch.
+HWSPIDATA:  EQU     0EFFBH                                               ; Hardware SPI Data register (read/write).
+HWSPISTART: EQU     0EFFCH                                               ; Start an SPI transfer.
+BNKSELMROM: EQU     0EFFDh                                               ; Select RFS Bank1 (MROM) 
+BNKSELUSER: EQU     0EFFEh                                               ; Select RFS Bank2 (User ROM)
+BNKCTRL:    EQU     0EFFFH                                               ; Bank Control register (read/write).
+
+;
+; RFS v2 Control Register constants.
+;
+BBCLK       EQU     1                                                    ; BitBang SPI Clock.
+SDCS        EQU     2                                                    ; SD Card Chip Select, active low.
+BBMOSI      EQU     4                                                    ; BitBang MOSI (Master Out Serial In).
+CDLTCH1     EQU     8                                                    ; Coded latch up count bit 1
+CDLTCH2     EQU     16                                                   ; Coded latch up count bit 2
+CDLTCH3     EQU     32                                                   ; Coded latch up count bit 3
+BK2A19      EQU     64                                                   ; User ROM Device Select Bit 0 (or Address bit 19).
+BK2A20      EQU     128                                                  ; User ROM Device Select Bit 1 (or Address bit 20).
+                                                                         ; BK2A20 : BK2A19
+                                                                         ;    0        0   = Flash RAM 0 (default).
+                                                                         ;    0        1   = Flash RAM 1.
+                                                                         ;    1        0   = Flasm RAM 2 or Static RAM 0.
+                                                                         ;    1        1   = Reserved.
+
+BNKCTRLDEF  EQU     CDLTCH2+CDLTCH1+BBMOSI+SDCS+BBCLK                    ; Default on startup for the Bank Control register.
 
 ;-----------------------------------------------
 ; IO ports in hardware and values.
@@ -212,10 +245,10 @@ SECTORSPERBANK EQU UROMSIZE / ROMSECTORSIZE                              ; (16)
 SECTORSPERBLOCK EQU RFSSECTSZ/ROMSECTORSIZE                              ; (2)
 ROMSECTORSIZE EQU   128
 ROMSECTORS    EQU   128
-ROMBK1:    EQU      01016H                                               ; CURRENT MROM BANK 
-ROMBK2:    EQU      01017H                                               ; CURRENT USERROM BANK 
-WRKROMBK1: EQU      01018H                                               ; WORKING MROM BANK 
-WRKROMBK2: EQU      01019H                                               ; WORKING USERROM BANK
+;ROMBK1:     EQU      01016H                                               ; CURRENT MROM BANK 
+;ROMBK2:     EQU      01017H                                               ; CURRENT USERROM BANK 
+;WRKROMBK1:  EQU      01018H                                               ; WORKING MROM BANK 
+;WRKROMBK2:  EQU      01019H                                               ; WORKING USERROM BANK
 
 ;-----------------------------------------------
 ; ROM Banks, 0-7 are reserved for alternative
@@ -379,7 +412,6 @@ SD_SECPTRK  EQU     CPM_SD_SEC                                           ; Secto
 SD_TRACKS   EQU     CPM_SD_TRK                                           ; Number of virtual tracks per disk image.
 
 
-
 ;-----------------------------------------------
 ;    BIOS WORK AREA (MZ80A)
 ;-----------------------------------------------
@@ -443,6 +475,7 @@ TRK0FD2     DS      virtual 1                                            ; FD 2 
 TRK0FD3     DS      virtual 1                                            ; FD 3 IS AT TRACK 0 = BIT 0 set
 TRK0FD4     DS      virtual 1                                            ; FD 4 IS AT TRACK 0 = BIT 0 set
 RETRIES     DS      virtual 2                                            ; DATA READ RETRIES
+ROMCTL      DS      virtual 1                                            ; Rom Paging control register contents.
 TMPADR      DS      virtual 2                                            ; TEMPORARY ADDRESS STORAGE
 TMPSIZE     DS      virtual 2                                            ; TEMPORARY SIZE
 TMPCNT      DS      virtual 2                                            ; TEMPORARY COUNTER

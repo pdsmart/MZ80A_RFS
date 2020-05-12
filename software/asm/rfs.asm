@@ -1,16 +1,22 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
 ;- Name:            rfs.asm
-;- Created:         September 2019
+;- Created:         July 2019
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series Rom Filing System.
 ;-                  This assembly language program is written to utilise the banked flashroms added with
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         September 2018 - Merged 2 utilities to create this compilation.
+;- History:         July 2019 - Merged 2 utilities to create this compilation.
+;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded
+;                               latch adds additional instruction overhead as the control latches share
+;                               the same address space as the Flash RAMS thus the extra hardware to
+;                               only enable the control registers if a fixed number of reads is made
+;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
+;                               that no loop instruction is ever placed into EFF8H - EFFFH.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -43,31 +49,24 @@
             ; Common code spanning all banks.
             ;--------------------------------
 ROMFS:      NOP
-            JR      ROMFS_0                                              ; Skip the reset vector.
-            NOP
-            NOP
-            NOP
-            NOP
-            NOP
-            NOP
-            JP      00000H                                               ; Common point when an alternate bank needs to reset the system.
-ROMFS_0:    LD      A, (ROMBK1)                                          ; Ensure all banks are at default on
-            CP      4                                                    ; If the ROMBK1 value is 255, an illegal value, then the machine has just started so skip.
-            JR      C, ROMFS_2
-            XOR     A                                                    ; Clear the lower stack space as we use it for variables.
-            LD      B, 7*8
-            LD      HL, 01000H
-ROMFS_1:    LD      (HL),A
-            INC     HL
-            DJNZ    ROMFS_1              
-ROMFS_2:    LD      (RFSBK1),A                                           ; start up.
-            LD      A, (ROMBK2)
-            LD      (RFSBK2),A
-            JP      MONITOR
+            LD      B,16                                                 ; If we read the bank control reset register 15 times then this will enable bank control and then the 16th read will reset all bank control registers to default.
+ROMFS_0:    LD      A,(BNKCTRLRST)
+            DJNZ    ROMFS_0                                              ; Apply the default number of coded latch reads to enable the bank control registers.
+            LD      A,BNKCTRLDEF                                         ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+            LD      (BNKCTRL),A
+            LD      (ROMCTL),A                                           ; Save to memory the value in the bank control register - this register is used for SPI etc so need to remember its setting.
+            XOR     A                                                    ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+            LD      (BNKSELMROM),A
+            LD      (BNKSELUSER),A                                       ; and start up - ie. SA1510 Monitor - this occurs as User Bank 0 is enabled and the jmp to 0 is coded in it.
+            JP      ROMFS_1                                              ; Skip the reset vector.
+            JP      00000H                                               ; Other banks will switch at this point thus forcing a full reset.
 
-            ;
+            ALIGN_NOPS UROMBSTBL
+
+            ;------------------------------------------------------------------------------------------
             ; Bank switching code, allows a call to code in another bank.
             ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+            ;------------------------------------------------------------------------------------------
             ;
 BKSW0to0:   PUSH    AF
             LD      A, ROMBANK0                                          ; Calling bank (ie. us).
@@ -113,21 +112,49 @@ BKSW0_0:    PUSH    HL                                                   ; Place
             LD      HL, BKSWRET0                                         ; Place bank switchers return address on stack.
             EX      (SP),HL
             LD      (TMPSTACKP),SP                                       ; Save the stack pointer as some old code corrupts it.
-            LD      (RFSBK2), A                                          ; Bank switch in user rom space, A=bank.
+            LD      (BNKSELUSER), A                                      ; Repeat the bank switch B times to enable the bank control register and set its value.
             JP      (HL)                                                 ; Jump to required function.
 BKSWRET0:   POP     AF                                                   ; Get bank which called us.
-            LD      (RFSBK2), A                                          ; Return to that bank.
+            LD      (BNKSELUSER), A                                      ; Return to that bank.
             POP     AF
             RET                                                          ; Return to caller.
 
             ALIGN   RFSJMPTABLE
             ORG     RFSJMPTABLE
 
-            ;-----------------------------------------
+            ;------------------------------------------------------------------------------------------
             ; Enhanced function Jump table.
-            ;-----------------------------------------
+            ; This table is generally used by the monitor ROM to call functions within the User ROM.
+            ;------------------------------------------------------------------------------------------
 PRTMZF:     JP       _PRTMZF
             ;-----------------------------------------
+
+
+            ;-----------------------------------------
+            ; Initialisation and startup.
+            ;-----------------------------------------
+            ;
+            ; NB. Bank control registers are left selected. Any software needing access to the top 8 bytes of a
+            ;     ROM/RAM page need to disable them, perform their actions then re-emable.
+            ;
+            JP      ROMFS_1                                              ; Skip the reset vector.
+            ;
+ROMFS_1:    
+            LD      A, (ROMBK1)                                          ; Ensure all banks are at default 
+            CP      8                                                    ; If the ROMBK1 value is 255, an illegal value, then the machine has just started so initialise memory.
+            JR      C, ROMFS_3
+            XOR     A                                                    ; Clear the lower stack space as we use it for variables.
+            LD      B, 7*8
+            LD      HL, 01000H
+ROMFS_2:    LD      (HL),A
+            INC     HL
+            DJNZ    ROMFS_2              
+            LD      A,BNKCTRLDEF                                         ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+            LD      (ROMCTL),A                                           ; Save to memory the value in the bank control register - this register is used for SPI etc so need to remember its setting.
+            LD      A,(ROMBK1)
+ROMFS_3:    LD      (BNKSELMROM),A                                       ; start up.
+            LD      A, (ROMBK2)
+            LD      (BNKSELUSER),A
 
             ;-------------------------------------------------------------------------------
             ; START OF RFS INITIALISATION AND COMMAND ENTRY PROCESSOR FUNCTIONALITY.
@@ -344,9 +371,10 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
 
             ; A method used when testing hardware, scope and code will change but one of its purposes is to generate a scope signal pattern.
             ;
-LOCALTEST:  LD      A,(00000H)
-            LD      (00000H),A
+LOCALTEST:  LD      A,64
+            LD      (0EFFBH),A
             JP      LOCALTEST
+
 
             ;-------------------------------------------------------------------------------
             ; START OF RFS COMMAND FUNCTIONS.
@@ -375,19 +403,19 @@ HEXIYX2:    POP     AF                                                   ; Waste
 HIROM:      LD      A, (MEMSW)                                           ; Swap ROM into high range slot.
             LD      A, ROMBANK2
             LD      (ROMBK1),A                                           ; Save bank being enabled.
-            LD      (RFSBK1),A                                           ; Switch to the hiload rom in bank 2.
+            LD      (BNKSELMROM),A                                       ; Switch to the hiload rom in bank 2.
             JP      0C000H
 
 SETMODE40:  LD      A, ROMBANK0                                          ; Switch to 40Char monitor.
             LD      (ROMBK1),A
-            LD      (RFSBK1),A
+            LD      (BNKSELMROM),A
             LD      A, 0
             LD      (DSPCTL), A
             JP      MONIT
  
 SETMODE80:  LD      A, ROMBANK1                                          ; Switch to 80char monitor.
             LD      (ROMBK1),A
-            LD      (RFSBK1),A
+            LD      (BNKSELMROM),A
             LD      A, 128
             LD      (DSPCTL), A
             JP      MONIT
@@ -441,7 +469,7 @@ PRTDBG:     IF ENADEBUG = 1
             PUSH    BC
             PUSH    AF
             LD      A,(ROMBK1)
-            LD      (RFSBK1), A                                          ; Set the MROM bank back to original.
+            LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
             CALL    PRTHL                                                ; HL
             LD      A, ' '
             CALL    PRNT
@@ -465,7 +493,7 @@ PRTDBG:     IF ENADEBUG = 1
             LD      A, ' '
             CALL    PRNT
             LD      A,(WRKROMBK1)
-            LD      (RFSBK1), A                                          ; Set the MROM bank back to scanned bank.
+            LD      (BNKSELMROM),A                                       ; Set the MROM bank back to scanned bank.
             POP     AF
             POP     BC
             POP     DE
@@ -478,7 +506,7 @@ _PRTMZF:    PUSH    BC
             PUSH    HL
             ;
             LD      A,(ROMBK1)                                           ; Ensure main MROM is switched in.
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             ;
             LD      A,(SCRNMODE)
             CP      0
@@ -545,7 +573,7 @@ PRTMZF3:    XOR     A
 PRTMZF4:    OR      A
             PUSH    AF
             LD      A, (WRKROMBK1)
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             POP     AF
             POP     HL
             POP     DE
@@ -553,6 +581,8 @@ PRTMZF4:    OR      A
             RET
 
 
+            ; Method to list the directory of the ROM devices.
+            ;
 DIRROM:     DI                                                           ; Disable interrupts as we are switching out the main rom.
             ;
             LD      A,1                                                  ; Account for the title.
@@ -573,7 +603,7 @@ DIRROM:     DI                                                           ; Disab
             ;
 DIRNXTPG:   LD      A,B
             LD      (WRKROMBK1), A
-            LD      (RFSBK1), A                                          ; Select bank.
+            LD      (BNKSELMROM),A                                       ; Select bank.
             PUSH    BC                                                   ; Preserve bank count/block number.
             PUSH    DE                                                   ; Preserve file numbering.
             LD      A,C
@@ -610,12 +640,12 @@ DIRNXTPG2:  LD      A,B
             ;
             LD      A,ROMBANK3
             LD      (WRKROMBK1),A
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             CALL    DIRMROM
 DIRNXTPGX:  LD      A,(ROMBK1)
-            LD      (RFSBK1), A                                          ; Set the MROM bank back to original.
-            EI                                                            ; No need to block interrupts now as MROM bank restored.
-            RET                                                           ; End of scan, return to monitor
+            LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
+            EI                                                           ; No need to block interrupts now as MROM bank restored.
+            RET                                                          ; End of scan, return to monitor
           ; JP      ST1X                                                 ; End of scan, return to monitor
 
 
@@ -644,7 +674,7 @@ FINDMZF0:   LD      B,MROMPAGES                                          ; First
             LD      D,0                                                  ; File numbering start.
 FINDMZF1:   LD      A,B
             LD      (WRKROMBK1), A
-            LD      (RFSBK1), A                                          ; Select bank.
+            LD      (BNKSELMROM),A                                       ; Select bank.
 FINDMZF2:   PUSH    BC                                                   ; Preserve bank count/block number.
             PUSH    DE                                                   ; Preserve file numbering.
             LD      HL,RFS_ATRB                                          ; Add block offset to get the valid block.
@@ -663,7 +693,7 @@ FINDMZF2:   PUSH    BC                                                   ; Prese
             POP     DE
             POP     BC
             LD      A,(ROMBK1)
-            LD      (RFSBK1), A                                          ; Set the MROM bank back to original.
+            LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
             JR      NZ, FINDMZF4                                         ; Z set if we found an MZF record.
             INC     HL                                                   ; Save address of filename.
             PUSH    HL
@@ -684,7 +714,7 @@ FINDMZF3:   POP     HL
             LD      DE,(TMPADR)                                          ; Original DE put onto stack, original filename into HL 
             LD      BC,FNSIZE
             LD      A,(WRKROMBK1)
-            LD      (RFSBK1), A                                          ; Select correct bank for comparison.
+            LD      (BNKSELMROM),A                                       ; Select correct bank for comparison.
             CALL    CMPSTRING
             POP     BC
             POP     DE
@@ -702,10 +732,10 @@ FINDMZF5:   LD      A,B
             INC     B
             JR      FINDMZFNO
 
-FINDMZFYES:                                                               ; Flag set by previous test.
+FINDMZFYES:                                                              ; Flag set by previous test.
 FINDMZFNO:  PUSH    AF
             LD      A,(ROMBK1)
-            LD      (RFSBK1), A                                          ; Set the MROM bank back to original.
+            LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
             POP     AF
             POP     HL
             RET
@@ -725,19 +755,19 @@ LOADROM1:   DI
 
             LD      A,ROMBANK3                                           ; Activate the RFS Utilities MROM bank.
             LD      (WRKROMBK1), A
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             CALL    MFINDMZF                                             ; Try and find the file in User ROM via MROM utility.
             JR      NZ, LROMNTFND
             ;
             PUSH    BC
             LD      A,(ROMBK1)                                           ; Page in monitor so we can print a message.
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
             LD      BC,NAME
             LD      HL,PRINTMSG
             CALL    BKSW0to6
             LD      A,(WRKROMBK1)                                        ; Revert to MROM bank to load the application.
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             POP     BC
 
             ;
@@ -746,7 +776,7 @@ LOADROM1:   DI
 
 LROMNTFND:  POP     HL                                                   ; Dont need execute flag anymore so waste it.
             LD      A,(ROMBK1)
-            LD      (RFSBK1),A
+            LD      (BNKSELMROM),A
             LD      HL,PRINTMSG
             LD      DE,MSGNOTFND                                         ; Not found
             CALL    BKSW0to6
@@ -767,7 +797,7 @@ LROMLOAD:   PUSH    BC
             ;
             LD      A,B
             LD      (WRKROMBK1),A
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
             ;
             LD      DE, IBUFE                                            ; Copy the header into the work area.
             LD      HL, 00000h                                           ; Add block offset to get the valid block.
@@ -798,7 +828,7 @@ LROMLOAD:   PUSH    BC
             ;  C = Block 
 LROMLOAD2:  LD      A, B
             LD      (WRKROMBK1), A
-            LD      (RFSBK1), A
+            LD      (BNKSELMROM),A
 
 LROMLOAD3:  PUSH    BC
             LD      HL, 00000h
@@ -850,7 +880,7 @@ LROMLOAD7:  LD      A, B
 LROMLOAD8:  POP     BC
 LROMLOAD5:  POP     HL                                                   ; Retrieve execute flag.
             LD      A,(ROMBK1)
-            LD      (RFSBK1), A                                          ; Set the MROM bank back to original.
+            LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
             LD      A,L                                                  ; Autoexecute turned off?
             CP      0FFh
             JP      Z,LROMLOAD9                                          ; Go back to monitor if it has been, else execute.
@@ -887,6 +917,7 @@ LROMLOAD9:  RET
             INCLUDE "RFS_Utilities.asm"
             ;
             ; Ensure we fill the entire 2K by padding with FF's.
+            ;
             ALIGN    0EFFFh
             DB       0FFh
 

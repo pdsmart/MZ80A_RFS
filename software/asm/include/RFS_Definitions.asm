@@ -9,7 +9,10 @@
 ;- Credits:         
 ;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         September 2019 - Initial version.
+;- History:         Sep 2019 - Initial version.
+;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;                              additional and different hardware. The SPI is now onboard the PCB and
+;                              not using the printer interface card.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -27,9 +30,17 @@
 ;--------------------------------------------------------------------------------------------------------
 
 ;-----------------------------------------------
+; Features.
+;-----------------------------------------------
+HW_SPI_ENA  EQU     1                                                    ; Set to 1 if hardware SPI is present on the RFS PCB v2 board.
+SW_SPI_ENA  EQU     0                                                    ; Set to 1 if software SPI is present on the RFS PCB v2 board.
+PP_SPI_ENA  EQU     0                                                    ; Set to 1 if using the SPI interface via the Parallel Port, ie. for RFS PCB v1 which doesnt have SPI onboard.
+
+;-----------------------------------------------
 ; Entry/compilation start points.
 ;-----------------------------------------------
 UROMADDR    EQU     0E800H                                               ; Start of User ROM Address space.
+UROMBSTBL   EQU     UROMADDR + 020H                                      ; Entry point to the bank switching table.
 RFSJMPTABLE EQU     UROMADDR + 00080H                                    ; Start of jump table.
 FDCROMADDR  EQU     0F000H
 
@@ -105,10 +116,32 @@ INVDSP:     EQU     0E014H
 NRMDSP:     EQU     0E015H
 SCLDSP:     EQU     0E200H
 SCLBASE:    EQU     0E2H
-RFSBK1:     EQU     0EFFCh                                               ; Select RFS Bank1 (MROM) 
-RFSBK2:     EQU     0EFFDh                                               ; Select RFS Bank2 (User ROM)
-RFSRST1:    EQU     0EFFEh                                               ; Reset RFS Bank1 to original.
-RFSRST2:    EQU     0EFFFh                                               ; Reset RFS Bank2 to original.
+BNKCTRLRST: EQU     0EFF8H                                               ; Bank control reset, returns all registers to power up default.
+BNKCTRLDIS: EQU     0EFF9H                                               ; Disable bank control registers by resetting the coded latch.
+HWSPIDATA:  EQU     0EFFBH                                               ; Hardware SPI Data register (read/write).
+HWSPISTART: EQU     0EFFCH                                               ; Start an SPI transfer.
+BNKSELMROM: EQU     0EFFDh                                               ; Select RFS Bank1 (MROM) 
+BNKSELUSER: EQU     0EFFEh                                               ; Select RFS Bank2 (User ROM)
+BNKCTRL:    EQU     0EFFFH                                               ; Bank Control register (read/write).
+
+;
+; RFS v2 Control Register constants.
+;
+BBCLK       EQU     1                                                    ; BitBang SPI Clock.
+SDCS        EQU     2                                                    ; SD Card Chip Select, active low.
+BBMOSI      EQU     4                                                    ; BitBang MOSI (Master Out Serial In).
+CDLTCH1     EQU     8                                                    ; Coded latch up count bit 1
+CDLTCH2     EQU     16                                                   ; Coded latch up count bit 2
+CDLTCH3     EQU     32                                                   ; Coded latch up count bit 3
+BK2A19      EQU     64                                                   ; User ROM Device Select Bit 0 (or Address bit 19).
+BK2A20      EQU     128                                                  ; User ROM Device Select Bit 1 (or Address bit 20).
+                                                                         ; BK2A20 : BK2A19
+                                                                         ;    0        0   = Flash RAM 0 (default).
+                                                                         ;    0        1   = Flash RAM 1.
+                                                                         ;    1        0   = Flasm RAM 2 or Static RAM 0.
+                                                                         ;    1        1   = Reserved.`
+
+BNKCTRLDEF  EQU     CDLTCH2+CDLTCH1+BBMOSI+SDCS+BBCLK                    ; Default on startup for the Bank Control register.
 
 ;-----------------------------------------------
 ; IO ports in hardware and values.
@@ -143,14 +176,18 @@ RFS_COMNT:  EQU     00018h                                               ; COMME
 TPSTART:    EQU     010F0h
 MEMSTART:   EQU     01200h
 MSTART:     EQU     0E900h
-DIRMROM:    EQU     0006Eh
-MFINDMZF:   EQU     00071h
-MROMLOAD:   EQU     00074h
 MZFHDRSZ    EQU     128
 RFSSECTSZ   EQU     256
 MROMSIZE    EQU     4096
 UROMSIZE    EQU     2048
 FNSIZE      EQU     17
+;
+; Monitor ROM Jump Table definitions.
+;
+MROMJMPTBL: EQU     00070H
+DIRMROM:    EQU     MROMJMPTBL + 00000H
+MFINDMZF:   EQU     MROMJMPTBL + 00003H
+MROMLOAD:   EQU     MROMJMPTBL + 00006H
 
 ;-----------------------------------------------
 ; ROM Banks, 0-7 are reserved for alternative
@@ -355,14 +392,15 @@ ROMBK1:     EQU     01016H                                               ; CURRE
 ROMBK2:     EQU     01017H                                               ; CURRENT USERROM BANK 
 WRKROMBK1:  EQU     01018H                                               ; WORKING MROM BANK 
 WRKROMBK2:  EQU     01019H                                               ; WORKING USERROM BANK 
-SCRNMODE:   EQU     0101AH                                               ; Mode of screen, 0 = 40 char, 1 = 80 char.
-TMPADR:     EQU     0101BH                                               ; TEMPORARY ADDRESS STORAGE
-TMPSIZE:    EQU     0101DH                                               ; TEMPORARY SIZE
-TMPCNT:     EQU     0101FH                                               ; TEMPORARY COUNTER
-TMPLINECNT: EQU     01021H                                               ; Temporary counter for displayed lines.
-TMPSTACKP:  EQU     01023H                                               ; Temporary stack pointer save.
-SDVER:      EQU     01025H
-SDCAP:      EQU     01026H
+ROMCTL:     EQU     0101AH                                               ; Current Bank control register setting.
+SCRNMODE:   EQU     0101BH                                               ; Mode of screen, 0 = 40 char, 1 = 80 char.
+TMPADR:     EQU     0101CH                                               ; TEMPORARY ADDRESS STORAGE
+TMPSIZE:    EQU     0101EH                                               ; TEMPORARY SIZE
+TMPCNT:     EQU     01020H                                               ; TEMPORARY COUNTER
+TMPLINECNT: EQU     01022H                                               ; Temporary counter for displayed lines.
+TMPSTACKP:  EQU     01024H                                               ; Temporary stack pointer save.
+SDVER:      EQU     01026H
+SDCAP:      EQU     01027H
 ; Variables sharing the BUFER buffer, normally the BUFER is only used to get keyboard input and so long as data in BUFER is processed
 ; before calling the CMT/SD commands and not inbetween there shouldnt be any issue. Also the space used is at the top end of the buffer which is not used so often.
 ; This frees up memory needed by the CMT and SD card.

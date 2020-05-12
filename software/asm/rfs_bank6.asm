@@ -1,16 +1,22 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
 ;- Name:            rfs_bank6.asm
-;- Created:         October 2018
+;- Created:         July 2019
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series Rom Filing System.
 ;-                  This assembly language program is written to utilise the banked flashroms added with
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         October 2018 - Merged 2 utilities to create this compilation.
+;- History:         July 2019 - Merged 2 utilities to create this compilation.
+;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded
+;                               latch adds additional instruction overhead as the control latches share
+;                               the same address space as the Flash RAMS thus the extra hardware to
+;                               only enable the control registers if a fixed number of reads is made
+;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
+;                               that no loop instruction is ever placed into EFF8H - EFFFH.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -33,20 +39,36 @@
             ; USER ROM BANK 6
             ;
             ;======================================
-            ORG     0E800h
+            ORG     UROMADDR
 
             ;--------------------------------
             ; Common code spanning all banks.
             ;--------------------------------
-ROMFS6:     NOP
-            XOR     A                                                         ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
-            LD      (RFSBK1),A
-            LD      (RFSBK2),A                                                ; and start up - ie. SA1510 Monitor.
-            ALIGN_NOPS 0E829H
-
+            NOP
+            LD      B,16                                                     ; If we read the bank control reset register 15 times then this will enable bank control and then the 16th read will reset all bank control registers to default.
+ROMFS6_0:   LD      A,(BNKCTRLRST)
+            DJNZ    ROMFS6_0                                                 ; Apply the default number of coded latch reads to enable the bank control registers.
+            LD      A,BNKCTRLDEF                                             ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+            LD      (BNKCTRL),A
+            NOP
+            NOP
+            NOP
+            XOR     A                                                        ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+            LD      (BNKSELMROM),A
+            NOP
+            NOP
+            NOP
+            LD      (BNKSELUSER),A                                           ; and start up - ie. SA1510 Monitor - this occurs as User Bank 0 is enabled and the jmp to 0 is coded in it.
             ;
+            ; No mans land... this should have switched to Bank 0 and at this point there is a jump to 00000H.
+            JP      00000H                                                   ; This is for safety!!
+
+
+            ;------------------------------------------------------------------------------------------
             ; Bank switching code, allows a call to code in another bank.
             ; This code is duplicated in each bank such that a bank switch doesnt affect logic flow.
+            ;------------------------------------------------------------------------------------------
+            ALIGN_NOPS UROMBSTBL
             ;
 BKSW6to0:   PUSH    AF
             LD      A, ROMBANK6                                              ; Calling bank (ie. us).
@@ -92,14 +114,12 @@ BKSW6_0:    PUSH    HL                                                       ; P
             LD      HL, BKSWRET6                                             ; Place bank switchers return address on stack.
             EX      (SP),HL
             LD      (TMPSTACKP),SP                                           ; Save the stack pointer as some old code corrupts it.
-            LD      (RFSBK2), A                                              ; Bank switch in user rom space, A=bank.
+            LD      (BNKSELUSER), A                                          ; Repeat the bank switch B times to enable the bank control register and set its value.
             JP      (HL)                                                     ; Jump to required function.
 BKSWRET6:   POP     AF                                                       ; Get bank which called us.
-            LD      (RFSBK2), A                                              ; Return to that bank.
+            LD      (BNKSELUSER), A                                          ; Return to that bank.
             POP     AF
-            RET                                                              ; Return to caller.
-
-
+            RET  
 
             ;-------------------------------------------------------------------------------
             ; START OF PRINT ROUTINE METHODS
@@ -420,7 +440,7 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             ; Message table
             ;
             ;--------------------------------------
-MSGSON:     DB      "+ RFS ", 0ABh, "1.2 **"       ,00DH, 000H
+MSGSON:     DB      "+ RFS ", 0ABh, "2.0 **"       ,00DH, 000H                      ; Version 2.0-> as we are now using the v2.x PCB with 4 devices on-board
 MSGNOTFND:  DB      "Not Found",                    00DH, 000H
 MSGRDIRLST: DB      "ROM Directory:",               00DH, 000H
 MSGTRM:     DB                                      00DH, 000H
@@ -437,7 +457,7 @@ MSGNOTBIN:  DB      "Not binary",                   00DH, 000H
 MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',  00DH, 000H
 MSGSAVE:    DB      00DH, "Filename: ",                   000H
 MSGDIRFULL: DB      "Directory full",               00DH, 000H
-MSGE1:      DB      00DH, "Check sum error!",       00DH, 000H    ; Check sum error.
+MSGE1:      DB      00DH, "Check sum error!",       00DH, 000H                      ; Check sum error.
 MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"', 00DH, 000H
 MSGOK:      DB      00DH, "OK!",                    00DH, 000H
 MSGSAVEOK:  DB      "Tape image saved.",            00DH, 000H
