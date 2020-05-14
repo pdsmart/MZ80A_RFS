@@ -14,7 +14,8 @@
 ## Credits:         
 ## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
 ##
-## History:         January 2020   - Initial script written.
+## History:         Jan 2020 - Initial script written.
+##                  May 2020 - Updated to allow 240/320K Rom RFS images to be built
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -53,7 +54,7 @@ FD1M44_SECTORS=36
 FD1M44_GAP3=78
 FD1M44_INTERLEAVE=4
 ROMRFS_PATH=${CPM_PATH}/ROMRFS
-ROMRFS_CYLS=15
+ROMRFS_CYLS=20                                      # Set to 15 for a 240K disk, 20 for a 320K disk
 ROMRFS_HEADS=1
 ROMRFS_SECTORS=128
 ROMRFS_GAP3=78
@@ -88,10 +89,22 @@ echo "Creating CPM Disks from all the directories in:$CPM_PATH} matching this fi
              echo "Building ROM Drive:${src}...Size:`du -sh --apparent-size ${src} | cut -f1`, Dir Entries:`ls -l ${src} | wc -l`"
 
              # Copy a blank image to create the new disk.
-             cp ${CPM_PATH}/BLANKFD/BLANK_240K.RAW ${ROMRFS_PATH}/RAW/${src}.RAW;
-         
-             # Copy the CPM files from the linux filesystem into the CPM Disk under the CPM filesystem.
-             cpmcp -f MZ80A-RFS ${ROMRFS_PATH}/RAW/${src}.RAW ${CPM_PATH}/${src}/*.* 0:
+	     if [[ ${ROMRFS_CYLS} == 15 ]]; then
+                 echo "Creating 240K ROM RFS Drive Image..."
+                 cp ${CPM_PATH}/BLANKFD/BLANK_240K.RAW ${ROMRFS_PATH}/RAW/${src}.RAW;
+
+                 # Copy the CPM files from the linux filesystem into the CPM Disk under the CPM filesystem.
+                 cpmcp -f MZ80A-RFS ${ROMRFS_PATH}/RAW/${src}.RAW ${CPM_PATH}/${src}/*.* 0:
+             elif [[ ${ROMRFS_CYLS} == 20 ]]; then
+                 echo "Creating 320K ROM RFS Drive Image..."
+                 cp ${CPM_PATH}/BLANKFD/BLANK_320K.RAW ${ROMRFS_PATH}/RAW/${src}.RAW;
+
+                 # Copy the CPM files from the linux filesystem into the CPM Disk under the CPM filesystem.
+                 cpmcp -f MZ80A-RFS-320 ${ROMRFS_PATH}/RAW/${src}.RAW ${CPM_PATH}/${src}/*.* 0:
+             else
+                 echo "ROMRFS config error, ROMRFS_CYLS should = 15 or 20"
+                 exit 1
+             fi
          fi
      else
          # Place size of disk in the name, useful when using the Floppy Emulator.

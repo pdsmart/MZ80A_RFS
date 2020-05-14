@@ -277,6 +277,7 @@ INITBNK_1: LD       A,(BNKCTRLRST)
 SELUSRBNK: PUSH     BC
            PUSH     AF
            LD       A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
+           LD       C,A
            RRA
            RRA
            CPL
@@ -286,11 +287,16 @@ SELUSRBNK: PUSH     BC
 SELUSRBNK1:LD       A,(BNKSELUSER)
            DJNZ     SELUSRBNK1
            POP      AF
-           POP      BC
            LD       (BNKSELUSER),A                                       ; Select the required bank.
-           JR       C,SELUSRBNK2                                         ; If Carry is set by caller then leave the control registers active.
+           LD       A,C
+           POP      BC
+           JR       NC,SELUSRBNK2                                        ; If Carry is set by caller then leave the control registers active.
+           AND      03FH                                                 ; When we leave the registers active, set upper bank bits to 0 to select Flash RAM I, the default.
+           LD       (BNKCTRL),A
+           RET
+SELUSRBNK2:LD       (BNKCTRL),A                                          ; Update the upper address lines according to in-memory value.
            LD       (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
-SELUSRBNK2:RET
+           RET
 
 
            ; HL contains address of block to check.
@@ -339,6 +345,10 @@ _DIRMROM:  PUSH     BC
            ; D = File sequence number.
            ;
            LD       B,USRROMPAGES                                        ; First 16x2K pages are reserved in User bank.
+           LD       A,(ROMCTL)
+           AND      03FH                                                 ; Mask out the upper bank address lines so we start with Flash RAM I.
+           ;
+DIRNXTDVC: LD       (ROMCTL),A
            LD       C,0                                                  ; Block in page.
 DIRNXTPG:  LD       A,B
            LD       (WRKROMBK2), A
@@ -373,6 +383,12 @@ DIRNOTMZF: INC      C
 DIRNXTPG2: LD       A,B
            CP       000h                                                 ; User rom has 256 banks of 2K, so stop when we wrap round to 0.
            JR       NZ, DIRNXTPG
+           LD       A,(ROMCTL)
+           ADD      A, 64
+           CP       0C0H                                                 ; If both upper address bits are set then we have come to the end.
+           JR       C,DIRNXTDVC
+           AND      03FH
+           LD       (ROMCTL),A                                           ; Switch back to primary Flash RAM I device.
            LD       A,(ROMBK2)
            SCF                                                           ; Select the required user bank and Set carry so that the control registers remain enabled.
            CALL     SELUSRBNK 
@@ -382,6 +398,7 @@ DIRNXTPG2: LD       A,B
 
 
            ; Wrapper to call the User ROM function to display the MZF filename.
+           ; This function needs to manipulate the banks such that the calling bank is accessible.
 _PRTMZF:   LD       A,(ROMBK2)
            SCF                                                           ; Select the required user bank and Set carry so that the control registers remain enabled.
            CALL     SELUSRBNK 
@@ -414,10 +431,19 @@ _MFINDMZF: PUSH     DE
            ; C = Block in page
            ; D = File sequence number.
            ;
+           ; Output: B      = Bank where file found
+           ;         C      = Block within bank where page found.
+           ;         A[7:6] = Upper bits of bank where page found.
+           ;
 FINDMZF0:  POP      DE                                                   ; Get file sequence number in D.
            LD       B,USRROMPAGES                                        ; First 8 pages are reserved in User ROM bank.
-           LD       C,0                                                  ; Block in page.
           ;LD       D,0                                                  ; File numbering start.
+           LD       A,(ROMCTL)
+           AND      03FH                                                 ; Mask out the upper bank address lines so we start with Flash RAM I.
+           ;
+FINDNXTDVC:LD       (ROMCTL),A
+           LD       C,0                                                  ; Block in page.
+           ;
 FINDMZF1:  LD       A,B
            LD       (WRKROMBK2), A
            OR       A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
@@ -471,9 +497,16 @@ FINDMZF4:  INC      C
 FINDMZF5:  LD       A,B
            CP       000h                                                 ; User ROM has 256 banks of 2K, so stop when we wrap around to zero.
            JR       NZ, FINDMZF1
+           ;
+           LD       A,(ROMCTL)
+           ADD      A, 64
+           CP       0C0H                                                 ; If both upper address bits are set then we have come to the end.
+           JR       C,FINDNXTDVC
+           AND      03FH
+           LD       (ROMCTL),A                                           ; Switch back to primary Flash RAM I device.
+           ;
            INC      B
            JR       FINDMZFNO
-
 FINDMZFYES:                                                              ; Flag set by previous test.
 FINDMZFNO: PUSH     AF
            LD       A,(ROMBK2)
@@ -482,14 +515,27 @@ FINDMZFNO: PUSH     AF
            POP      AF
            RET
 
+           LD       A,(ROMCTL)
+           AND      03FH
+           LD       (ROMCTL),A                                           ; Switch back to primary Flash RAM I device.
 
            ; Load Program from ROM
-           ; IN    BC     Bank and Block to of MZF file.
-           ; OUT   zero   Set if file loaded, reset if an error occurred.
+           ; Input: B      = Bank of MZF File to load
+           ;        C      = Block within bank of start of MZF file.
+           ;        A[7:6] = Upper bits of bank containing MZF File to load.
+           ; Output:Zero   = Set if file loaded, reset if an error occurred.
            ;
-           ; Load program from RFS Bank 1 (MROM Bank)
+           ; Load program from User ROM Banks I, II or III
            ;
 _MROMLOAD: PUSH     BC
+           ;
+           AND      0C0H                                                 ; Ensure only top two bits are used.
+           LD       D,A
+           LD       A,(ROMCTL)
+           AND      03FH                                                 ; Mask out the upper bank address lines so we can OR in the value given.
+           OR       D
+           LD       (ROMCTL),A
+           ;
            LD       A,B
            LD       (WRKROMBK2),A
            OR       A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
@@ -577,6 +623,9 @@ LROMLOAD7: LD       A, B
            ;
 LROMLOAD8: POP      BC
 LROMLOAD5: PUSH     AF
+           LD       A,(ROMCTL)
+           AND      03FH
+           LD       (ROMCTL),A                                           ; Switch back to primary Flash RAM I device.
            LD       A,(ROMBK2)
            SCF                                                           ; Select the required user bank and Set carry so that the control registers remain enabled.
            CALL     SELUSRBNK 

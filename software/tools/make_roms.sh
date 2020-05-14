@@ -34,6 +34,7 @@ ROOTDIR=../../MZ80A_RFS
 MZB_PATH=${ROOTDIR}/software/MZB
 ROM_PATH=${ROOTDIR}/software/roms/
 SECTORSIZE=256
+CPMDISKMODE=SPLIT
 
 # Place the RFS rom into the User ROM at the beginning as it contains all the banked pages.
 echo "cat ${ROM_PATH}/rfs.rom ${ROM_PATH}/cbios_bank1.rom ${ROM_PATH}/cbios_bank2.rom ${ROM_PATH}/cbios_bank3.rom ${ROM_PATH}/cbios_bank4.rom > /tmp/user.rom"
@@ -41,14 +42,31 @@ cat ${ROM_PATH}/rfs.rom ${ROM_PATH}/cbios_bank1.rom ${ROM_PATH}/cbios_bank2.rom 
     ${ROM_PATH}/cbios_bank3.rom ${ROM_PATH}/cbios_bank4.rom \
     > /tmp/user.rom
 
-# CPM RFS Disks currently only in User ROM.
-for f in 1 2
-do
-    if [ -f ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin ]; then
-        echo "cat ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin >> /tmp/user.rom"
-        cat ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin >> /tmp/user.rom
+# User ROM 2 = empty.
+> /tmp/user2.rom
+
+# According to flag set above, either put the CPM Disks in the first ROM, or place one in each ROM allowing for better write spread and larger disks.
+#
+if [ "${CPMDISKMODE}" != "SPLIT" ]; then
+    # CPM RFS Disks currently only in User ROM.
+    for f in 1 2
+    do
+        if [ -f ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin ]; then
+            echo "cat ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin >> /tmp/user.rom"
+            cat ${MZB_PATH}/CPM_RFS_${f}.${SECTORSIZE}.bin >> /tmp/user.rom
+        fi
+    done
+else
+    if [ -f ${MZB_PATH}/CPM_RFS_1.${SECTORSIZE}.bin ]; then
+        echo "cat ${MZB_PATH}/CPM_RFS_1.${SECTORSIZE}.bin >> /tmp/user.rom"
+        cat ${MZB_PATH}/CPM_RFS_1.${SECTORSIZE}.bin >> /tmp/user.rom
     fi
-done
+
+    if [ -f ${MZB_PATH}/CPM_RFS_2.${SECTORSIZE}.bin ]; then
+        echo "cat ${MZB_PATH}/CPM_RFS_2.${SECTORSIZE}.bin >> /tmp/user2.rom"
+        cat ${MZB_PATH}/CPM_RFS_2.${SECTORSIZE}.bin >> /tmp/user2.rom
+    fi
+fi
 
 # Place the monitor roms into the MROM at the beginning for banked page usage.
 echo "cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom  ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom > /tmp/mrom.rom"
@@ -61,6 +79,9 @@ GENROM=0
 
 # Manually choose the programs you want installed into the ROMS. The files will be first placed into the USER ROM and when full into the 
 # Monitor ROM. Thus order is important if you want a particular program in a particular ROM.
+#
+# NB: A Double Hash (##) indicates a program found not to work on the Sharp MZ-80A.
+#
 ROM_INCLUDE=
 ROM_INCLUDE+="${MZB_PATH}/cpm22.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/sdtest.${SECTORSIZE}.bin:"
@@ -78,7 +99,7 @@ ROM_INCLUDE+="${MZB_PATH}/6502_Betriebssys.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/A-BASIC_SA-5510.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/AIP_-_LOGO_xrr.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/APOLLO CHESS v2a.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/APOLLO_CHESS_v2a.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/APOLLO_CHESS_v2a.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/B880.A3_P6.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/B880 MASTER.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/B880_MASTER.${SECTORSIZE}.bin:"
@@ -126,7 +147,7 @@ ROM_INCLUDE+="${MZB_PATH}/CONVERTER_A_700.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/COPIER.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/COSMO_BLASTER_MZ700.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/DCS MZ80A APPEND.${SECTORSIZE}.bin:"
-##ROM_INCLUDE+="${MZB_PATH}/DCS_MZ80A_APPEND.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/DCS_MZ80A_APPEND.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/DCS MZ80A RENUM.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/DCS_MZ80A_RENUM.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/DELETE.${SECTORSIZE}.bin:"
@@ -139,11 +160,11 @@ ROM_INCLUDE+="${MZB_PATH}/DISKEDIT.A4B.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/DISKEDIT.A7_40T.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/diskutility.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/EXPRESS BAS_700.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/EXPRESS_BAS_700.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/EXPRESS_BAS_700.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/EXPRESS COMPILER.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/EXPRESS_COMPILER.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/EXPRESS_COMPILER.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/EXPRESS PLUS.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/EXPRESS_PLUS.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/EXPRESS_PLUS.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/EXT.BASIC_OM-500.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/FDCOPY.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/FD_Editor_MZ700.${SECTORSIZE}.bin:"
@@ -154,7 +175,7 @@ ROM_INCLUDE+="${MZB_PATH}/fortransosz80.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/GALAXI_FORM.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/GALAXY_INVADERS.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/GDP9-BA.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/Greedy_Gremlins.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Greedy_Gremlins.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Hardcopy.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/HP4TMZ7.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/HP4TMZ7L.${SECTORSIZE}.bin:"
@@ -175,17 +196,17 @@ ROM_INCLUDE+="${MZB_PATH}/HU-BASIC.A2_80M.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/KNIFORTH.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/KUMA_INTERPR..${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/KuPTest.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/LAND_ESCAPE.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/Le_Mans.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/LAND_ESCAPE.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Le_Mans.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/loader.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/MAGIC_PAINTBOX.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/MAN-HUNT.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/MAGIC_PAINTBOX.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/MAN-HUNT.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/m_c_Breakout_2.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/m_c_Hissing_Sid.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/m_c_Race_Chase.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MEMORY_TEST.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/MINI_DATACARD..${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/minotaur.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/MINI_DATACARD..${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/minotaur.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/ML-SP_8002_BBG.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/monitor3.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MONITOR6.${SECTORSIZE}.bin:"
@@ -199,7 +220,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80A_GALACTIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Mzprint.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/NEW_INVADERS.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/OPENING_DATA.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/OTHELLO.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/OTHELLO.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/PAC-MAN.${SECTORSIZE}.bin:"
 ##ROM_INCLUDE+="${MZB_PATH}/PAC-MAN3.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/PAINFUL_MAN.${SECTORSIZE}.bin:"
@@ -237,7 +258,7 @@ ROM_INCLUDE+="${MZB_PATH}/SARGON_2.71.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SP-4015.A1_S.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SP-5060.A1_M.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SP-5060.A1_S.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/SPACE_INVADERS.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/SPACE_INVADERS.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SP-CONVERT.A1.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/STKEEPER2BAS700A.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/SUB-MONITOR-700.${SECTORSIZE}.bin:"
@@ -263,15 +284,15 @@ ROM_INCLUDE+="${MZB_PATH}/Utility_2.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Utility_V_1.1.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Utility_V_2.0.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/WDPRO_2.37AT.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/WDPRO_2.37AT_C2.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/Wooky.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/WDPRO_2.37AT_C2.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Wooky.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/XPATCH_5510_v2.2.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Z80_MACHINE.A1_M.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Z80_MACHINE.A1_S.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Z80_MACHINE.A2_M.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Z80MACHINE.A3_C2.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Z80_MACHINE.A3_S.${SECTORSIZE}.bin:"
-#ROM_INCLUDE+="${MZB_PATH}/ZEN7E.A2.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/ZEN7E.A2.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Zexas_MZ800.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/ZSP.${SECTORSIZE}.bin:"
 
@@ -282,7 +303,7 @@ do
             cat /tmp/user.rom "${f}" > /tmp/tmp.size
             FILESIZE=$(stat -c%s "/tmp/tmp.size")
             if (( ${FILESIZE} < 524288 )); then
-                echo "Adding $f to User Rom"
+                echo "Adding $f to User I Rom"
                 cat "${f}" >> /tmp/user.rom
             else
                 GENROM=1
@@ -301,6 +322,17 @@ do
         fi
 
         if (( ${GENROM} == 2 )); then
+            cat /tmp/user2.rom "${f}" > /tmp/tmp.size
+            FILESIZE=$(stat -c%s "/tmp/tmp.size")
+            if (( ${FILESIZE} < 524288 )); then
+                echo "Adding $f to User II Rom"
+                cat "${f}" >> /tmp/user.rom
+            else
+                GENROM=3
+            fi
+        fi
+
+        if (( ${GENROM} == 3 )); then
             echo "Limit reached ROMS full, skipping from ${f}..."
             break
         fi
@@ -311,7 +343,12 @@ done
 if [ -f /tmp/user.rom ]; then
     mv /tmp/user.rom ${ROM_PATH}/USER_ROM_${SECTORSIZE}.bin
     FILESIZE=$(stat -c%s "${ROM_PATH}USER_ROM_${SECTORSIZE}.bin")
-    echo "USER ROM SIZE (${ROM_PATH}USER_ROM_${SECTORSIZE}.bin) = ${FILESIZE} Bytes"
+    echo "USER ROM I SIZE (${ROM_PATH}USER_ROM_${SECTORSIZE}.bin) = ${FILESIZE} Bytes"
+fi
+if [ -f /tmp/user2.rom ]; then
+    mv /tmp/user2.rom ${ROM_PATH}/USER_ROM_II_${SECTORSIZE}.bin
+    FILESIZE=$(stat -c%s "${ROM_PATH}USER_ROM_II_${SECTORSIZE}.bin")
+    echo "USER ROM II SIZE (${ROM_PATH}USER_ROM_II_${SECTORSIZE}.bin) = ${FILESIZE} Bytes"
 fi
 if [ -f /tmp/mrom.rom ]; then
     mv /tmp/mrom.rom ${ROM_PATH}/MROM_${SECTORSIZE}.bin

@@ -326,9 +326,8 @@ OPTBL:      DB      001H
             ; 
             ; BC:DE:HL contains the time in milliseconds (100msec resolution) since 01/01/1980. In IX is held the interrupt service handler routine address for the RTC.
             ; HL contains lower 16 bits, DE contains middle 16 bits, BC contains upper 16bits, allows for a time from 00:00:00 to 23:59:59, for > 500000 days!
-?TIMESET:   DI      
-            ;
-            LD      (TIMESEC),HL                                         ; Load lower 16 bits.
+            ; NB. Caller must disable interrupts before calling this method.
+?TIMESET:   LD      (TIMESEC),HL                                         ; Load lower 16 bits.
             EX      DE,HL
             LD      (TIMESEC+2),HL                                       ; Load middle 16 bits.
             PUSH    BC
@@ -352,7 +351,6 @@ OPTBL:      DB      001H
             LD      A, 0C3H                                              ; Install the interrupt vector for when interrupts are enabled.
             LD      (00038H),A
             LD      (00039H),IX
-           ;EI      
             RET    
 
             ; Time Read;
@@ -375,9 +373,9 @@ OPTBL:      DB      001H
 
 ?MODE:      LD      HL,KEYPF
             LD      (HL),08AH
-            LD      (HL),007H
-            LD      (HL),005H
-            LD      (HL),001H
+            LD      (HL),007H                                            ; Set Motor to Off.
+            LD      (HL),004H                                            ; Disable interrupts by setting INTMSK to 0.
+            LD      (HL),001H                                            ; Set VGATE to 1.
             RET     
 
             ; Method to check if a key has been pressed and stored in buffer.. 

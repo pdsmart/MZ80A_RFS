@@ -759,7 +759,8 @@ LOADROM1:   DI
             CALL    MFINDMZF                                             ; Try and find the file in User ROM via MROM utility.
             JR      NZ, LROMNTFND
             ;
-            PUSH    BC
+            PUSH    BC                                                   ; Preserve bank and block where MZF file found.
+            PUSH    AF
             LD      A,(ROMBK1)                                           ; Page in monitor so we can print a message.
             LD      (BNKSELMROM),A
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
@@ -768,8 +769,8 @@ LOADROM1:   DI
             CALL    BKSW0to6
             LD      A,(WRKROMBK1)                                        ; Revert to MROM bank to load the application.
             LD      (BNKSELMROM),A
+            POP     AF
             POP     BC
-
             ;
             CALL    MROMLOAD                                             ; Load the file from User ROM via MROM utility.
             JP      Z, LROMLOAD5

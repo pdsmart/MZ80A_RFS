@@ -108,13 +108,14 @@ ROW:        EQU     25                                                   ; Numbe
 SCRNSZ:     EQU     COLW * ROW                                           ; Total size, in bytes, of the screen display area.
 SCRLW:      EQU     COLW / 8                                             ; Number of 8 byte regions in a line for hardware scroll.
 MODE80C:    EQU     1
+ROMDRVSIZE: EQU     320                                                  ; Size in K of the Rom RFS Drive, currently 240 or 320 are coded. Please set value in make_cpmdisks.sh when changing this parameter.
 
 ; BIOS equates
 MAXDISKS    EQU     7                                                    ; Max number of Drives supported
 KEYBUFSIZE  EQU     16                                                   ; Ensure this is a power of 2, max size 256.
 
 ; Debugging
-ENADEBUG    EQU     1                                                    ; Enable debugging logic, 1 = enable, 0 = disable
+ENADEBUG    EQU     0                                                    ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-------------------------------------------------------
 ; Function entry points in the CBIOS ROMS
@@ -207,7 +208,7 @@ BK2A20      EQU     128                                                  ; User 
                                                                          ;    1        0   = Flasm RAM 2 or Static RAM 0.
                                                                          ;    1        1   = Reserved.
 
-BNKCTRLDEF  EQU     CDLTCH2+CDLTCH1+BBMOSI+SDCS+BBCLK                    ; Default on startup for the Bank Control register.
+BNKCTRLDEF  EQU     BBMOSI+SDCS+BBCLK                                    ; Default on startup for the Bank Control register.
 
 ;-----------------------------------------------
 ; IO ports in hardware and values.
@@ -427,6 +428,7 @@ KEYLAST:    DS      virtual 1                                            ; KEY L
 KEYRPT:     DS      virtual 1                                            ; KEY REPEAT COUNTER
 USRBANKSAV: DS      virtual 1                                            ; Save user bank number when calling another user bank.
 HLSAVE:     DS      virtual 2                                            ; Space to save HL register when manipulating stack.
+ROMCTL      DS      virtual 1                                            ; Rom Paging control register contents.
 ;
 SPV:
 IBUFE:                                                                   ; TAPE BUFFER (128 BYTES)
@@ -475,7 +477,6 @@ TRK0FD2     DS      virtual 1                                            ; FD 2 
 TRK0FD3     DS      virtual 1                                            ; FD 3 IS AT TRACK 0 = BIT 0 set
 TRK0FD4     DS      virtual 1                                            ; FD 4 IS AT TRACK 0 = BIT 0 set
 RETRIES     DS      virtual 2                                            ; DATA READ RETRIES
-ROMCTL      DS      virtual 1                                            ; Rom Paging control register contents.
 TMPADR      DS      virtual 2                                            ; TEMPORARY ADDRESS STORAGE
 TMPSIZE     DS      virtual 2                                            ; TEMPORARY SIZE
 TMPCNT      DS      virtual 2                                            ; TEMPORARY COUNTER
@@ -546,10 +547,15 @@ COLOUR      EQU     0
 
 SPSAVE:     DS      virtual 2                                            ; CPM Stack save.
 SPISRSAVE:  DS      virtual 2
-VAREND      EQU     $                                                    ; End of variables
             ; Stack space for the CBIOS.
 MSGSTRBUF:  DS      virtual 128                                          ; Lower end of the stack space is for interbank message printing, ie.space for a string to print.
 BIOSSTACK   EQU     $
             ; Stack space for the Interrupt Service Routine.
             DS      virtual 16                                           ; Max 8 stack pushes.
 ISRSTACK    EQU     $
+
+DBGSTACKP:  DS      virtual 2
+            DS      virtual 64
+DBGSTACK:   EQU     $
+
+VAREND      EQU     $                                                    ; End of variables
