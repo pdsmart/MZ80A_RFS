@@ -421,7 +421,7 @@ STRT5:      LD      DE,CBIOSIGNEND                                       ; Termi
             BIT     1,A
             JR      Z,STRT7                                              ; No ROM drives available then skip.
             ;
-            LD      BC,64/4             ; 32/4                           ; Setup CSV/ALV parameters for a ROM drive.
+            LD      BC,0                                                 ; Setup CSV/ALV parameters for a ROM drive - ie. fixed drive so 0.
             LD      (CDIRBUF+3),BC
             LD      BC,20               ; 240/8 + 1                      ; 240/8 + 1 for a 240K drive with 1024B block, 159/8 + 1 for a 320K drive with 2048B block.
             LD      (CDIRBUF+5),BC
@@ -470,6 +470,8 @@ STRT8:      LD      A,(DRVAVAIL)
 
             CALL    COPYDPB                                              ; Add in 2 SD drives by default.
 STRT9:      CALL    COPYDPB
+            ;
+            ; Now add as many additional SD drives as we have RAM available within the CBIOS.
             ;
             LD      BC,(CDIRBUF+1)
             LD      HL,CSVALVEND - 2048/8 + 1                            ; Subtract the size of the ALV (CSV has no size for a fixed SD drive)
@@ -2685,7 +2687,7 @@ DPB1:       DW      128                                                  ; SPT -
             DW      63    ; 31                                           ; DRM - Number of directory entries - 1
             DB      128                                                  ; AL0 - 1 bit set per directory block
             DB      0                                                    ; AL1 -            "
-            DW      16                                                   ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
+            DW      0     ; 16                                           ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
             DW      0                                                    ; OFF - Reserved tracks
             DB      16                                                   ; CFG - MZ80A Addition, configuration flag:
                                                                          ;       Bit 1:0 = FDC: Sector Size, 00 = 128, 10 = 256, 11 = 512, 01 = Unused.
@@ -2703,7 +2705,7 @@ DPB2:       DW      128                                                  ; SPT -
             DW      63    ; 31                                           ; DRM - Number of directory entries - 1
             DB      128                                                  ; AL0 - 1 bit set per directory block
             DB      0                                                    ; AL1 -            "
-            DW      16                                                   ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
+            DW      0     ; 16                                           ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
             DW      0                                                    ; OFF - Reserved tracks
             DB      48                                                   ; CFG - MZ80A Addition, configuration flag:
                                                                          ;       Bit 1:0 = FDC: Sector Size, 00 = 128, 10 = 256, 11 = 512, 01 = Unused.
