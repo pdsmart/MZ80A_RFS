@@ -251,6 +251,7 @@ SETDRV2:    LD      (DISKTYPE),A
             LD      A,(HL)                                               ; Get the physical number after mapping from the CDISK.
             POP     BC
             POP     HL
+;CHECK THIS TYPO AND REMOVE SEEMS A COPY PASTE ERROR
             RET     NC                                                   ; This isnt a physical floppy disk, no need to perform any actions, exit.
 
             ; Select FDC drive (make active) based on value in DISKMAP[CDISK].

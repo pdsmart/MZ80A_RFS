@@ -355,6 +355,8 @@ GETCMTPARM: CALL    READ4HEX                                             ; Start
             LD      C,L
             CALL    READ4HEX                                             ; End address
             JR      C,GETCMT1
+            SBC     HL,BC
+            INC     HL
             LD      (SIZE),HL                                            ; byte size buffer
             CALL    READ4HEX                                             ; Execution address
             JR      C,GETCMT1
