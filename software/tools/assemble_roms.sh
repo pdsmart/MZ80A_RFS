@@ -35,7 +35,7 @@ ASM=glass.jar
 #BUILDROMLIST="MZ80AFI rfs rfs_mrom IPL monitor_SA1510 monitor_80c_SA1510 monitor_mz-1r12 quickdisk_mz-1e05 quickdisk_mz-1e14 monitor_1Z-013A monitor_80c_1Z-013A"
 BUILDROMLIST="monitor_SA1510_hiload monitor_80c_SA1510_hiload monitor_80c_SA1510 MZ80AFI monitor_SA1510 monitor_80c_SA1510"
 #BUILDMZFLIST="hi-ramcheck sharpmz-test"
-BUILDMZFLIST="sharpmz-test"
+BUILDMZFLIST="BASIC sharpmz-test"
 ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
@@ -61,8 +61,8 @@ do
             echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
             cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
         else
-            echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
-            cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf
+            echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.MZF"
+            cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.MZF
         fi
     fi
 done
