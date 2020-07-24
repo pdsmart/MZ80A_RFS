@@ -48,8 +48,8 @@ MODE80C:                EQU     1
 
 ; BIOS equates
 KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
-;MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
-MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
+MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+;MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
 
 ; Tape load/save modes. Used as a flag to enable common code.
 TAPELOAD                EQU     1
@@ -58,8 +58,8 @@ TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
 
 ; Build options. Set just one to '1' the rest to '0'.
-BUILD_MZ80A             EQU     1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
-BUILD_RFS               EQU     0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
+BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
+BUILD_RFS               EQU     1                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
 BUILD_TZFS              EQU     0                                        ; Build for TZFS where extended memory is available.
 INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 

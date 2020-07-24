@@ -69,11 +69,11 @@ else
 fi
 
 # Place the monitor roms into the MROM at the beginning for banked page usage.
-echo "cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom  ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom > /tmp/mrom.rom"
+echo "cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom  ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom ${ROM_PATH}/monitor_1Z-013A.rom ${ROM_PATH}/monitor_80c_1Z-013A.rom ${ROM_PATH}/IPL.rom ${ROM_PATH}/blank_mrom.rom > /tmp/mrom.rom"
 cat ${ROM_PATH}/monitor_SA1510.rom ${ROM_PATH}/monitor_80c_SA1510.rom \
     ${ROM_PATH}/cbios.rom ${ROM_PATH}/rfs_mrom.rom \
-    ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom \
-    ${ROM_PATH}/blank_mrom.rom ${ROM_PATH}/blank_mrom.rom \
+    ${ROM_PATH}/monitor_1Z-013A.rom ${ROM_PATH}/monitor_80c_1Z-013A.rom \
+    ${ROM_PATH}/IPL.rom ${ROM_PATH}/blank_mrom.rom \
     > /tmp/mrom.rom
 GENROM=0
 

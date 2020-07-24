@@ -275,6 +275,8 @@ PRTSTRE:    POP     DE
             ; hence using upper case.
 HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
             DB      "8     - 80 col mode.",                                 00DH
+            DB      "700   - Select MZ-700 Mode.",                          00DH
+            DB      "7008  - Select MZ-700 80 col Mode.",                   00DH            
             DB      "B     - toggle keyboard bell.",                        00DH
             DB      "C     - clear memory $1200-$D000.",                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
@@ -440,7 +442,8 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             ; Message table
             ;
             ;--------------------------------------
-MSGSON:     DB      "+ RFS ", 0ABh, "2.0 **"       ,00DH, 000H                      ; Version 2.0-> as we are now using the v2.x PCB with 4 devices on-board
+MSGSON:     DB      "+ RFS ",    0ABh, "2.0 **"    ,00DH, 000H                      ; Version 2.0-> as we are now using the v2.x PCB with 4 devices on-board
+MSGSONTZ:   DB      "+ TZ+RFS ", 0ABh, "2.0 **"    ,00DH, 000H                      ; Version 2.0 with version 2.1+ of tranZPUter board installed.
 MSGNOTFND:  DB      "Not Found",                    00DH, 000H
 MSGRDIRLST: DB      "ROM Directory:",               00DH, 000H
 MSGTRM:     DB                                      00DH, 000H
@@ -471,6 +474,7 @@ MSGT2SDERR: DB      "Copy from Tape to SD Failed",  00DH, 000H
 MSGSD2TERR: DB      "Copy from SD to Tape Failed",  00DH, 000H
 MSGT2SDOK:  DB      "Success, Tape to SD done.",    00DH, 000H
 MSGSD2TOK:  DB      "Success, SD to Tape done.",    00DH, 000H
+MSGNOTZINST:DB      "No tranZPUter card installed.",00DH, 000H
 
             ALIGN   0EFFFh
             DB      0FFh

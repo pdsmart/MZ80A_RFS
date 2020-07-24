@@ -1263,14 +1263,13 @@ LOADSD12:   LD      HL,(SDLOADADDR)
             JR      NZ,LOADSD12A
             DEC     HL
             INC     (HL)
-LOADSD12A:  LD      A,(SDLOADSIZE+1)
-            CP      002H
-            JR      C,LOADSD14                                           ; If carry then the last read obtained the remaining bytes.
-            LD      HL,(SDLOADSIZE)
+LOADSD12A:  LD      HL,(SDLOADSIZE)
             LD      DE,SD_SECSIZE
             OR      A
             SBC     HL,DE
-LOADSD13:   LD      (SDLOADSIZE),HL
+            JR      C,LOADSD14
+            JR      Z,LOADSD14
+            LD      (SDLOADSIZE),HL
             JR      LOADSD11
 
 LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoexecute turned off?

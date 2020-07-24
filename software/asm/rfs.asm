@@ -162,7 +162,16 @@ ROMFS_3:    LD      (BNKSELMROM),A                                       ; start
             ;
             ; Replacement command processor in place of the SA1510 command processor.
             ;
-MONITOR:    LD      A, (ROMBK1)
+MONITOR:    IN      A,(CPLDINFO)                                         ; See if a tranZPUter board is present.
+            LD      C,A
+            AND     0A0H                                                 ; First nibble needs to be an A if the device is present.
+            CP      0A0H
+            JR      NZ,CHKTZ1
+            LD      A,C
+CHKTZ1:     AND     00FH
+            LD      (TZPU), A                                            ; Flag = 0 if no tranZPUter present otherwise contains version (1 - 15).
+            ;
+            LD      A, (ROMBK1)
             CP      1
             JR      Z, SET80CHAR
             CP      0
@@ -186,8 +195,15 @@ SIGNON:     LD      A,0C4h                                               ; Move 
 SIGNON1:    CALL    DPCT
             DEC     E
             JR      NZ,SIGNON1
-            LD      DE,MSGSON                                            ; Sign on message,
-            LD      HL,PRINTMSG
+            ;
+            LD      A,C
+            OR      A
+            JR      Z,SIGNON2
+            LD      DE,MSGSONTZ
+            JR      SIGNON3
+            ;
+SIGNON2:    LD      DE,MSGSON                                            ; Sign on message,
+SIGNON3:    LD      HL,PRINTMSG
             CALL    BKSW0to6
 
             LD      HL, SDINIT                                           ; SD Card Initialisation
@@ -276,6 +292,12 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 001H
             DB      '8'                                                  ; 80 Char screen mode.
             DW      SETMODE80
+            DB      000H | 000H | 000H | 004H
+            DB      "7008"                                               ; Switch to 80 column MZ700 mode.
+            DW      SETMODE7008
+            DB      000H | 000H | 000H | 003H
+            DB      "700"                                                ; Switch to 40 column MZ700 mode.
+            DW      SETMODE700
             DB      000H | 000H | 000H | 001H
             DB      'B'                                                  ; Bell.
             DW      SGX
@@ -419,6 +441,54 @@ SETMODE80:  LD      A, ROMBANK1                                          ; Switc
             LD      A, 128
             LD      (DSPCTL), A
             JP      MONIT
+
+NOTZPU:     LD      DE,MSGNOTZINST                                        ; No tranZPUter installed.
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
+            RET
+
+            ; The RFS depends on variables stored in unused parts of the Monitor scratch area.
+            ; When switching into a compatibility mode the memory is switched and these variables go
+            ; out of scope. This routine clears the memory and sets any crucial variables after 
+            ; memory switch so that a restart functions as expected.
+            ;
+SETMODECLR: POP     HL                                                   ; Get return address, will go OOS after memory mode change.
+            LD      A,TZMM_COMPAT
+            OUT     (MMCFG),A                                            ; Set memory mode to compatibility.
+            XOR     A                                                    ; Clear out the RFS variable area in the tranZPUter memory.
+            LD      DE, 01000H
+            LD      B, 030H
+SETCLR_1:   LD      (DE),A
+            INC     DE 
+            DJNZ    SETCLR_1 
+            JP      (HL)                                                 ; Return to caller.
+            
+            ; Command to switch to the MZ700 compatibility mode with 80 column display.
+            ;
+SETMODE7008:LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
+            OR      A
+            JR      Z,NOTZPU
+            LD      A, 128                                               ; Setup for 80char display.
+            LD      (DSPCTL), A
+            CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
+            LD      A,ROMBANK5                                           ; Select the 80 column version of the 1Z-013A ROM.
+SETMODE_2:  LD      (ROMBK1),A
+            LD      (BNKSELMROM),A
+            LD      A,SET_MODE_MZ700                                     ; Set the CPLD compatibility mode.
+SETMODE_3:  OUT     (CPLDCFG),A
+            JP      MONIT                                                ; Cold start the monitor.
+
+            ; Command to switch to the MZ700 compatibility mode with original 40 column display.
+            ;
+SETMODE700: LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
+            OR      A
+            JR      Z,NOTZPU
+            LD      A, 0                                                 ; Setup for 40char display.
+            LD      (DSPCTL), A
+            CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
+            LD      A,ROMBANK4                                           ; Select the 40 column version of the 1Z-013A ROM.
+            JR      SETMODE_2
+
 
             ;====================================
             ;
@@ -597,7 +667,7 @@ DIRROM:     DI                                                           ; Disab
             ; C = Block in page
             ; D = File sequence number.
             ;
-            LD      B,MROMPAGES                                          ; First 4 pages are reserved in MROM bank.
+            LD      B,MROMPAGES                                          ; First 8 pages are reserved in MROM bank.
             LD      C,0                                                  ; Block in page.
             LD      D,0                                                  ; File numbering start.
             ;

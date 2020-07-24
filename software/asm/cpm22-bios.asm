@@ -31,6 +31,20 @@
 
             ORG     CPMBIOS            
 
+            ; Boot strap code to setup the machine in order to run CPM and the CBIOS.
+            ; Previously this used to be in the comment field of the tape header but with the
+            ; advent of the SDCFS which doesnt store the comment, the bootstrap needs to be relocated.
+            ; This code will be overwritten with the DP Headers on cold boot.
+BOOTLDR:    LD      B, 0x10                                              ; Need to read the same location 16 times to enable I/O operations.
+BOOTLDR2:   LD      A, (BNKCTRLRST)
+            DJNZ    BOOTLDR2
+            LD      A, 0x07                               
+            LD      (BNKCTRL), A                                         ; Setup the User ROM Bank default.
+            LD      A, (MEMSW)
+            LD      A, 0x02
+            LD      (BNKSELMROM), A                                      ; Setup the Monitor ROM bank default.
+            JP      CBIOSSTART                                           ; Cold start the CBIOS.
+
 ;------------------------------------------------------------------------------------------------------------
 ; DISK PARAMETER HEADER
 ;
@@ -55,7 +69,7 @@
 ; -ALV    Address of a scratch pad area used by the BDOS to keep disk storage allocation information.
 ;         This address is different for each DPH.
 ;------------------------------------------------------------------------------------------------------------
-            ALIGN_NOPS   DPBASE                                          ; Space for 2xROM, 2xFD, 3xSD or upto 7 drives
+           ;ALIGN_NOPS   DPBASE                                          ; Space for 2xROM, 2xFD, 3xSD or upto 7 drives
                                                                          ; These entries are created dynamically based on hardware available.
 
             ; NB. The Disk Parameter Blocks are stored in CBIOS ROM to save RAM space.
@@ -67,3 +81,4 @@
             ALIGN_NOPS   CSVALVMEM
             ALIGN_NOPS   CSVALVEND
             ALIGN        CBIOSDATA
+

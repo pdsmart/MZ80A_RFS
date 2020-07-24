@@ -142,7 +142,7 @@ BK2A20      EQU     128                                                  ; User 
                                                                          ;    1        0   = Flasm RAM 2 or Static RAM 0.
                                                                          ;    1        1   = Reserved.`
 
-BNKCTRLDEF  EQU     CDLTCH2+CDLTCH1+BBMOSI+SDCS+BBCLK                    ; Default on startup for the Bank Control register.
+BNKCTRLDEF  EQU     BBMOSI+SDCS+BBCLK                                    ; Default on startup for the Bank Control register.
 
 ;-----------------------------------------------
 ; Rom File System Header (MZF)
@@ -554,12 +554,22 @@ _MROMLOAD: PUSH     BC
            LD       C,0
            ADD      HL,BC
            LD       BC, MZFHDRSZ
-           LDIR
+
+LROMLOAD1: LD       A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+           INC      HL
+           LD       (DE),A
+           INC      DE
+           DEC      BC
+           LD       A,B
+           OR       C
+           JR       NZ,LROMLOAD1
+           ;LDIR
 
            PUSH     HL
            LD       DE, (DTADR)
            LD       HL, (SIZE)
            LD       BC, RFSSECTSZ - MZFHDRSZ
+           OR       A
            SBC      HL, BC
            JR       NC, LROMLOAD4
            LD       HL, (SIZE)
@@ -572,6 +582,8 @@ LROMLOAD2: LD       A, B
            LD       (WRKROMBK2), A
            OR       A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
            CALL     SELUSRBNK 
+
+     ; LD       (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
 
 LROMLOAD3: PUSH     BC
            LD       HL, 0E800h
@@ -590,6 +602,7 @@ LROMLOAD3: PUSH     BC
            LD       DE, (TMPADR)
            LD       HL, (TMPSIZE)
            LD       BC, RFSSECTSZ
+           OR       A
            SBC      HL, BC
            JR       NC, LROMLOAD4
            LD       BC, (TMPSIZE)
@@ -600,7 +613,17 @@ LROMLOAD4: LD       (TMPSIZE), HL                                        ; HL co
            LD       A, B                                                 ; Pre check to ensure BC is not zero.
            OR       C
            JR       Z, LROMLOAD8
-           LDIR
+
+LROMLOAD9: LD       A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+           INC      HL
+           LD       (DE),A
+           INC      DE
+           DEC      BC
+           LD       A,B
+           OR       C
+           JR       NZ,LROMLOAD9
+           ;LDIR
+
            LD       BC, (TMPSIZE)
            LD       A, B                                                 ; Post check to ensure we still have bytes
            OR       C
@@ -611,7 +634,7 @@ LROMLOAD4: LD       (TMPSIZE), HL                                        ; HL co
 LROMLOAD6: INC      C
            LD       A, C
            CP       UROMSIZE/RFSSECTSZ                                   ; Max blocks per page reached?
-           JR       C, LROMLOAD7
+           JR       C, LROMLOAD3         ;LROMLOAD7
            LD       C, 0
            INC      B
            ;

@@ -437,13 +437,12 @@ NAME:       DS      virtual 17                                           ; FILE 
 SIZE:       DS      virtual 2                                            ; BYTESIZE
 DTADR:      DS      virtual 2                                            ; DATA ADDRESS
 EXADR:      DS      virtual 2                                            ; EXECUTION ADDRESS
+COMNT:      DS      virtual 92                                           ; Comment / code area of CMT header.
 SWPW:       DS      virtual 10                                           ; SWEEP WORK
 KDATW:      DS      virtual 2                                            ; KEY WORK
-;KANAF:      DS      virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
+KANAF:      DS      virtual 1                                            ; KANA FLAG (01=GRAPHIC MODE)
 DSPXY:      DS      virtual 2                                            ; DISPLAY COORDINATES
 ;DSPXYLST:   DS      virtual 2                                            ; Last known cursor position, to compare with DSPXY to detect changes.
-FLASHCTL:   DS      virtual 1                                            ; CURSOR FLASH CONTROL. BIT 0 = Cursor On/Off, BIT 1 = Cursor displayed.
-DSPXYADDR:  DS      virtual 2                                            ; Address of last known position.
 MANG:       DS      virtual 6                                            ; COLUMN MANAGEMENT
 MANGE:      DS      virtual 1                                            ; COLUMN MANAGEMENT END
 PBIAS:      DS      virtual 1                                            ; PAGE BIAS
@@ -458,6 +457,8 @@ REVFLG:     DS      virtual 1                                            ; REVER
 FLSDT:      DS      virtual 1                                            ; CURSOR DATA
 STRGF:      DS      virtual 1                                            ; STRING FLAG
 DPRNT:      DS      virtual 1                                            ; TAB COUNTER
+FLASHCTL:   DS      virtual 1                                            ; CURSOR FLASH CONTROL. BIT 0 = Cursor On/Off, BIT 1 = Cursor displayed.
+DSPXYADDR:  DS      virtual 2                                            ; Address of last known position.
 ;AMPM:       DS      virtual 1                                            ; AMPM DATA
 ;TIMFG:      DS      virtual 1                                            ; TIME FLAG
 SWRK:       DS      virtual 1                                            ; KEY SOUND FLAG

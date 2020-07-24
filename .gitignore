@@ -55,4 +55,9 @@ software/asm/rfs_bank2.prewriteread
 software/roms/SHARP_MZ80A_RFS_CPM_IMAGE_1.img
 software/roms/SHARP_MZ80A_RFS_IMAGE_1.img
 software/roms/cmp
+schematics/MZ80-ROMPG/
+software/MZF/BASIC.mzf
+software/OriginalSA-1510.BIN
+software/asm/.cbios.asm.swo
+software/dump
 

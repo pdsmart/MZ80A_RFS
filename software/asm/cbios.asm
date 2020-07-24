@@ -251,8 +251,8 @@ BOOT_:      DI                                                           ; Disab
             ;
             LD      SP,BIOSSTACK                                         ; Setup to use local stack until CPM takes over.
             ;
-            LD      HL,VARSTART                                          ; Start of variable area
-            LD      BC,VAREND-VARSTART                                   ; Size of variable area.
+            LD      HL,CPMBIOS                                           ; Start of CPM disk table and variable area
+            LD      BC,VAREND-CPMBIOS                                    ; Size of CPM disk table and variable area.
             XOR     A
             LD      D,A
 INIT1:      LD      (HL),D                                               ; Clear variable memory including stack space.
@@ -261,6 +261,7 @@ INIT1:      LD      (HL),D                                               ; Clear
             LD      A,B
             OR      C
             JR      NZ,INIT1                
+            ;
             LD      HL,00000H
             LD      BC,CBASE
 INIT2:      LD      (HL),D                                               ; Clear TPA space.
@@ -299,8 +300,8 @@ INIT3:      LD      A,(BNKCTRLRST)
 
             ; Setup keyboard rate control and set to CAPSLOCK mode.
             ; (0 = Off, 1 = CAPSLOCK, 2 = SHIFTLOCK).
-            LD      HL,00002H                                            ; Initialise key repeater.
-            LD      (KEYRPT),HL
+            LD      A,002H                                            ; Initialise key repeater.
+            LD      (KEYRPT),A
             LD      A,001H
             LD      (SFTLK),A                                            ; Setup shift lock, default = off.
 
@@ -333,7 +334,6 @@ INIT3:      LD      A,(BNKCTRLRST)
             ;
             CALL    ?SDINIT
             LD      A,0                                                  ; No drives yet detected so zero available mask.
-            RES     2,A                                                  ; No SD Card is present.
             JR      NZ,STRT2
             SET     2,A                                                  ; Assume the SD Card is present.
             ;
@@ -351,7 +351,7 @@ STRT2:      LD      (DRVAVAIL),A
             JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM! This shouldnt happen as we boot from ROM.
             LD      (CPMROMLOC),BC
 
-            ; Locate the ROMFS CPM Disk Image to be mapped as drive D.
+            ; Locate the ROMFS CPM Disk Images.
             LD      HL,0FFFFh
             LD      (CPMROMDRV0),HL
             LD      (CPMROMDRV1),HL
@@ -529,9 +529,9 @@ CPMINIT1:   LD      A, 0C3H                                              ; C3 IS
             LD      (CDISK), A                                           ; Save User/Disk    
 WBTDSKOK2:  CALL    ?SETDRVMAP                                           ; Refresh the map of physical floppies to CPM drive number.
             CALL    ?SETDRVCFG
-            LD      A,(DISKTYPE)
-            OR      A
-            CALL    Z,?SELDRIVE                                          ; Select and start disk drive motor if floppy disk.
+         ;  LD      A,(DISKTYPE)
+         ;  OR      A
+         ;  CALL    Z,?SELDRIVE                                          ; Select and start disk drive motor if floppy disk.
             ;
             LD      A,05H                                                ; Enable interrupts at hardware level.
             LD      (KEYPF),A
@@ -582,8 +582,10 @@ WBOOT_:     DI
             CALL    UROMLOAD
             LD      A,ROMBANK9                                           ; Screen Bank.
             LD      (BNKSELUSER),A    
-            ;
-            JP      CPMINIT                                              ; Initialise CPM and run.
+            JP      Z,CPMINIT                                            ; Initialise CPM and run.
+            LD      DE,NOBDOS
+            CALL    MONPRTSTR
+WBOOT2:     JR      WBOOT2                                               ; Nowhere to go!
 
 
             ;-------------------------------------------------------------------------------
@@ -1577,7 +1579,15 @@ UROMLOAD:   PUSH    BC
             LD      C,0
             ADD     HL,BC
             LD      BC, MZFHDRNCSZ
-            LDIR
+LROMLOAD0:  LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+            INC     HL
+            LD      (DE),A
+            INC     DE
+            DEC     BC
+            LD      A,B
+            OR      C
+            JR      NZ,LROMLOAD0
+            ;LDIR
             LD      DE,MZFHDRSZ - MZFHDRNCSZ                             ; Account for the full MZF header (we only load the initial part to save RAM).
             ADD     HL,DE
             POP     DE
@@ -1590,6 +1600,7 @@ LROMLOAD1:  PUSH    HL
             LD      DE, (DTADR)
             LD      HL, (SIZE)
             LD      BC, RFSSECTSZ - MZFHDRSZ
+            OR      A
             SBC     HL, BC
             JR      NC, LROMLOAD4
             LD      HL, (SIZE)
@@ -1630,7 +1641,17 @@ LROMLOAD4:  LD      (TMPSIZE), HL                                        ; HL co
             LD      A, B                                                 ; Pre check to ensure BC is not zero.
             OR      C
             JR      Z, LROMLOAD8
-            LDIR
+
+LROMLOAD9:  LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+            INC     HL
+            LD      (DE),A
+            INC     DE
+            DEC     BC
+            LD      A,B
+            OR      C
+            JR      NZ,LROMLOAD9
+            ;LDIR
+
             LD      BC, (TMPSIZE)
             LD      A, B                                                 ; Post check to ensure we still have bytes
             OR      C
@@ -1641,7 +1662,7 @@ LROMLOAD4:  LD      (TMPSIZE), HL                                        ; HL co
 LROMLOAD6:  INC     C
             LD      A, C
             CP      UROMSIZE/RFSSECTSZ                                   ; Max blocks per page reached?
-            JR      C, LROMLOAD7
+            JR      C, LROMLOAD3
             LD      C, 0
             INC     B
             ;
@@ -1800,7 +1821,17 @@ ROMREAD14:  LD      (TMPSIZE), HL                                        ; HL co
             LD      A, B                                                 ; Pre check to ensure BC is not zero.
             OR      C
             JR      Z, ROMREAD16
-            LDIR
+
+ROMREAD18:  LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+            INC     HL
+            LD      (DE),A
+            INC     DE
+            DEC     BC
+            LD      A,B
+            OR      C
+            JR      NZ,ROMREAD18
+            ;LDIR
+
             LD      BC, (TMPSIZE)
             LD      A, B                                                 ; Post check to ensure we still have bytes
             OR      C
@@ -2609,10 +2640,11 @@ KTBLC:      ; CTRL ON
 
 
 
-CBIOSSIGNON:DB      "** CBIOS v1.20, (C) P.D. Smart, 2020. Drives:",                   NUL
+CBIOSSIGNON:DB      "** CBIOS v1.22, (C) P.D. Smart, 2020. Drives:",                   NUL
 CBIOSIGNEND:DB       " **",                                                        CR, NUL
 CPMSIGNON:  DB      "CP/M v2.23 (48K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",    CR, LF, NUL
-CPMROMFNAME:DB      "CPM223",                                                          NUL
+NOBDOS:     DB      "Failed to load BDOS, aborting!",                          CR, LF, NUL
+CPMROMFNAME:DB      "CPM223RFS",                                                       NUL
 CPMRDRVFN0: DB      "CPM22-DRV0",                                                      NUL
 CPMRDRVFN1: DB      "CPM22-DRV1",                                                      NUL
 ROMLDERRMSG:DB      "ROM LOAD ERR",                                                CR, NUL
