@@ -9,10 +9,13 @@
 ;- Credits:         
 ;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
 ;-
-;- History:         Sep 2019 - Initial version.
-;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
-;                              additional and different hardware. The SPI is now onboard the PCB and
-;                              not using the printer interface card.
+;- History:         Sep 2019  - Initial version.
+;                   May 2020  - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;                               additional and different hardware. The SPI is now onboard the PCB and
+;                               not using the printer interface card.
+;                   July 2020 - Updated for the v2.1 hardware. RFS can run with a tranZPUter board with
+;                               or without the K64 I/O processor. RFS wont use the K64 processor all
+;                               operations are done by the Z80 under RFS.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -444,7 +447,7 @@ TMPLINECNT:             EQU     01022H                                   ; Tempo
 TMPSTACKP:              EQU     01024H                                   ; Temporary stack pointer save.
 SDVER:                  EQU     01026H
 SDCAP:                  EQU     01027H
-TZPU:                   EQU     01027H                                   ; Tranzputer present flag (0 = not present, > 0 = present and version number).
+TZPU:                   EQU     01028H                                   ; Tranzputer present flag (0 = not present, > 0 = present and version number).
 ; Variables sharing the BUFER buffer, normally the BUFER is only used to get keyboard input and so long as data in BUFER is processed
 ; before calling the CMT/SD commands and not inbetween there shouldnt be any issue. Also the space used is at the top end of the buffer which is not used so often.
 ; This frees up memory needed by the CMT and SD card.

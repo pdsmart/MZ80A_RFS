@@ -17,6 +17,9 @@
 ;                               only enable the control registers if a fixed number of reads is made
 ;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
 ;                               that no loop instruction is ever placed into EFF8H - EFFFH.
+;                   July 2020 - Updated for the v2.1 hardware. RFS can run with a tranZPUter board with
+;                               or without the K64 I/O processor. RFS wont use the K64 processor all
+;                               operations are done by the Z80 under RFS.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -278,7 +281,9 @@ HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
             DB      "700   - Select MZ-700 Mode.",                          00DH
             DB      "7008  - Select MZ-700 80 col Mode.",                   00DH            
             DB      "B     - toggle keyboard bell.",                        00DH
+            DB      "BASIC - Load BASIC SA-5510.",                          00DH            
             DB      "C     - clear memory $1200-$D000.",                    00DH
+            DB      "CPM   - Load CPM.",                                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[FN]- erase file, FN=No, or Filename",               00DH
             DB      "F[X]  - boot fd drive X.",                             00DH
@@ -442,39 +447,39 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             ; Message table
             ;
             ;--------------------------------------
-MSGSON:     DB      "+ RFS ",    0ABh, "2.0 **"    ,00DH, 000H                      ; Version 2.0-> as we are now using the v2.x PCB with 4 devices on-board
-MSGSONTZ:   DB      "+ TZ+RFS ", 0ABh, "2.0 **"    ,00DH, 000H                      ; Version 2.0 with version 2.1+ of tranZPUter board installed.
-MSGNOTFND:  DB      "Not Found",                    00DH, 000H
-MSGRDIRLST: DB      "ROM Directory:",               00DH, 000H
-MSGTRM:     DB                                      00DH, 000H
-MSGBADCMD:  DB      "???",                          00DH, 000H
-MSGCDIRLST: DB      "SD Card Directory:",           00DH, 000H
-MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,           000H
-MSGSDWERR:  DB      "SD Write error, Sec:",0FBH,          000H
-MSGSVFAIL:  DB      "SD Error, save failed.",       00DH, 000H
-MSGERAFAIL: DB      "SD Dir update failed.",        00DH, 000H
-MSGSVDIRENT:DB      "Saving into dir entry:",0FBH,  00DH, 000H
-MSGERASEDIR:DB      "Deleted dir entry:",0FBH,            000H
+MSGSON:     DB      "+ RFS ",    0ABh, "2.1 **",               00DH, 000H                      ; Version 2.0-> as we are now using the v2.x PCB with 4 devices on-board
+MSGSONTZ:   DB      "+ TZ+RFS ", 0ABh, "2.0 **",               00DH, 000H                      ; Version 2.0 with version 2.1+ of tranZPUter board installed.
+MSGNOTFND:  DB      "Not Found",                               00DH, 000H
+MSGRDIRLST: DB      "ROM Directory:",                          00DH, 000H
+MSGTRM:     DB                                                 00DH, 000H
+MSGBADCMD:  DB      "???",                                     00DH, 000H
+MSGCDIRLST: DB      "SD Card Directory:",                      00DH, 000H
+MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                      000H
+MSGSDWERR:  DB      "SD Write error, Sec:",0FBH,                     000H
+MSGSVFAIL:  DB      "SD Error, save failed.",                  00DH, 000H
+MSGERAFAIL: DB      "SD Dir update failed.",                   00DH, 000H
+MSGSVDIRENT:DB      "Saving into dir entry:",0FBH,             00DH, 000H
+MSGERASEDIR:DB      "Deleted dir entry:",0FBH,                       000H
 MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",0FBH, 00DH, 000H
-MSGNOTBIN:  DB      "Not binary",                   00DH, 000H
-MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',  00DH, 000H
-MSGSAVE:    DB      00DH, "Filename: ",                   000H
-MSGDIRFULL: DB      "Directory full",               00DH, 000H
-MSGE1:      DB      00DH, "Check sum error!",       00DH, 000H                      ; Check sum error.
-MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"', 00DH, 000H
-MSGOK:      DB      00DH, "OK!",                    00DH, 000H
-MSGSAVEOK:  DB      "Tape image saved.",            00DH, 000H
-MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",          000H
-MSGLOADERR: DB      00DH, "Disk loading error",     00DH, 000H
-MSGIPLLOAD: DB      00DH, "Disk loading ",                000H
-MSGDSKNOTMST:DB     00DH, "This is not a boot disk",00Dh, 000H
-MSGINITM:   DB      "Init memory",                  00DH, 000H
-MSGREAD4HEX:DB      "Bad hex number",               00DH, 000H
-MSGT2SDERR: DB      "Copy from Tape to SD Failed",  00DH, 000H
-MSGSD2TERR: DB      "Copy from SD to Tape Failed",  00DH, 000H
-MSGT2SDOK:  DB      "Success, Tape to SD done.",    00DH, 000H
-MSGSD2TOK:  DB      "Success, SD to Tape done.",    00DH, 000H
-MSGNOTZINST:DB      "No tranZPUter card installed.",00DH, 000H
+MSGNOTBIN:  DB      "Not binary",                              00DH, 000H
+MSGLOAD:    DB      00DH, "Loading ",'"',0FAH,'"',             00DH, 000H
+MSGSAVE:    DB      00DH, "Filename: ",                              000H
+MSGDIRFULL: DB      "Directory full",                          00DH, 000H
+MSGE1:      DB      00DH, "Check sum error!",                  00DH, 000H                      ; Check sum error.
+MSGCMTWRITE:DB      00DH, "Writing ", '"',0FAH,'"',            00DH, 000H
+MSGOK:      DB      00DH, "OK!",                               00DH, 000H
+MSGSAVEOK:  DB      "Tape image saved.",                       00DH, 000H
+MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",                     000H
+MSGLOADERR: DB      00DH, "Disk loading error",                00DH, 000H
+MSGIPLLOAD: DB      00DH, "Disk loading ",                           000H
+MSGDSKNOTMST:DB     00DH, "This is not a boot disk",           00Dh, 000H
+MSGINITM:   DB      "Init memory",                             00DH, 000H
+MSGREAD4HEX:DB      "Bad hex number",                          00DH, 000H
+MSGT2SDERR: DB      "Copy from Tape to SD Failed",             00DH, 000H
+MSGSD2TERR: DB      "Copy from SD to Tape Failed",             00DH, 000H
+MSGT2SDOK:  DB      "Success, Tape to SD done.",               00DH, 000H
+MSGSD2TOK:  DB      "Success, SD to Tape done.",               00DH, 000H
+MSGNOTZINST:DB      "No tranZPUter >=v2 card installed.",      00DH, 000H
 
             ALIGN   0EFFFh
             DB      0FFh

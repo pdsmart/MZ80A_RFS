@@ -17,6 +17,9 @@
 ;                               only enable the control registers if a fixed number of reads is made
 ;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
 ;                               that no loop instruction is ever placed into EFF8H - EFFFH.
+;                   July 2020 - Updated for the v2.1 hardware. RFS can run with a tranZPUter board with
+;                               or without the K64 I/O processor. RFS wont use the K64 processor all
+;                               operations are done by the Z80 under RFS.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -163,11 +166,9 @@ ROMFS_3:    LD      (BNKSELMROM),A                                       ; start
             ; Replacement command processor in place of the SA1510 command processor.
             ;
 MONITOR:    IN      A,(CPLDINFO)                                         ; See if a tranZPUter board is present.
-            LD      C,A
-            AND     0A0H                                                 ; First nibble needs to be an A if the device is present.
             CP      0A0H
-            JR      NZ,CHKTZ1
-            LD      A,C
+            JR      NC,CHKTZ1
+            XOR     A
 CHKTZ1:     AND     00FH
             LD      (TZPU), A                                            ; Flag = 0 if no tranZPUter present otherwise contains version (1 - 15).
             ;
@@ -196,7 +197,7 @@ SIGNON1:    CALL    DPCT
             DEC     E
             JR      NZ,SIGNON1
             ;
-            LD      A,C
+            LD      A,(TZPU)
             OR      A
             JR      Z,SIGNON2
             LD      DE,MSGSONTZ
@@ -298,9 +299,15 @@ CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2
             DB      000H | 000H | 000H | 003H
             DB      "700"                                                ; Switch to 40 column MZ700 mode.
             DW      SETMODE700
+            DB      000H | 000H | 010H | 005H
+            DB      "BASIC"                                              ; Load and run BASIC SA-5510.
+            DW      LOADBASIC
             DB      000H | 000H | 000H | 001H
             DB      'B'                                                  ; Bell.
             DW      SGX
+            DB      000H | 000H | 010H | 003H
+            DB      "CPM"                                                ; Load and run CPM.
+            DW      LOADCPM
             DB      000H | 000H | 018H | 001H
             DB      'C'                                                  ; Clear Memory.
             DW      INITMEMX

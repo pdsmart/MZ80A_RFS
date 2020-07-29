@@ -17,6 +17,10 @@
 ;                               only enable the control registers if a fixed number of reads is made
 ;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
 ;                               that no loop instruction is ever placed into EFF8H - EFFFH.
+;                   July 2020 - Bug fixes and additions.
+;                   July 2020 - Updated for the v2.1 hardware. RFS can run with a tranZPUter board with
+;                               or without the K64 I/O processor. RFS wont use the K64 processor all
+;                               operations are done by the Z80 under RFS.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -1076,7 +1080,12 @@ FINDSDX:    PUSH    DE
             JR      C, FINDSDX1                                          ; 
             LD      L,A
             LD      H,0
-            LD      (TMPCNT), HL                                         ; Store filenumber making load by filenumber valid.
+            LD      A,(DE)                                               ; Before comitting the file number verify it is actually a 2 digit hex string.
+            CP      00DH 
+            JR      Z,FINDSDX0
+            OR      A
+            JR      NZ,FINDSDX1
+FINDSDX0:   LD      (TMPCNT), HL                                         ; Store filenumber making load by filenumber valid.
 FINDSDX1:   POP     DE
 
             ; Method to locate an entry in the SD directory based on a filenumber or a filename.
@@ -1094,7 +1103,7 @@ FINDSD2:    BIT     7,(HL)                                               ; Is th
             JR      Z,FINDSD3
             PUSH    HL
             LD      HL,(TMPCNT)
-            LD      H,(HL)
+           ;LD      H,(HL)
             LD      A,H
             CP      0FFH
             LD      A,L
@@ -1105,36 +1114,36 @@ FINDSD2:    BIT     7,(HL)                                               ; Is th
             INC     D
 FINDSD3:    INC     E
             DJNZ    FINDSD1
-            POP     DE
+            POP     DE                                                   ; No match, waste pointer to input string and exit with 1.
             LD      A,1
             JP      FINDSD10                                             ; We didnt find a match so exit with code 1.
-
-FINDSD4:    POP     DE                                                   ; Get back pointer to given filename. HL contains directory filename.
-            PUSH    DE
-            PUSH    BC                                                   ; Save BC as we need it for comparison.
+            ;
+FINDSD4:    LD      (TMPADR), DE                                         ; Save current directory position and file number.
+            POP     DE                                                   ; Get back pointer to given filename. HL contains directory filename.
+            PUSH    DE                                                   ; Save DE as the pointer will be needed on next loop.
+            PUSH    BC                                                   ; Save directory count.
+            ;
             LD      B,SDDIR_FNSZ
             INC     HL
             INC     HL                                                   ; Hop over flags.
-FINDSD5:    LD      A,(HL)
-            LD      (DE),A
+FINDSD5:    LD      A,(DE)
+            CP      (HL)
+            JR      NZ,FINDSD8                                           ; Mot a match.
             CP      00Dh                                                 ; If we find a terminator then this is a valid name.
             JR      Z, FINDSD9A
-            CP      020h                                                 ; >= Space
-            JR      C, FINDSD8
-            CP      05Dh                                                 ; =< ]
-            JR      C, FINDSD6
-            CP      091h
-            JR      C, FINDSD8                                           ; DEL or > 0x7F, cant be a valid filename so this is not an MZF header.
 FINDSD6:    INC     DE
             INC     HL
-            DJNZ    FINDSD5
-FINDSD7:    LD      A,B
-            CP      SDDIR_FNSZ
-            JR      Z,FINDSD9                                            ; If we matched all FNSIZE characters then this is a valid name.
-FINDSD8:    POP     BC                                                   ; No match on filename so go back for next directory entry.
-            POP     DE
+            DJNZ    FINDSD5                                              ; Loop for all the filename characters until terminator or difference found.
+            JR      FINDSD9                                              ; If we matched all FNSIZE characters then this is a valid name.
+
+            ; No match.
+FINDSD8:    POP     BC                                                   ; Retrieve the directory count for next entry,
+            LD      DE,(TMPADR)                                          ; Retrieve the directory position and file number.
             JR      FINDSD3
-FINDSD9A:   POP     BC
+
+            ; Match
+FINDSD9A:   POP     BC                                                   ; Waste the directory count.
+            LD      DE,(TMPADR)                                          ; Retrieve the directory position and file number.
 FINDSD9:    POP     BC                                                   ; Waste the pointer to the input string.
             LD      A,0                                                  ; D contains the filenumber.
 FINDSD10:   OR      A
@@ -1168,6 +1177,13 @@ ERASESD1:   LD      DE,MSGERAFAIL                                        ; Fail,
             LD      A,1
             RET
 
+            ; Quick method to load the basic interpreter. So long as the filename doesnt change this method will load and boot Basic.
+LOADBASIC:  LD      DE,BASICFILENM
+            JR      LOADSDCARD
+
+            ; Quick method to load CPM. So long as the filename doesnt change this method will load and boot CPM.
+LOADCPM:    LD      DE,CPMFN48                                           ; Load up the 48K version of CPM
+            JR      LOADSDCARD
 
             ; Entry point when copying the SD file. Setup flags to indicate copying to effect any special processing.
             ; The idea is to load the file into memory, dont execute and pass back the parameters within the CMT header.
@@ -1471,8 +1487,13 @@ SAVESD9:    LD      DE,MSGSVFAIL                                         ; Fail,
             ;--------------------------------------
             ;
             ; Message table - Refer to Bank 6 for
-            ;                 messages.
+            ;                 all printable messages.
             ;
             ;--------------------------------------
+
+            ; Quick load program names.
+CPMFN48:    DB      "CPM223RFS", 00DH
+BASICFILENM:DB      "BASIC SA-5510", 00DH
+
             ALIGN   0EFFFh
             DB      0FFh
