@@ -1,0 +1,9 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP CTS_CB3_16MHz
+D 3.3V CMOS SMD Crystal Clock Oscillator, Abracon
+K 3.3V CMOS SMD Crystal Clock Oscillator
+F http://www.abracon.com/Oscillators/ASV.pdf
+$ENDCMP
+#
+#End Doc Library
