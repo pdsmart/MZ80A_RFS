@@ -14,6 +14,7 @@
 ## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         January 2020   - Initial script written.
+##                  March 2021     - Small updates to pull programs from machine model sorted directories.
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -37,35 +38,45 @@ MZBDIR=${ROOTDIR}/software/MZB
 BLOCKSIZELIST="128 256"
 
 # Build list of files to process.
-cd ${MZFDIR}
-ls -l *.MZF *.mzf 2>/dev/null | sed 's/  / /g' | sed 's/  / /g' | cut -d' ' -f5,9- > /tmp/filelist.tmp 2>/dev/null
-if [ $# = 1 ]; then
-    cat /tmp/filelist.tmp | grep $1 > /tmp/filelist
-else
-    cat /tmp/filelist.tmp > /tmp/filelist
-fi
-cd ..
-
-IFS=' '; while read -r FSIZE FNAME;
+for SUBDIR in Common MZ-80A MZ-80K MZ-700 MZ-800 MZ-1500 MZ-2000 MZ-80B 
 do
-  TNAME=`echo $FNAME | sed 's/mzf/MZF/g'`
-  if [ "$FNAME" != "$TNAME" ]; then
-      mv "$FNAME" "$TNAME"
-  fi
-  set +x
-  for BLOCKSIZE in ${BLOCKSIZELIST}
-  do
-      for SECTORSIZE in `seq -s ' ' ${BLOCKSIZE} ${BLOCKSIZE} 524288`
+    cd ${MZFDIR}
+    ls -l ${SUBDIR}/*.MZF ${SUBDIR}/*.mzf 2>/dev/null |\
+           	sed 's/  / /g' | sed 's/  / /g' | cut -d' ' -f5,9- > /tmp/filelist.tmp 2>/dev/null
+    if [ $# = 1 ]; then
+        cat /tmp/filelist.tmp | grep $1 > /tmp/filelist
+    else
+        cat /tmp/filelist.tmp > /tmp/filelist
+    fi
+    cd ..
+    
+    # Clear out the old staging directory. Checks to ensure the variable has value otherwise delete could take place in root!
+    mkdir -p ${MZBDIR}/${SUBDIR}
+    if [ "x${MZBDIR}/${SUBDIR}" != "x" ]; then
+        echo "Clearing directory:${SUBDIR}..."
+        rm -f ${ROOTDIR}/software/MZB/${SUBDIR}/*
+    fi
+    
+    IFS=' '; while read -r FSIZE FNAME;
+    do
+      TNAME=`echo $FNAME | sed 's/mzf/MZF/g'`
+      if [ "$FNAME" != "$TNAME" ]; then
+          mv "$FNAME" "$TNAME"
+      fi
+      set +x
+      for BLOCKSIZE in ${BLOCKSIZELIST}
       do
-        BASE=`basename "$TNAME" .MZF`
-        if [ `echo ${FSIZE} - ${SECTORSIZE}   | bc` -le 0 ];
-        then
-            echo $BASE $TNAME $SECTORSIZE
-            dd if=/dev/zero ibs=1 count=$SECTORSIZE 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/$BASE.${BLOCKSIZE}.bin"
-            dd if="${MZFDIR}/$TNAME" of="${MZBDIR}/$BASE.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
-            break;
-        fi
+          for SECTORSIZE in `seq -s ' ' ${BLOCKSIZE} ${BLOCKSIZE} 524288`
+          do
+            BASE=`basename "$TNAME" .MZF`
+            if [ `echo ${FSIZE} - ${SECTORSIZE}   | bc` -le 0 ];
+            then
+                echo $BASE $TNAME $SECTORSIZE
+                dd if=/dev/zero ibs=1 count=$SECTORSIZE 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/${SUBDIR}/$BASE.${BLOCKSIZE}.bin"
+                dd if="${MZFDIR}/${SUBDIR}/$TNAME" of="${MZBDIR}/${SUBDIR}/$BASE.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
+                break;
+            fi
+          done
       done
-  done
-done </tmp/filelist
-
+    done </tmp/filelist
+done
