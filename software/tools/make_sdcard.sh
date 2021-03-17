@@ -13,7 +13,7 @@
 ## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         March 2020   - Initial script written.
-##                  March 2021   - Updated the file list.
+##                  March 2021   - Updated the file list and filter out files stored in the ROM Drives.
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -424,7 +424,7 @@ IFS=":"; for f in ${RFS_INCLUDE}
 do
     # Use the ROM File List to filter out duplicates.
     #
-    grep `basename "${f}" .MZF` ${ROM_LIST_FILE} l > /dev/null
+    grep `basename "${f}" .MZF` ${ROM_LIST_FILE} > /dev/null
     if [ $? = 1 ]; then
 	    echo "Adding ${f}..."
 	    ${SDTOOL} --image ${RFS_IMAGE_FILE} --add ${f}
