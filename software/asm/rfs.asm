@@ -129,7 +129,14 @@ BKSWRET0:   POP     AF                                                   ; Get b
             ; Enhanced function Jump table.
             ; This table is generally used by the monitor ROM to call functions within the User ROM.
             ;------------------------------------------------------------------------------------------
-PRTMZF:     JP       _PRTMZF
+PRTMZF:     JP       _PRTMZF                                             ; UROMADDR+80H - Print out an MZF header stored in the IBUFE location.
+PRTDBG:     JP       _PRTDBG                                             ; UROMADDR+83H - Print out debug information, if enabled.
+CMT_RDINF:  JP       _CMT_RDINF                                          ; UROMADDR+86H - Tape/SD intercept handler - Read Header
+CMT_RDDATA: JP       _CMT_RDDATA                                         ; UROMADDR+89H - Tape/SD intercept handler - Read Data
+CMT_WRINF:  JP       _CMT_WRINF                                          ; UROMADDR+80H - Tape/SD intercept handler - Write Header
+CMT_WRDATA: JP       _CMT_WRDATA                                         ; UROMADDR+8FH - Tape/SD intercept handler - Write Data
+CMT_VERIFY: JP       _CMT_VERIFY                                         ; UROMADDR+92H - Tape/SD intercept handler - Verify Data
+CMT_DIR:    JP       _CMT_DIR                                            ; UROMADDR+95H - SD card directory listing command.
             ;-----------------------------------------
 
 
@@ -171,6 +178,10 @@ MONITOR:    IN      A,(CPLDINFO)                                         ; See i
             XOR     A
 CHKTZ1:     AND     00FH
             LD      (TZPU), A                                            ; Flag = 0 if no tranZPUter present otherwise contains version (1 - 15).
+            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
+            ;
+            XOR     A                                                    ; Set the initial SDCFS active drive number.
+            LD      (SDDRIVENO),A
             ;
             LD      A, (ROMBK1)
             CP      1
@@ -179,13 +190,14 @@ CHKTZ1:     AND     00FH
             JR      NZ, SIGNON
             ;
 SET40CHAR:  LD      A, 0                                                 ; Using MROM in Bank 0 = 40 char mode.
-            LD      (DSPCTL), A
-            LD      A, 0
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             LD      (SCRNMODE), A
             LD      (SPAGE), A                                           ; Allow MZ80A scrolling
             JR      SIGNON
 SET80CHAR:  LD      A, 128                                               ; Using MROM in Bank 1 = 80 char mode.
-            LD      (DSPCTL), A
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             LD      A, 1
             LD      (SCRNMODE), A
             LD      A, 0FFH
@@ -221,6 +233,21 @@ ST1X:       CALL    NL                                                   ; Comma
             LD      DE,BUFER
             CALL    GETL
             ;
+            LD      A,(BUFER+1)                                          ; Drive change number 0..9. Each number represents an RFS SDCFS Drive number.
+            CP      '0'
+            JR      C,CMDCMP
+            CP      ':'
+            JR      NC,CMDCMP
+            SUB     '0'
+            LD      D,A
+            LD      A,(BUFER+2)
+            CP      CR                                                   ; If a CR is present then we match, a drive selection number was entered.
+            LD      A,D
+            JR      NZ,CMDCMP
+            ; Simple command, just update the active drive number.
+            LD      (SDDRIVENO),A
+            JR      ST1X
+            ;
 CMDCMP:     LD      HL,CMDTABLE
 CMDCMP0:    LD      DE,BUFER+1                                           ; First command byte after the * prompt.
             LD      A,(HL)
@@ -228,12 +255,14 @@ CMDCMP0:    LD      DE,BUFER+1                                           ; First
             JR      Z,ST1X                                               ; Skip processing on lines where just CR pressed.
             BIT     7,A                                                  ; Bit 7 set on command properties indicates table end, exit if needed.
             JR      NZ,CMDNOCMP
+
             LD      C,A                                                  ; Command properties into C
             SET     6,C                                                  ; Assume command match.
             AND     007H                                                 ; Mask out bytes in command mask.
             LD      B,A                                                  ; Number of bytes in command.
             INC     HL
 CMDCMP1:    LD      A,(DE)                                               ; Compare all bytes and reset match bit if we find a difference.
+          
             CP      (HL)
             JR      Z, CMDCMP2
             RES     6,C                                                  ; No command match.
@@ -287,11 +316,11 @@ CMDCMPEND:  JP      ST1X
             ;
             ;         7       6     5:3    2:0
             ;         END   MATCH  BANK   SIZE 
-CMDTABLE:   DB      000H | 000H | 000H | 001H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
-            DB      '4'                                                  ; 40 Char screen mode.
+CMDTABLE:   DB      000H | 000H | 000H | 002H                            ; Bit 2:0 = Command Size, 5:3 = Bank, 6 = Command match, 7 = Command table end.
+            DB      "40"                                                 ; 40 Char screen mode.
             DW      SETMODE40
-            DB      000H | 000H | 000H | 001H
-            DB      '8'                                                  ; 80 Char screen mode.
+            DB      000H | 000H | 000H | 002H
+            DB      "80"                                                 ; 80 Char screen mode.
             DW      SETMODE80
             DB      000H | 000H | 000H | 004H
             DB      "7008"                                               ; Switch to 80 column MZ700 mode.
@@ -438,15 +467,19 @@ HIROM:      LD      A, (MEMSW)                                           ; Swap 
 SETMODE40:  LD      A, ROMBANK0                                          ; Switch to 40Char monitor.
             LD      (ROMBK1),A
             LD      (BNKSELMROM),A
+            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             LD      A, 0
-            LD      (DSPCTL), A
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             JP      MONIT
  
 SETMODE80:  LD      A, ROMBANK1                                          ; Switch to 80char monitor.
             LD      (ROMBK1),A
             LD      (BNKSELMROM),A
+            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             LD      A, 128
-            LD      (DSPCTL), A
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             JP      MONIT
 
 NOTZPU:     LD      DE,MSGNOTZINST                                        ; No tranZPUter installed.
@@ -475,13 +508,15 @@ SETCLR_1:   LD      (DE),A
 SETMODE7008:LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
             OR      A
             JR      Z,NOTZPU
+            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             LD      A, 128                                               ; Setup for 80char display.
-            LD      (DSPCTL), A
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
             LD      A,ROMBANK5                                           ; Select the 80 column version of the 1Z-013A ROM.
 SETMODE_2:  LD      (ROMBK1),A
             LD      (BNKSELMROM),A
-            LD      A,SET_MODE_MZ700                                     ; Set the CPLD compatibility mode.
+            LD      A,MODE_MZ700                                         ; Set the CPLD compatibility mode.
 SETMODE_3:  OUT     (CPLDCFG),A
             JP      MONIT                                                ; Cold start the monitor.
 
@@ -490,8 +525,10 @@ SETMODE_3:  OUT     (CPLDCFG),A
 SETMODE700: LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
             OR      A
             JR      Z,NOTZPU
+            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             LD      A, 0                                                 ; Setup for 40char display.
-            LD      (DSPCTL), A
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
             LD      A,ROMBANK4                                           ; Select the 40 column version of the 1Z-013A ROM.
             JR      SETMODE_2
@@ -509,7 +546,7 @@ ISMZF:      PUSH    BC
             PUSH    HL
             ;
             LD      A,(HL)
-            CP      001h                                                 ; Only interested in machine code images.
+            CP      OBJCD                                                ; Only interested in machine code images.
             JR      NZ, ISMZFNOT
             ;
             INC     HL
@@ -517,21 +554,19 @@ ISMZF:      PUSH    BC
             LD      B,FNSIZE                                             ; Maximum of 17 characters, including terminator in filename.
 ISMZFNXT:   LD      A,(HL)
             LD      (DE),A
-            CP      00Dh                                                 ; If we find a terminator then this indicates potentially a valid name.
-            JR      Z, ISMZFVFY
-            CP      020h                                                 ; >= Space
+            CP      00DH                                                 ; If we find a terminator then this indicates potentially a valid name.
+            JR      Z, ISMZFNXT3
+            CP      000H                                                 ; Same applies for NULL terminator.
+            JR      Z, ISMZFNXT3
+            CP      020H                                                 ; >= Space
             JR      C, ISMZFNOT
-            CP      05Dh                                                 ; =< ]
+            CP      05DH                                                 ; =< ]
             JR      C, ISMZFNXT3
-ISMZFNXT2:  CP      091h
+ISMZFNXT2:  CP      091H
             JR      C, ISMZFNOT                                          ; DEL or > 0x7F, cant be a valid filename so this is not an MZF header.
 ISMZFNXT3:  INC     DE
             INC     HL
             DJNZ    ISMZFNXT
-            JR      ISMZFNOT                                             ; No end of string terminator, this cant be a valid filename.
-ISMZFVFY:   LD      A,B
-            CP      FNSIZE 
-            JR      Z,ISMZFNOT                                           ; If the filename has no length it cant be valid, so loop.
 ISMZFYES:   CP      A                                                    ; Set zero flag to indicate match.
 
 ISMZFNOT:   POP     HL
@@ -540,7 +575,7 @@ ISMZFNOT:   POP     HL
             RET
 
             
-PRTDBG:     IF ENADEBUG = 1
+_PRTDBG:    IF ENADEBUG = 1
             PUSH    HL
             PUSH    DE
             PUSH    BC
@@ -608,7 +643,7 @@ PRTNOPAUSE: LD      A,E
             ;
             LD      A, D                                                 ; Print out file number and increment.
             CALL    PRTHX
-            LD      A, '.'
+            LD      A, '.'                                               ; File type is MACHINE CODE program.
             CALL    PRNT
             LD      DE,NAME                                              ; Print out filename.
             LD      B,FNSIZE                                             ; Maximum size of filename.
@@ -668,15 +703,25 @@ DIRROM:     DI                                                           ; Disab
             LD      DE,MSGRDIRLST                                        ; Print out header.
             LD      HL,PRINTMSG
             CALL    BKSW0to6
+
+            ; D = File sequence number.
+            LD      D,0                                                  ; File numbering start.
+
+            ;
+            ; Get directory of User ROM.
+            ;
+            LD      A,ROMBANK3
+            LD      (WRKROMBK1),A
+            LD      (BNKSELMROM),A
+            CALL    DIRMROM
+
             ;
             ; Scan MROM Bank
             ; B = Bank Page
             ; C = Block in page
-            ; D = File sequence number.
             ;
             LD      B,MROMPAGES                                          ; First 8 pages are reserved in MROM bank.
             LD      C,0                                                  ; Block in page.
-            LD      D,0                                                  ; File numbering start.
             ;
 DIRNXTPG:   LD      A,B
             LD      (WRKROMBK1), A
@@ -712,29 +757,24 @@ DIRNOTMZF:  INC     C                                                    ; Next 
 DIRNXTPG2:  LD      A,B
             CP      080h                                                 ; MROM has 128 banks of 4K, so stop when we reach 128.           
             JR      NZ, DIRNXTPG
-            ;
-            ; Get directory of User ROM.
-            ;
-            LD      A,ROMBANK3
-            LD      (WRKROMBK1),A
-            LD      (BNKSELMROM),A
-            CALL    DIRMROM
+
 DIRNXTPGX:  LD      A,(ROMBK1)
             LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
             EI                                                           ; No need to block interrupts now as MROM bank restored.
             RET                                                          ; End of scan, return to monitor
-          ; JP      ST1X                                                 ; End of scan, return to monitor
 
 
             ; In:
-            ;     DE = filename
+            ;      HL = filename
+            ;      D = File sequence number.
             ; Out:
             ;      B = Bank Page file found
             ;      C = Block where found.
             ;      D = File sequence number.
             ;      Z set if found.
 FINDMZF:    PUSH    DE
-            LD      (TMPADR), DE                                         ; Save name of program to load.  
+            LD      (TMPADR), HL                                         ; Save name of program to load.  
+            EX      DE, HL                                               ; String needed in DE for conversion.
             LD      HL,0FFFFh                                            ; Tag the filenumber as invalid.
             LD      (TMPCNT), HL 
             CALL    ConvertStringToNumber                                ; See if a file number was given instead of a filename.
@@ -744,11 +784,10 @@ FINDMZF:    PUSH    DE
             ; Scan MROM Bank
             ; B = Bank Page
             ; C = Block in page
-            ; D = File sequence number.
             ;
-FINDMZF0:   LD      B,MROMPAGES                                          ; First 4 pages are reserved in User ROM bank.
+FINDMZF0:   POP     DE                                                   ; Get file sequence number in D.
+            LD      B,MROMPAGES                                          ; First 4 pages are reserved in User ROM bank.
             LD      C,0                                                  ; Block in page.
-            LD      D,0                                                  ; File numbering start.
 FINDMZF1:   LD      A,B
             LD      (WRKROMBK1), A
             LD      (BNKSELMROM),A                                       ; Select bank.
@@ -814,7 +853,6 @@ FINDMZFNO:  PUSH    AF
             LD      A,(ROMBK1)
             LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
             POP     AF
-            POP     HL
             RET
 
 
@@ -827,16 +865,26 @@ LOADROMNX:  LD      L,0FFH
 LOADROM:    LD      L,000H
 LOADROM1:   DI
             PUSH    HL                                                   ; Preserve execute flag.
-            CALL    FINDMZF                                              ; Find the bank and block where the file resides. HL = filename.
-            JR      Z, LROMLOAD
 
+            EX      DE,HL                                                ; User ROM expects HL to have the filename pointer.
+            PUSH    HL                                                   ; Save pointer to filename for FINDMZF in Monitor ROM.
+
+            ; D = File sequence number.
+            LD      D,0                                                  ; File numbering start.
+            ;
             LD      A,ROMBANK3                                           ; Activate the RFS Utilities MROM bank.
             LD      (WRKROMBK1), A
             LD      (BNKSELMROM),A
             CALL    MFINDMZF                                             ; Try and find the file in User ROM via MROM utility.
-            JR      NZ, LROMNTFND
+            POP     HL
+            JR      Z,MROMLOAD0
             ;
-            PUSH    BC                                                   ; Preserve bank and block where MZF file found.
+            CALL    FINDMZF                                              ; Find the bank and block where the file resides. HL = filename.
+            JR      Z, LROMLOAD
+            ;
+            JR      LROMNTFND                                            ; Requested file not found.
+            ;
+MROMLOAD0:  PUSH    BC                                                   ; Preserve bank and block where MZF file found.
             PUSH    AF
             LD      A,(ROMBK1)                                           ; Page in monitor so we can print a message.
             LD      (BNKSELMROM),A
@@ -967,10 +1015,222 @@ LROMLOAD5:  POP     HL                                                   ; Retri
             JP      (HL)                                                 ; Execution address.
 LROMLOAD9:  RET
 
+
+            ; Quick method to load CPM. So long as the filename doesnt change this method will load and boot CPM.
+LOADCPM:    LD      DE,CPMFN48                                           ; Load up the 48K version of CPM
+LOADPROG:   LD      HL,LOADSDCARD
+            CALL    BKSW0to2
+            RET
+
+            ; Quick method to load the basic interpreter. So long as the filename doesnt change this method will load and boot Basic.
+LOADBASIC:  LD      DE,BASICFILENM
+            JR      LOADPROG
+
             ;-------------------------------------------------------------------------------
             ; END OF RFS COMMAND FUNCTIONS.
             ;-------------------------------------------------------------------------------
 
+            ;-------------------------------------------------------------------------------
+            ; DEVICE DRIVERS - Intercept handlers to provide enhanced services to 
+            ;                  existing MA-80A BIOS API functions.
+            ;-------------------------------------------------------------------------------
+
+            ; Method to set the RFS Drive number from the Load/Save string provided.
+SETDRIVE:   PUSH    AF
+            PUSH    BC
+SETDRV0:    LD      A,(DE)                                               ; If a drive is given it will be in format <driveno>:<filename>
+            OR      A                                                    ; Exit if null or CR found, no drive specifier present.
+            JR      Z,SETDRV2
+            CP      00DH
+            JR      Z,SETDRV2
+            CP      '"'                                                  ; String quotes, skip over.
+            JR      NZ,SETDRV1
+            INC     DE
+            JR      SETDRV0
+            ;
+SETDRV1:    SUB     '0'                                                  ; Check the drive number, should be in range 0..9
+            CP      10
+            JR      NC,SETDRV2
+            LD      C,A
+            INC     DE
+            LD      A,(DE)
+            DEC     DE
+            CP      ':'                                                  ; Is the drive being specified?
+            JR      NZ,SETDRV2
+            LD      A,C
+            LD      (SDDRIVENO),A                                        ; Store drive number for later use.
+            XOR     A
+            LD      (CMTFILENO),A                                        ; Setup the starting file number for sequential file reads (ie. when no filename given).
+            ;
+            PUSH    DE                                                   ; Need to remove the drive qualifier once processed.
+            PUSH    DE
+            INC     DE
+            INC     DE                                                   ; Move onto filename.
+            EX      DE,HL
+            POP     DE
+            LD      BC,SDDIR_FNSZ
+            LDIR
+            POP     DE
+            ;
+SETDRV2:    POP     BC
+            POP     AF
+            RET
+
+            ; Method to check if the active drive is the CMT.
+CHECKCMT:   LD      A,(SDDRIVENO)
+            CP      'C'
+            RET
+
+            ; Convert the lower 4 bits of A into a Hex character.
+TOHEXDIGIT: AND     00FH                                                 ; Simple logic, add 30H to get 0..9, add additional 7 if value >= 10 to get digits A..F.
+            CP      00AH
+            JR      C,NOADD                 
+            ADD     A,007H
+NOADD:      ADD     A,030H
+            RET    
+
+            ; Convert a number into Hex string and store in buffer pointed to by DE.
+            ;
+TOHEX:      PUSH    DE
+            PUSH    AF                                                   ; Save AF to retrieve lower 4 bits.
+            RRCA                                                         ; Shift upper 4 bits to lower to convert to hex.
+            RRCA    
+            RRCA    
+            RRCA    
+            CALL    TOHEXDIGIT
+            LD      (DE),A                                               ; Store and convert lower 4 bits.
+            INC     DE
+            POP     AF
+            CALL    TOHEXDIGIT
+            LD      (DE),A
+            INC     DE
+            LD      A,CR                                                 ; Terminate with a CR.
+            LD      (DE),A
+            POP     DE                                                   ; DE back to start of string.
+            RET
+
+            ; Handler to intercept the CMT Read Header Information call and insert selectable
+            ; SD Card RFS Drive functionality. 
+            ; DE contains a pointer to memory containing the file to load. If (DE) = NULL then
+            ; load the next sequential file from the SD card directory.
+            ; DE = Filename. Can contain a drive specifier in format <driveno>:<filename>
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_RDINF: CALL    SETDRIVE                                             ; Set drive if specified.
+            CALL    CHECKCMT                                             ; If drive is set to the CMT Unit exit with Z set so that the original CMT handlers are called.
+            JP      Z,?RDI
+            LD      A,(DE)                                               ; Check to see if empty string given, if so expand the default Next file number into the buffer.
+            CP      CR
+            JR      NZ,_CMT_RDINF1
+            LD      A,(CMTFILENO)                                        ; Get next sequential number and convert to hex.
+            PUSH    AF
+            CALL    TOHEX                         
+            POP     AF
+            INC     A                                                    ; Increment number so next call retrieves the next sequential file.
+            LD      (CMTFILENO),A
+            ;
+_CMT_RDINF1:PUSH    DE
+            LD      HL,LOADSDINF                                         ; DE already points to the filename, call LOADSDINF to locate it on the SD card and setup the header.
+            CALL    BKSW0to2
+            ; Copy the filename into the Buffer provided allowing for file number to name expansion.
+            POP     DE
+            LD      HL,NAME
+            LD      BC,SDDIR_FNSZ
+            LDIR
+            ;
+            LD      A,(RESULT)
+            OR      A
+            RET     Z                                                    ; 0 = success, return with carry clear.
+            SCF                                                          ; > 0 = fail, return with carry set.
+            RET
+
+            ; Handler to intercept the CMT Read Data call and insert selectable SD Card RFS
+            ; Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_RDDATA:LD      HL,LOADSDDATA
+            CALL    BKSW0to2
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,_CMT_RDERR
+            RET
+_CMT_RDERR: SCF
+            RET
+
+            ; Handler to intercept the CMT Write Header Information call and insert selectable
+            ; SD Card RFS Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+            ;
+            ; At the moment, the WRINF call only creates a filename if non specified. The actual write to file occurs in WRDATA. Once I have more understanding of
+            ; how the sequential data mode works I can adapt it to be compatible.
+_CMT_WRINF: LD      DE,NAME                                              ; Caller has already setup the CMT header so we use this for processing.
+            ;
+            CALL    SETDRIVE                                             ; Set drive if specified.
+            CALL    CHECKCMT
+            JP      Z,?WRI
+            ;
+            LD      A,(DE)                                               ; Check to see if empty string given, if so create a default name.
+            CP      CR
+            JR      NZ,_CMT_WRINF1
+            ;
+            LD      HL,DEFAULTFN
+            LD      BC,DEFAULTFNE - DEFAULTFN
+            LDIR
+            LD      A,(CMTFILENO)                                        ; Get next sequential number and convert to hex.
+            PUSH    AF
+            CALL    TOHEX                         
+            POP     AF
+            INC     A                                                    ; Increment number so next call retrieves the next sequential file.
+            LD      (CMTFILENO),A
+            ;
+_CMT_WRINF1:LD      A,0                                                  ; Always success as nothing is written.
+            OR      A
+            RET
+
+            ; Handler to intercept the CMT Write Data call and insert selectable SD Card RFS
+            ; Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_WRDATA: LD      HL,SAVESDDATA
+            CALL    BKSW0to2
+            LD      A,(RESULT)
+            OR      A
+            JR      NZ,_CMT_RDERR
+            RET
+
+            ; Handler to intercept the CMT Verify Data call and insert selectable SD Card
+            ; RFS Drive functionality. 
+            ;
+            ; No registers or flags should be affected as we dont know the caller state.
+_CMT_VERIFY:CALL    SETDRIVE                                             ; Set drive if specified.
+            CALL    CHECKCMT
+            JR      Z,_VERIFY
+            ;
+            RET
+
+_VERIFY:    JP      ?VRFY
+
+SD_NOTFND:  LD      DE,MSGNOTFND
+SD_ERRMSG:  LD      HL,PRINTMSG
+            CALL    BKSW0to6                                             ; Print message that file wasnt found.
+            LD      A,1
+            OR      A
+            RET
+
+            ; Method to list the contents of the active RFS drive number.
+_CMT_DIR:   CALL    SETDRIVE                                             ; Change to the given drive.
+            CALL    CHECKCMT                                             ; Cannot DIR tape drive so give error.
+            JP      Z,_CMT_NODIR
+            LD      HL,DIRSDCARD
+            CALL    BKSW0to2                                             ; Call the standard RFS directory command.
+            RET
+_CMT_NODIR: LD      DE,MSGNOCMTDIR
+            JR      SD_ERRMSG
+
+            ;-------------------------------------------------------------------------------
+            ; END OF DEVICE DRIVERS
+            ;-------------------------------------------------------------------------------
 
             ;--------------------------------------
             ;
@@ -978,6 +1238,12 @@ LROMLOAD9:  RET
             ;                 all messages.
             ;
             ;--------------------------------------
+
+            ; Quick load program names.
+CPMFN48:    DB      "CPM223RFS", 00DH
+BASICFILENM:DB      "BASIC SA-5510", 00DH            
+DEFAULTFN:  DB      "DEFAULT"
+DEFAULTFNE: EQU     $
            
             ; Bring in additional resources.
             USE_CMPSTRING:    EQU   1

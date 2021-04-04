@@ -840,10 +840,12 @@ SD_WRITE11: POP     HL                                                   ; ..loa
             ;
             ; Input: HL = Address of filename.
             ;         D = File number.
+            ;         A = File type.
             ;
 PRTDIR:     PUSH    BC
             PUSH    DE
             PUSH    HL
+            LD      C,A                                                  ; Preseve file type.
             ;
             LD      A,(SCRNMODE)
             CP      0
@@ -868,8 +870,20 @@ PRTNOWAIT:  LD      A,E
             ;
             LD      A, D                                                 ; Print out file number and increment.
             CALL    PRTHX
-            LD      A, '.'
-            CALL    PRNT
+            LD      A,C
+            CP      OBJCD
+            LD      A, '.'                                               ; File type is MACHINE CODE program.
+            JR      Z,PRTDIR0A
+            LD      A,C
+            CP      BTX1CD
+            LD      A,'-'                                                ; File type is BASIC.
+            JR      Z,PRTDIR0A
+            LD      A,C
+            CP      BTX2CD
+            LD      A,'_'                                                ; File type is BASIC.
+            JR      Z,PRTDIR0A
+            LD      A,'+'
+PRTDIR0A:   CALL    PRNT
             POP     DE
             PUSH    DE                                                   ; Get pointer to the file name and print.
 
@@ -909,6 +923,43 @@ PRTDIR4:    OR      A
             RET
 
 
+            ; Method to get the LBA sector for an RFS SDCFS image location according to drive.
+            ; Inputs:
+            ;  A = Starting sector in a single image.
+            ; or
+            ;  DEHL = starting sector.
+            ; Outputs:
+            ;  DEHL = Sector number.
+RFSGETSECT: LD      DE,0                                                 ; Load DEHL with a 32bit start sector. DE=0 as SDCFS starts from sector 0.
+            LD      H,0                                                  ; Set HL to sector number.
+            LD      L,A
+RFSGETSECTR:LD      A,(SDDRIVENO)                                        ; Entry point when DEHL is defined.
+GETDIRDRV:  OR      A                                                    ; Multiply up according to drive number.
+            RET     Z
+            CP      'C'                                                  ; If SDDRIVENO is set to 'C" - CMT, then default to SD Drive 0. CMT is valid in certain applications but not for SD access.
+            JR      NZ,GETDIRDRV1
+            LD      A,1
+GETDIRDRV1: DEC     A
+            LD      BC,08010H                                            ; Number of sectors in an SDCFS image, 2000H directory + (64 * 65536) file blocks.
+            CALL    ADD3216                                              ; Add drive sector multiple to move to next drive.
+            JR      GETDIRDRV
+
+            ; Method to set the SD Card 32bit LBA sector address.
+            ; Inputs:
+            ;   DEHL = 32bit sector number.
+SETLBAADDR: PUSH    HL
+            POP     BC
+            LD      HL,SDSTARTSEC                                        ; Store the starting sector in the SD card buffer ready for retrieval.
+            LD      (HL), D
+            INC     HL
+            LD      (HL), E
+            INC     HL
+            LD      (HL), B
+            INC     HL
+            LD      (HL), C
+            INC     HL
+            RET
+
             ; Method to get an SD Directory entry.
             ; The SD Card works in 512byte sectors so a sector is cached and each call evaluates if the required request is in cache, if it is not, a new sector
             ; is read.
@@ -933,15 +984,13 @@ GETSDDIRENT:PUSH    BC
             ;
             LD      HL,SECTORBUF
             LD      (SDLOADADDR),HL
-            LD      HL,0
-            LD      (SDSTARTSEC),HL
-            LD      B,C
-            LD      C,0
-            LD      (SDSTARTSEC+2),BC
-            LD      HL,SD_SECSIZE
-            LD      (SDLOADSIZE),HL
+            ;
+            CALL    RFSGETSECT                                           ; Get the directory sector, offset by drive number. DEHL is returned as the full 32bit LBA sector address.
+            CALL    SETLBAADDR                                           ; Store the sector address into the SD command buffer.
+            ;
+            LD      BC,SD_SECSIZE                                        ; Set retrieval size to 1 sector.
+            LD      (SDLOADSIZE),BC
             LD      HL,(SDLOADADDR)
-            LD      BC,SD_SECSIZE
             ;
             DI
             CALL    SD_READ                                              ; Read the sector.
@@ -1006,9 +1055,10 @@ GETDIRFREE2:INC     E                                                    ; Onto 
             ; Normal use would be to call GERSDDIRENT to locate a required entry or slot, update it then call
             ; this method to flush it back to SD disk.
 WRSDDIRENT: LD      A,(DIRSECBUF)                                        ; Get the directory sector number of the cached directory sector.
-            LD      B,A
-            LD      C,0
-            LD      (SDSTARTSEC+2),BC                                    ; Set the sector ready to perform the write.
+            ;
+            CALL    RFSGETSECT                                           ; Get the directory sector, offset by drive number. DEHL is returned as the full 32bit LBA sector address.
+            CALL    SETLBAADDR                                           ; Store the sector address into the SD command buffer.
+            ;
             LD      HL,SECTORBUF                                         ; Address of the sector.
             LD      BC,SD_SECSIZE                                        ; Set the size as one full sector.
             ;
@@ -1054,10 +1104,11 @@ DIRSD0:     LD      E,0                                                  ; Direc
 DIRSD1:     CALL    GETSDDIRENT                                          ; Get SD Directory entry details for directory entry number stored in D.
             RET     NZ
 DIRSD2:     LD      A,(HL)
-            INC     HL
-            INC     HL                                                   ; Hop over flags.
             BIT     7,A                                                  ; Is this entry active, ie. Bit 7 of lower flag = 1?
             JR      Z,DIRSD3
+            INC     HL
+            LD      A,(HL)                                               ; Get file attribute for print identification.
+            INC     HL                                                   ; Hop over flags.
             CALL    PRTDIR                                               ; Valid entry so print directory number and name pointed to by HL.
             JR      NZ,DIRSD4
             INC     D
@@ -1150,7 +1201,7 @@ FINDSD10:   OR      A
             RET
 
 
-            ; Method to erase a file in the SD RFS. This is a simple matter of resetting the valid entry flag (bit 7 of FLAG1) in the directory entry for
+            ; Method to erase a filCOSMIC_CRUISER1MC.256.bine in the SD RFS. This is a simple matter of resetting the valid entry flag (bit 7 of FLAG1) in the directory entry for
             ; the required file.
             ; Input:  DE = String containing filenumber or filename to erase.
             ; Output:  A = 0 Success, 1 = Fail.
@@ -1167,23 +1218,14 @@ ERASESD:    CALL    FINDSDX
             POP     BC                                                   ; Get the directory entry number.
             LD      B,0
             LD      DE,MSGERASEDIR
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
             LD      A,0                                                  ; Success.
-            RET
-ERASESD1:   LD      DE,MSGERAFAIL                                        ; Fail, print out message.
-            LD      HL,PRINTMSG
+            JR      SDPRINTRES
+ERASESD1:   LD      A,1
+            LD      DE,MSGERAFAIL                                        ; Fail, print out message.
+SDPRINTRES: LD      (RESULT),A
+SDPRINT:    LD      HL,PRINTMSG
             CALL    BKSW2to6                                             ; Print out the filename.
-            LD      A,1
             RET
-
-            ; Quick method to load the basic interpreter. So long as the filename doesnt change this method will load and boot Basic.
-LOADBASIC:  LD      DE,BASICFILENM
-            JR      LOADSDCARD
-
-            ; Quick method to load CPM. So long as the filename doesnt change this method will load and boot CPM.
-LOADCPM:    LD      DE,CPMFN48                                           ; Load up the 48K version of CPM
-            JR      LOADSDCARD
 
             ; Entry point when copying the SD file. Setup flags to indicate copying to effect any special processing.
             ; The idea is to load the file into memory, dont execute and pass back the parameters within the CMT header.
@@ -1197,6 +1239,7 @@ LOADSDCP:   LD      A,0FFH
             ; DE points to a number or filename to load.
 LOADSDCARDX:LD      A,0FFH
             JR      LOADSD1
+
 LOADSDCARD: LD      A,000H
 LOADSD1:    LD      (SDAUTOEXEC),A
             XOR     A                                                    ; Clear copying flag.
@@ -1204,10 +1247,25 @@ LOADSD2:    LD      (SDCOPY),A
             LD      A,0FFH                                               ; For interbank calls, save result in a memory variable.
             LD      (RESULT),A
             CALL    FINDSDX 
-            JR      Z,LOADSD9
+            JP      Z,LOADSD10
 LOADSD3:    LD      DE,MSGNOTFND
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print message that file wasnt found.
+            JR      SDPRINT
+
+            ; Helper method for the CMT replacement functions3. This method is inter bank called to locate a file pointed to by DE and set the header information.
+LOADSDINF:  CALL    FINDSDX 
+            JR      Z,LOADSD9                                            ; Same as section above difference is we want to return after the header information has been extracted.
+            LD      A,2                                                  ; Return code for failure.
+            JR      LOADSD9B
+
+            ; Helper method for CMT replacement functions. This method is called to load data with details already set in the CMT header and SD command buffer.
+LOADSDDATA: LD      DE,(DTADR)                                           ; Update the load address in case caller changed it after reading the header.
+            LD      (SDLOADADDR),DE
+            CALL    LOADSD11
+            LD      A,0
+            JR      C,LOADSDDAT1
+            JR      Z,LOADSDDAT1
+            INC     A
+LOADSDDAT1: LD      (RESULT),A
             RET
             
             ; We have found the directory entry, so use it to load the program into memory.
@@ -1222,18 +1280,33 @@ LOADSD9:    LD      A,L
             LD      (ATRB),A                                             ; Type of file, store in the tape header memory.
             INC     HL
             LD      DE,NAME
-            LD      BC,SDDIR_FNSZ
-            LDIR                                                         ; Copy the filename into the CMT area.
-            LD      E,(HL)
+            LD      B,SDDIR_FNSZ
+LOADSD90:   LD      A,(HL)
+            OR      A
+            JR      NZ,LOADSD91
+            LD      A,CR                                                 ; Map NULL's to CR - applications use CR.
+LOADSD91:   LD      (DE),A                                               ; Copy the filename into the CMT area.
             INC     HL
-            LD      D,(HL)                                               ; Start sector upper 16 bits, big endian.
+            INC     DE
+            DJNZ    LOADSD90
+            ;
+            LD      D,(HL)
             INC     HL
-            LD      (SDSTARTSEC),DE
-            LD      E,(HL)
+            LD      E,(HL)                                               ; Start sector upper 16 bits, big endian. SDCFS under RFS this should always be zero.
             INC     HL
-            LD      D,(HL)                                               ; Start sector lower 16 bits, big endian.
+            PUSH    DE
+
+            LD      D,(HL)
             INC     HL
-            LD      (SDSTARTSEC+2),DE
+            LD      E,(HL)                                               ; Start sector lower 16 bits, big endian.
+            INC     HL
+            ; 
+            EX      (SP),HL
+            EX      DE,HL
+            CALL    RFSGETSECTR                                          ; Get the directory sector, offset by drive number. DEHL is returned as the full 32bit LBA sector address.
+            CALL    SETLBAADDR                                           ; Store the sector address into the SD command buffer.
+            POP     HL
+            ;
             LD      E,(HL)
             INC     HL 
             LD      D,(HL)                                               ; Size of file.
@@ -1247,19 +1320,27 @@ LOADSD9:    LD      A,L
             LD      A,D
             LD      (DTADRSTORE),DE                                      ; Save the original load address, use this to fill DTADR when complete if it has changed..
             CP      001H                                          
-            JR      NC,LOADSD10
+            JR      NC,LOADSD9A
             LD      DE,01200H                                            ; If the file specifies a load address below 1000H then shift to 1200H as it is not valid.
-LOADSD10:   LD      (DTADR),DE
+LOADSD9A:   LD      (DTADR),DE
             LD      (SDLOADADDR),DE
             LD      E,(HL)
             INC     HL 
             LD      D,(HL)                                               ; Execution address, store in tape header memory.
             LD      (EXADR),DE
+            XOR     A                                                    ; Return code for success.
+LOADSD9B:   LD      (RESULT),A                                           ; Store result in memory as interbank calls dont preserve AF.
+            RET
             ;
+LOADSD10    CALL    LOADSD9                                              ; Modularised file find as the CMT replacement functions need it.
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
             LD      BC,NAME
             LD      HL,PRINTMSG
             CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    LOADSD11
+            JR      C,LOADSD14
+            JR      NZ,LOADSDERR
+            JR      LOADSD14
             ;
 LOADSD11:   LD      A,(SDLOADSIZE+1)
             CP      002H
@@ -1271,7 +1352,7 @@ LOADSD12:   LD      HL,(SDLOADADDR)
             CALL    SD_READ                                              ; Read the sector.
             EI
             OR      A
-            JP      NZ,LOADSDERR                                         ; Failure to read a sector, abandon with error message.
+            RET     NZ                                                   ; Failure to read a sector, abandon with error message.
             LD      (SDLOADADDR),HL                                      ; Save the updated address.
             ;
             LD      HL,SDSTARTSEC+3
@@ -1283,8 +1364,8 @@ LOADSD12A:  LD      HL,(SDLOADSIZE)
             LD      DE,SD_SECSIZE
             OR      A
             SBC     HL,DE
-            JR      C,LOADSD14
-            JR      Z,LOADSD14
+            RET     C
+            RET     Z
             LD      (SDLOADSIZE),HL
             JR      LOADSD11
 
@@ -1310,8 +1391,6 @@ LOADSDX:    LD      A,0                                                  ; Non e
 LOADSDX1:   LD      (RESULT),A
             RET
 LOADSD17:   LD      DE,MSGNOTBIN
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
             JR      LOADSD16
 
 LOADSDERR:  LD      DE,MSGSDRERR
@@ -1338,23 +1417,21 @@ SAVESDCARD: LD      HL,GETCMTPARM                                        ; Get t
             LD      A,C
             OR      A
             RET     NZ                                                   ; Exit if an error occurred.
-
-            XOR     A                                                    ; Disable the copy flag.
+            ;
+            LD      A,OBJCD                                              ; Set attribute: OBJ
+            LD      (ATRB),A
+            ;
+SAVESDDATA: XOR     A                                                    ; Disable the copy flag.
 SAVESD1:    LD      (SDCOPY),A
             LD      A,0FFH                                               ; Interbank calls, pass result via a memory variable. Assume failure unless updated.
             LD      (RESULT),A
-            LD      A,OBJCD                                              ; Set attribute: OBJ
-            LD      (ATRB),A
 
             ; Find free slot.
             CALL    GETDIRFREE
             JR      NC,SAVESD4
             LD      DE,MSGDIRFULL                                        ; Directory is full so abort command.
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
             LD      A,1                                                  ; Directory full code.
-            LD      (RESULT),A
-            RET
+            JP      SDPRINTRES
             ;
 SAVESD4:    PUSH    DE                                                   ; Save the directory entry number.
             PUSH    HL
@@ -1363,7 +1440,7 @@ SAVESD4:    PUSH    DE                                                   ; Save 
             LD      DE,MSGSVDIRENT
             LD      HL,PRINTMSG
             CALL    BKSW2to6                                             ; Print out the filename.
-            POP     HL
+            POP     HL                                                   ; HL points to the directory entry buffer.
             LD      A,080H
             LD      (HL),A                                               ; Set directory entry flag indicating that the entry is in use.
             INC     HL
@@ -1386,19 +1463,23 @@ SAVESD4:    PUSH    DE                                                   ; Save 
             PUSH    HL
             POP     BC                                                   ; 32bit LBA now in DEBC
             POP     HL
+            ; Store the Big Endian LBA Sector into the directory entry.
             LD      (HL),D                                               ; Now save the 32bit LBA sector number into the directory entry.
-            LD      (SDSTARTSEC),DE                                      ; DE will always be 0 for RFS so we dont worry about endian, ie. (256 * 64K + 256 * 32)/512 = 0x00008010
             INC     HL
             LD      (HL),E
             INC     HL
             LD      A,B
             LD      (HL),A
-            LD      (SDSTARTSEC+2),A
             INC     HL
             LD      A,C
             LD      (HL),A
-            LD      (SDSTARTSEC+3),A
             INC     HL
+            ;
+            PUSH    BC                                                   ; Save BC and swap for HL so sector now in DEHL.
+            EX      (SP),HL
+            CALL    RFSGETSECTR                                          ; Get the directory sector, offset by drive number. DEHL is returned as the full 32bit LBA sector address.
+            CALL    SETLBAADDR                                           ; Store the sector address into the SD command buffer.
+            POP     HL
             ;
             LD      DE,(SIZE)                                            ; Add in the size of the program.
             LD      (SDLOADSIZE),DE
@@ -1473,11 +1554,8 @@ SAVESD8:    ; Data written, now write out the directory entry.
             LD      (RESULT),A
             RET
 SAVESD9:    LD      DE,MSGSVFAIL                                         ; Fail, print out message.
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
             LD      A,1                                                  ; Write failed code.
-            LD      (RESULT),A
-            RET
+            JP      SDPRINTRES                                           ; Print out the filename.
 
             ;-------------------------------------------------------------------------------
             ; END OF SD CONTROLLER FUNCTIONALITY
@@ -1490,10 +1568,6 @@ SAVESD9:    LD      DE,MSGSVFAIL                                         ; Fail,
             ;                 all printable messages.
             ;
             ;--------------------------------------
-
-            ; Quick load program names.
-CPMFN48:    DB      "CPM223RFS", 00DH
-BASICFILENM:DB      "BASIC SA-5510", 00DH
 
             ALIGN   0EFFFh
             DB      0FFh

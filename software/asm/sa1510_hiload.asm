@@ -61,14 +61,16 @@ STRT1:  CALL    CLR8
 
         ; Setup display to 40/80 characters depending upon config.
         IF      MODE80C = 0
+          LD    HL,DSPCTL               ; Setup address of display control register latch.
           LD    A, 0                    ; Using MROM in Bank 0 = 40 char mode.
-          LD    (DSPCTL), A
-          LD    A, 0
+          LD    E,(HL)                  ; Dummy operation to enable latch write via multivibrator.
+          LD    (HL), A
           LD    (SPAGE), A              ; Allow MZ80A scrolling
         ELSE
+          LD    HL,DSPCTL               ; Setup address of display control register latch.
           LD    A, 128                  ; Using MROM in Bank 1 = 80 char mode.
-          LD    (DSPCTL), A
-          LD    A, 0FFH
+          LD    E,(HL)                  ; Dummy operation to enable latch write via multivibrator.
+          LD    (HL), A
           LD    (SPAGE), A              ; MZ80K Scrolling in 80 column mode for time being.
         ENDIF
         CALL    MLDSP

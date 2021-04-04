@@ -178,6 +178,18 @@ ROMBANK9    EQU     9                                                    ;      
 ROMBANK10   EQU     10                                                   ;                     :  CBIOS Bank 3 - SD Card
 ROMBANK11   EQU     11                                                   ;                     :  CBIOS Bank 4 - Floppy disk controller.
 
+; File types.
+OBJCD       EQU     001H                                                 ; MZF contains a binary object.
+BTX1CD      EQU     002H                                                 ; MZF contains a BASIC program.
+BTX2CD      EQU     005H                                                 ; MZF contains a BASIC program.
+TZOBJCD0    EQU     0F8H                                                 ; MZF contains a TZFS binary object for page 0.
+TZOBJCD1    EQU     0F8H
+TZOBJCD2    EQU     0F8H
+TZOBJCD3    EQU     0F8H
+TZOBJCD4    EQU     0F8H
+TZOBJCD5    EQU     0F8H
+TZOBJCD6    EQU     0F8H
+TZOBJCD7    EQU     0F8H                                                 ; MZF contains a TZFS binary object for page 7.
 
 ; Address definitions.
 ;
@@ -188,6 +200,7 @@ MROMJMPTBL  EQU     00070H                                               ; Fixed
 ;
 RFSJMPTABLE EQU     UROMADDR + 00080H                                    ; Entry point to the bank switching table.
 PRTMZF      EQU     RFSJMPTABLE + 00000H                                 ; Entry point into User ROM for the PRTMZF function.
+PRTDBG      EQU     RFSJMPTABLE + 00003H                                 ; Entry point into User ROM for the PRTDBG function.
 ;
 MZFHDRSZ    EQU     128
 RFSSECTSZ   EQU     256
@@ -313,8 +326,10 @@ ISMZF:     PUSH     BC
            LD       B,FNSIZE                                             ; Maximum of 17 characters, including terminator in filename.
 ISMZFNXT:  LD       A,(HL)
            LD       (DE),A
-           CP       00Dh                                                 ; If we find a terminator then this indicates potentially a valid name.
-           JR       Z, ISMZFVFY
+           CP       00DH                                                 ; If we find a terminator then this indicates potentially a valid name.
+           JR       Z, ISMZFNXT3
+           CP       000H                                                 ; Same applies for NULL terminator.
+           JR       Z, ISMZFNXT3
            CP       020h                                                 ; >= Space
            JR       C, ISMZFNOT
            CP       05Dh                                                 ; =< ]
@@ -324,10 +339,6 @@ ISMZFNXT2: CP       091h
 ISMZFNXT3: INC      DE
            INC      HL
            DJNZ     ISMZFNXT
-           JR       ISMZFNOT                                             ; No end of string terminator, this cant be a valid filename.
-ISMZFVFY:  LD       A,B
-           CP       FNSIZE
-           JR       Z,ISMZFNOT                                           ; If the filename has no length it cant be valid, so loop.
 ISMZFYES:  CP       A                                                    ; Set zero flag to indicate match.
 ISMZFNOT:  POP      HL
            POP      DE
@@ -335,14 +346,13 @@ ISMZFNOT:  POP      HL
            RET
 
            ; B contains Bank to select.
+           ; D = File sequence number.
            ; HL contains the Block page address.
 _DIRMROM:  PUSH     BC
-           PUSH     DE
            ;
            ; Scan MROM Bank
            ; B = Bank Page
            ; C = Block in page
-           ; D = File sequence number.
            ;
            LD       B,USRROMPAGES                                        ; First 16x2K pages are reserved in User bank.
            LD       A,(ROMCTL)
@@ -392,7 +402,6 @@ DIRNXTPG2: LD       A,B
            LD       A,(ROMBK2)
            SCF                                                           ; Select the required user bank and Set carry so that the control registers remain enabled.
            CALL     SELUSRBNK 
-           POP      DE
            POP      BC
            RET
 
@@ -403,6 +412,7 @@ _PRTMZF:   LD       A,(ROMBK2)
            SCF                                                           ; Select the required user bank and Set carry so that the control registers remain enabled.
            CALL     SELUSRBNK 
            CALL     PRTMZF
+          ;CALL     PRTDBG
            LD       A,(WRKROMBK2)
            OR       A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
            CALL     SELUSRBNK 
@@ -410,7 +420,8 @@ _PRTMZF:   LD       A,(ROMBK2)
      
 
            ; In:
-           ;     HL = filename
+           ;      HL = filename
+           ;      D = File sequence number.
            ; Out:
            ;      B = Bank Page file found
            ;      C = Block where found.

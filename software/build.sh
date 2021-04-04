@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ROOT_DIR=/dvlp/Projects/dev/github/MZ80A_RFS/
-SW_DIR=${ROO_DIR}/software
+SW_DIR=${ROOT_DIR}/software
 PROCESS_MZF_FILES=0
 if [ "x$1" = '-m' ]; then
 	PROCESS_MZF_FILES=1

@@ -515,7 +515,6 @@ SLPT:       DB      01H                                                  ; TEXT 
             ; END OF PRINTER CMDLINE TOOLS FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-
             ;--------------------------------------
             ;
             ; Message table - Refer to bank 6 for

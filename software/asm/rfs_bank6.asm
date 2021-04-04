@@ -276,8 +276,9 @@ PRTSTRE:    POP     DE
 
             ; Help text. Use of lower case, due to Sharp's non standard character set, is not easy, you have to manually code each byte
             ; hence using upper case.
-HELPSCR:    DB      "4     - 40 col mode.",                                 00DH
-            DB      "8     - 80 col mode.",                                 00DH
+HELPSCR:    DB      "0..9  - select RFS Drive.",                            00DH
+            DB      "40    - 40 col mode.",                                 00DH
+            DB      "80    - 80 col mode.",                                 00DH
             DB      "700   - Select MZ-700 Mode.",                          00DH
             DB      "7008  - Select MZ-700 80 col Mode.",                   00DH            
             DB      "B     - toggle keyboard bell.",                        00DH
@@ -480,6 +481,7 @@ MSGSD2TERR: DB      "Copy from SD to Tape Failed",             00DH, 000H
 MSGT2SDOK:  DB      "Success, Tape to SD done.",               00DH, 000H
 MSGSD2TOK:  DB      "Success, SD to Tape done.",               00DH, 000H
 MSGNOTZINST:DB      "No tranZPUter >=v2 card installed.",      00DH, 000H
+MSGNOCMTDIR:DB      "Cannot list CMT directory.",              00DH, 000H
 
             ALIGN   0EFFFh
             DB      0FFh

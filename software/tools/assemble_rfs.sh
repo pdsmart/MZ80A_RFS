@@ -9,7 +9,7 @@
 ##                  into a ROM file using the GLASS Z80 assembler.
 ##
 ## Credits:         
-## Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         August 2018   - Initial script written.
 ##
@@ -38,7 +38,7 @@ ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms
-MZFDIR=${ROOTDIR}/software/MZB
+MZFDIR=${ROOTDIR}/software/MZB/Common
 
 # Go through list and build image.
 #
@@ -56,10 +56,10 @@ do
     then
         # The object file is binary, no need to link, copy according to build group.
         if [[ ${BUILDROMLIST} = *"${f}"* ]]; then
-            echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
+            echo "Copy ${ASMTMPDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
             cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
         else
-            echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
+            echo "Copy ${ASMTMPDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
             cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf
         fi
     fi

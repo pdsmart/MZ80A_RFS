@@ -10,12 +10,13 @@
 ;-
 ;- Credits:         Some of the comments and parts of the standard CPM deblocking/blocking algorithm 
 ;-                  come from the Z80-MBC2 project, (C) SuperFabius.
-;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Jan 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
-;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
-;                              additional and different hardware. The SPI is now onboard the PCB and
-;                              not using the printer interface card.
+;-                  May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;-                             additional and different hardware. The SPI is now onboard the PCB and
+;-                             not using the printer interface card.
+;-                  Mar 2021 - Updates for the RFS v2.1 board.
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -32,6 +33,19 @@
 ;--------------------------------------------------------------------------------------------------------
 
             ORG     CBIOSSTART
+
+            ;----------------------------------------------------------------------------------------------------------------------------------------------
+            ; CBIOS organisation.
+            ;
+            ; Source File     Size ROM Type            Address          Location       Description
+            ; cbios.asm       4K   MROM (relocated                                     CBIOS providing the CP/M API, initialisation routines, ROM Disk
+            ;                      Monitor ROM from                                    controller routines, Interrupt routines.
+            ;                      0x0000 - 0x0FFF)    0xC000 - 0xCFFF  MRON Bank 2    
+            ; cbios_bank1.asm 2K   Paged ROM           0xE800 - 0xEFFF, UROM Bank 8    Basic Sound and Melody, RTC, Keyboard and helper functionality.
+            ; cbios_bank2.asm 2k   Paged ROM           0xE800 - 0xEFFF, UROM Bank 9    Screen I/O and ANSI Terminal Parser.
+            ; cbios_bank2.asm 2k   Paged ROM           0xE800 - 0xEFFF, UROM Bank 10   SD Card Controller functionality.
+            ; cbios_bank2.asm 2k   Paged ROM           0xE800 - 0xEFFF, UROM Bank 11   Floppy Disk Controller functionality.
+            ;----------------------------------------------------------------------------------------------------------------------------------------------
 
             ;-------------------------------------------------------------------------------
             ;                                                                              
@@ -312,8 +326,10 @@ INIT3:      LD      A,(BNKCTRLRST)
             LD      (FLASHCTL),A
 
             ; Change to 80 character mode.
+            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             LD      A, 128                                               ; 80 char mode.
-            LD      (DSPCTL), A
+            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             CALL    ?MLDSP
             CALL    ?NL
             LD      DE,CBIOSSIGNON                                       ; Start of sign on message, as devices are detected they are added to the sign on.
@@ -2640,7 +2656,7 @@ KTBLC:      ; CTRL ON
 
 
 
-CBIOSSIGNON:DB      "** CBIOS v1.22, (C) P.D. Smart, 2020. Drives:",                   NUL
+CBIOSSIGNON:DB      "** CBIOS v1.23, (C) P.D. Smart, 19-21. Drives:",                  NUL
 CBIOSIGNEND:DB       " **",                                                        CR, NUL
 CPMSIGNON:  DB      "CP/M v2.23 (48K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",    CR, LF, NUL
 NOBDOS:     DB      "Failed to load BDOS, aborting!",                          CR, LF, NUL

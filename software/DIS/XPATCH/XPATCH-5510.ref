@@ -1,0 +1,875 @@
+dZ80 2.1 Reference file from the disassembly of "XPATCH-5510.bin".
+
+Direct address Reference (127 entries)
+--------------------------------------
+
+Direct address 00000H. 3 references:
+------------------------------------
+
+  05098H: LD      DE,00000H
+  05696H: LD      BC,00000H
+  05a94H: LD      HL,00000H
+
+Direct address 00002H. 1 references:
+------------------------------------
+
+  05729H: LD      BC,00002H
+
+Direct address 00003H. 1 references:
+------------------------------------
+
+  056f4H: LD      BC,00003H
+
+Direct address 0000aH. 2 references:
+------------------------------------
+
+  050d8H: LD      DE,0000AH
+  050e5H: LD      DE,0000AH
+
+Direct address 00011H. 1 references:
+------------------------------------
+
+  05b06H: LD      BC,00011H
+
+Direct address 00016H. 1 references:
+------------------------------------
+
+  05a83H: LD      BC,00016H
+
+Direct address 0001cH. 1 references:
+------------------------------------
+
+  05a69H: LD      BC,0001CH
+
+Direct address 0005bH. 1 references:
+------------------------------------
+
+  05b45H: LD      BC,0005BH
+
+Direct address 00080H. 1 references:
+------------------------------------
+
+  0515fH: LD      BC,00080H
+
+Direct address 000f8H. 1 references:
+------------------------------------
+
+  05b4dH: LD      BC,000F8H
+
+Direct address 00100H. 1 references:
+------------------------------------
+
+  05167H: LD      BC,00100H
+
+Direct address 00200H. 1 references:
+------------------------------------
+
+  05c8fH: LD      BC,00200H
+
+Direct address ATRB. 1 references:
+----------------------------------
+
+  05b5eH: LD      HL,010F0H
+
+Direct address SIZE. 3 references:
+----------------------------------
+
+  05bbdH: LD      BC,(01102H)
+  05c08H: LD      BC,(01102H)
+  05c72H: LD      BC,(01102H)
+
+Direct address DTADR. 2 references:
+-----------------------------------
+
+  05bc9H: LD      (01104H),DE
+  05befH: LD      DE,(01104H)
+
+Direct address BUFER. 6 references:
+-----------------------------------
+
+  05386H: LD      DE,011A3H
+  053e6H: LD      DE,011A3H
+  054b0H: LD      DE,011A3H
+  054fbH: LD      DE,011A3H
+  05569H: LD      DE,011A3H
+  055ecH: LD      DE,011A3H
+
+Direct address 011ccH. 2 references:
+------------------------------------
+
+  053afH: LD      DE,011CCH
+  0552eH: LD      HL,011CCH
+
+Direct address 01211H. 1 references:
+------------------------------------
+
+  055abH: LD      DE,01211H
+
+Direct address 01414H. 1 references:
+------------------------------------
+
+  05c92H: LD      DE,01414H
+
+Direct address 015a8H. 1 references:
+------------------------------------
+
+  0584eH: LD      HL,015A8H
+
+Direct address 0165eH. 1 references:
+------------------------------------
+
+  05a7aH: LD      DE,0165EH
+
+Direct address 01b35H. 1 references:
+------------------------------------
+
+  0506dH: LD      BC,01B35H
+
+Direct address 01c16H. 1 references:
+------------------------------------
+
+  05a66H: LD      DE,01C16H
+
+Direct address 02035H. 1 references:
+------------------------------------
+
+  058b6H: LD      SP,02035H
+
+Direct address 02305H. 1 references:
+------------------------------------
+
+  05a80H: LD      DE,02305H
+
+Direct address 02a2fH. 1 references:
+------------------------------------
+
+  05a06H: CPL     
+
+Direct address 02f6cH. 1 references:
+------------------------------------
+
+  05aafH: LD      HL,02F6CH
+
+Direct address 032d4H. 1 references:
+------------------------------------
+
+  05a0eH: CALL    NC,06D32H
+
+Direct address 03302H. 2 references:
+------------------------------------
+
+  05a8eH: LD      HL,03302H
+  05b42H: LD      DE,03302H
+
+Direct address 0330bH. 1 references:
+------------------------------------
+
+  05abaH: LD      HL,0330BH
+
+Direct address 03311H. 1 references:
+------------------------------------
+
+  05a9dH: LD      HL,03311H
+
+Direct address 03338H. 1 references:
+------------------------------------
+
+  05a88H: LD      HL,03338H
+
+Direct address 033abH. 1 references:
+------------------------------------
+
+  05a0cH: XOR     E
+
+Direct address 04224H. 1 references:
+------------------------------------
+
+  05b03H: LD      DE,04224H
+
+Direct address 04806H. 2 references:
+------------------------------------
+
+  05a12H: LD      B,048H
+  05b4aH: LD      DE,04806H
+
+Direct address 0488eH. 1 references:
+------------------------------------
+
+  05a16H: ADC     A,(HL)
+
+Direct address 048c1H. 1 references:
+------------------------------------
+
+  05aa3H: LD      HL,048C1H
+
+Direct address LINEBUFR. 7 references:
+--------------------------------------
+
+  05378H: LD      DE,0490DH
+  0539fH: LD      DE,0490DH
+  05427H: LD      DE,0490DH
+  054d7H: LD      HL,0490DH
+  05501H: LD      HL,0490DH
+  0555cH: LD      DE,0490DH
+  057b3H: LD      DE,0490DH
+
+Direct address 0490fH. 1 references:
+------------------------------------
+
+  053e9H: LD      HL,0490FH
+
+Direct address 04a0eH. 2 references:
+------------------------------------
+
+  053d6H: LD      DE,04A0EH
+  059acH: LD      HL,04A0EH
+
+Direct address 04e84H. 1 references:
+------------------------------------
+
+  0574fH: LD      IX,04E84H
+
+Direct address 04e86H. 1 references:
+------------------------------------
+
+  056cbH: LD      HL,04E86H
+
+Direct address 0505cH. 1 references:
+------------------------------------
+
+  05248H: LD      DE,0505CH
+
+Direct address 05063H. 7 references:
+------------------------------------
+
+  0509bH: LD      (05063H),DE
+  050afH: LD      (05063H),DE
+  050c4H: LD      (05063H),DE
+  050efH: LD      BC,(05063H)
+  051a6H: LD      BC,(05063H)
+  0527aH: LD      DE,(05063H)
+  0591cH: LD      BC,(05063H)
+
+Direct address 05065H. 5 references:
+------------------------------------
+
+  050a1H: LD      (05065H),DE
+  050baH: LD      (05065H),DE
+  050c8H: LD      (05065H),DE
+  05118H: LD      BC,(05065H)
+  05926H: LD      BC,(05065H)
+
+Direct address 05067H. 3 references:
+------------------------------------
+
+  050dbH: LD      (05067H),DE
+  051adH: LD      BC,(05067H)
+  0528aH: LD      DE,(05067H)
+
+Direct address 05069H. 2 references:
+------------------------------------
+
+  050e8H: LD      (05069H),DE
+  0529eH: LD      DE,(05069H)
+
+Direct address 0506dH. 1 references:
+------------------------------------
+
+  05a10H: LD      L,L
+
+Direct address 0507dH. 1 references:
+------------------------------------
+
+  05077H: LD      DE,0507DH
+
+Direct address 05089H. 1 references:
+------------------------------------
+
+  0512dH: LD      DE,05089H
+
+Direct address 05255H. 1 references:
+------------------------------------
+
+  05216H: LD      DE,05255H
+
+Direct address 05257H. 1 references:
+------------------------------------
+
+  05231H: LD      DE,05257H
+
+Direct address 0525cH. 1 references:
+------------------------------------
+
+  05221H: LD      DE,0525CH
+
+Direct address 052f0H. 1 references:
+------------------------------------
+
+  05a14H: RET     P
+
+Direct address 05363H. 1 references:
+------------------------------------
+
+  05a18H: LD      H,E
+
+Direct address 05446H. 1 references:
+------------------------------------
+
+  05392H: LD      DE,05446H
+
+Direct address 05453H. 1 references:
+------------------------------------
+
+  054a5H: LD      DE,05453H
+
+Direct address 05469H. 2 references:
+------------------------------------
+
+  054c2H: LD      BC,(05469H)
+  05531H: LD      DE,(05469H)
+
+Direct address 0548eH. 1 references:
+------------------------------------
+
+  05a1aH: ADC     A,(HL)
+
+Direct address 05499H. 1 references:
+------------------------------------
+
+  05565H: LD      BC,05499H
+
+Direct address 055abH. 1 references:
+------------------------------------
+
+  0558aH: LD      DE,055ABH
+
+Direct address 055b3H. 1 references:
+------------------------------------
+
+  054e7H: LD      DE,055B3H
+
+Direct address 055c5H. 1 references:
+------------------------------------
+
+  05a1cH: PUSH    BC
+
+Direct address 055f8H. 1 references:
+------------------------------------
+
+  055dcH: LD      DE,055F8H
+
+Direct address 05614H. 2 references:
+------------------------------------
+
+  056a1H: LD      (05614H),DE
+  056d3H: LD      DE,(05614H)
+
+Direct address 05616H. 1 references:
+------------------------------------
+
+  05a1eH: LD      D,056H
+
+Direct address 05807H. 2 references:
+------------------------------------
+
+  05744H: LD      DE,05807H
+  05772H: LD      HL,05807H
+
+Direct address 05820H. 1 references:
+------------------------------------
+
+  0576bH: LD      HL,05820H
+
+Direct address 05838H. 1 references:
+------------------------------------
+
+  05acbH: LD      HL,05838H
+
+Direct address 05849H. 1 references:
+------------------------------------
+
+  05ac2H: LD      HL,05849H
+
+Direct address 0585dH. 2 references:
+------------------------------------
+
+  05840H: LD      DE,0585DH
+  05857H: LD      HL,0585DH
+
+Direct address 05899H. 1 references:
+------------------------------------
+
+  05b39H: LD      HL,05899H
+
+Direct address 058a5H. 1 references:
+------------------------------------
+
+  0589fH: LD      DE,058A5H
+
+Direct address 058b7H. 1 references:
+------------------------------------
+
+  05af4H: LD      HL,058B7H
+
+Direct address 058e0H. 1 references:
+------------------------------------
+
+  05adeH: LD      HL,058E0H
+
+Direct address 058ebH. 1 references:
+------------------------------------
+
+  05a04H: EX      DE,HL
+
+Direct address 05907H. 1 references:
+------------------------------------
+
+  05a08H: RLCA    
+
+Direct address 0590eH. 1 references:
+------------------------------------
+
+  05a0aH: LD      C,059H
+
+Direct address 059c7H. 1 references:
+------------------------------------
+
+  05969H: LD      DE,059C7H
+
+Direct address 05a04H. 2 references:
+------------------------------------
+
+  05a63H: LD      HL,05A04H
+  05b0bH: LD      HL,05A04H
+
+Direct address 05a20H. 1 references:
+------------------------------------
+
+  05a72H: LD      DE,05A20H
+
+Direct address 05a3cH. 1 references:
+------------------------------------
+
+  05a6eH: LD      HL,05A3CH
+
+Direct address 05a52H. 1 references:
+------------------------------------
+
+  05b00H: LD      HL,05A52H
+
+Direct address 05a61H. 1 references:
+------------------------------------
+
+  05af8H: LD      HL,05A61H
+
+Direct address 05b55H. 1 references:
+------------------------------------
+
+  05b3fH: LD      HL,05B55H
+
+Direct address 0d753H. 1 references:
+------------------------------------
+
+  05c6fH: LD      DE,0D753H
+
+Direct address 0e548H. 1 references:
+------------------------------------
+
+  05bb9H: LD      DE,0E548H
+
+Direct address 0ffffH. 1 references:
+------------------------------------
+
+  05bb3H: LD      HL,0FFFFH
+
+
+Indirect address Reference (120 entries)
+----------------------------------------
+
+Indirect address DTADR. 2 references:
+-------------------------------------
+
+  05bd9H: LD      HL,(01104H)
+  05c76H: LD      HL,(01104H)
+
+Indirect address DSPXY. 2 references:
+-------------------------------------
+
+  0521bH: LD      (01171H),A
+  05228H: LD      (01171H),A
+
+Indirect address DPRNT. 1 references:
+-------------------------------------
+
+  0539bH: LD      A,(01194H)
+
+Indirect address 01201H. 1 references:
+--------------------------------------
+
+  05b33H: LD      (01201H),HL
+
+Indirect address 01225H. 1 references:
+--------------------------------------
+
+  05b3cH: LD      (01225H),HL
+
+Indirect address 01492H. 1 references:
+--------------------------------------
+
+  05aceH: LD      (01492H),A
+
+Indirect address 01493H. 1 references:
+--------------------------------------
+
+  05ad1H: LD      (01493H),HL
+
+Indirect address 0153eH. 1 references:
+--------------------------------------
+
+  05ac5H: LD      (0153EH),A
+
+Indirect address 0153fH. 1 references:
+--------------------------------------
+
+  05ac8H: LD      (0153FH),HL
+
+Indirect address 018b4H. 1 references:
+--------------------------------------
+
+  05b11H: LD      (018B4H),HL
+
+Indirect address 01958H. 6 references:
+--------------------------------------
+
+  05153H: LD      HL,(01958H)
+  052bbH: LD      HL,(01958H)
+  053bbH: LD      HL,(01958H)
+  05935H: LD      HL,(01958H)
+  0598cH: LD      HL,(01958H)
+  05b0eH: LD      (01958H),HL
+
+Indirect address 01ac8H. 1 references:
+--------------------------------------
+
+  05b14H: LD      (01AC8H),HL
+
+Indirect address 01ae2H. 1 references:
+--------------------------------------
+
+  05b17H: LD      (01AE2H),HL
+
+Indirect address 01b14H. 1 references:
+--------------------------------------
+
+  05b1aH: LD      (01B14H),HL
+
+Indirect address 01b1cH. 1 references:
+--------------------------------------
+
+  05b1dH: LD      (01B1CH),HL
+
+Indirect address 01c16H. 1 references:
+--------------------------------------
+
+  05aeaH: LD      (01C16H),A
+
+Indirect address 01c17H. 1 references:
+--------------------------------------
+
+  05aefH: LD      (01C17H),A
+
+Indirect address 01c7dH. 2 references:
+--------------------------------------
+
+  05b7cH: LD      (01C7DH),A
+  05b84H: LD      (01C7DH),A
+
+Indirect address 01c7eH. 1 references:
+--------------------------------------
+
+  05b20H: LD      (01C7EH),HL
+
+Indirect address 01ccdH. 1 references:
+--------------------------------------
+
+  05a91H: LD      (01CCDH),HL
+
+Indirect address 01ccfH. 1 references:
+--------------------------------------
+
+  05a97H: LD      (01CCFH),HL
+
+Indirect address 01cd1H. 1 references:
+--------------------------------------
+
+  05a9aH: LD      (01CD1H),HL
+
+Indirect address 01ec2H. 1 references:
+--------------------------------------
+
+  05b23H: LD      (01EC2H),HL
+
+Indirect address 022c9H. 1 references:
+--------------------------------------
+
+  05a8bH: LD      (022C9H),HL
+
+Indirect address 028f5H. 2 references:
+--------------------------------------
+
+  05b6cH: LD      (028F5H),A
+  05b74H: LD      (028F5H),A
+
+Indirect address 02b11H. 1 references:
+--------------------------------------
+
+  05aa0H: LD      (02B11H),HL
+
+Indirect address 02d44H. 1 references:
+--------------------------------------
+
+  05b26H: LD      (02D44H),HL
+
+Indirect address 02f19H. 2 references:
+--------------------------------------
+
+  05c9aH: LD      (02F19H),A
+  05ca2H: LD      (02F19H),A
+
+Indirect address 02f24H. 1 references:
+--------------------------------------
+
+  05b29H: LD      (02F24H),HL
+
+Indirect address 0303cH. 1 references:
+--------------------------------------
+
+  05b2cH: LD      (0303CH),HL
+
+Indirect address 03042H. 1 references:
+--------------------------------------
+
+  05b2fH: LD      (03042H),HL
+
+Indirect address 0307bH. 1 references:
+--------------------------------------
+
+  05aa6H: LD      (0307BH),HL
+
+Indirect address 03140H. 1 references:
+--------------------------------------
+
+  05ab7H: LD      (03140H),A
+
+Indirect address 03141H. 1 references:
+--------------------------------------
+
+  05abdH: LD      (03141H),HL
+
+Indirect address 0315bH. 1 references:
+--------------------------------------
+
+  05ab2H: LD      (0315BH),HL
+
+Indirect address 0318cH. 1 references:
+--------------------------------------
+
+  05aa9H: LD      (0318CH),HL
+
+Indirect address 03199H. 1 references:
+--------------------------------------
+
+  05aacH: LD      (03199H),HL
+
+Indirect address 031adH. 1 references:
+--------------------------------------
+
+  05adbH: LD      (031ADH),A
+
+Indirect address 031aeH. 1 references:
+--------------------------------------
+
+  05ae1H: LD      (031AEH),HL
+
+Indirect address 0322eH. 1 references:
+--------------------------------------
+
+  05ad4H: LD      A,(0322EH)
+
+Indirect address 041ecH. 1 references:
+--------------------------------------
+
+  05afdH: LD      (041ECH),A
+
+Indirect address 041ffH. 1 references:
+--------------------------------------
+
+  05b36H: LD      (041FFH),HL
+
+Indirect address 0430dH. 1 references:
+--------------------------------------
+
+  058c3H: LD      A,(0430DH)
+
+Indirect address 04a0eH. 5 references:
+--------------------------------------
+
+  053ceH: LD      HL,(04A0EH)
+  054f2H: LD      HL,(04A0EH)
+  0557bH: LD      HL,(04A0EH)
+  05582H: LD      (04A0EH),HL
+  055e4H: LD      HL,(04A0EH)
+
+Indirect address 04a10H. 1 references:
+--------------------------------------
+
+  05543H: LD      HL,(04A10H)
+
+Indirect address 04ab3H. 3 references:
+--------------------------------------
+
+  052f3H: LD      HL,(04AB3H)
+  0562eH: LD      HL,(04AB3H)
+  05c1fH: LD      HL,(04AB3H)
+
+Indirect address 04ab5H. 3 references:
+--------------------------------------
+
+  0530eH: LD      HL,(04AB5H)
+  05647H: LD      HL,(04AB5H)
+  05c14H: LD      HL,(04AB5H)
+
+Indirect address 04e4eH. 2 references:
+--------------------------------------
+
+  0519fH: LD      (04E4EH),HL
+  0532eH: LD      (04E4EH),HL
+
+Indirect address 04e94H. 2 references:
+--------------------------------------
+
+  05175H: LD      HL,(04E94H)
+  05179H: LD      (04E94H),HL
+
+Indirect address 0504eH. 1 references:
+--------------------------------------
+
+  0536dH: LD      A,(0504EH)
+
+Indirect address 05051H. 2 references:
+--------------------------------------
+
+  050ecH: LD      (05051H),HL
+  05901H: LD      (05051H),HL
+
+Indirect address 05063H. 1 references:
+--------------------------------------
+
+  0595bH: LD      HL,(05063H)
+
+Indirect address 05065H. 4 references:
+--------------------------------------
+
+  050f3H: LD      HL,(05065H)
+  051b8H: LD      HL,(05065H)
+  05272H: LD      HL,(05065H)
+  05954H: LD      HL,(05065H)
+
+Indirect address 05067H. 2 references:
+--------------------------------------
+
+  0510aH: LD      HL,(05067H)
+  0594aH: LD      HL,(05067H)
+
+Indirect address 05069H. 1 references:
+--------------------------------------
+
+  051c6H: LD      HL,(05069H)
+
+Indirect address 0506bH. 2 references:
+--------------------------------------
+
+  05149H: LD      (0506BH),HL
+  05943H: LD      HL,(0506BH)
+
+Indirect address 05465H. 6 references:
+--------------------------------------
+
+  05364H: LD      (05465H),A
+  0538bH: LD      A,(05465H)
+  05432H: LD      A,(05465H)
+  05490H: LD      (05465H),A
+  05553H: LD      A,(05465H)
+  055c7H: LD      (05465H),A
+
+Indirect address 05466H. 6 references:
+--------------------------------------
+
+  0548aH: LD      (05466H),A
+  0549fH: LD      A,(05466H)
+  055d6H: LD      A,(05466H)
+  0590fH: LD      (05466H),A
+  05963H: LD      A,(05466H)
+  05978H: LD      (05466H),A
+
+Indirect address 05467H. 6 references:
+--------------------------------------
+
+  05383H: LD      (05467H),A
+  053b7H: LD      A,(05467H)
+  054b3H: LD      A,(05467H)
+  054f5H: LD      A,(05467H)
+  05574H: LD      A,(05467H)
+  055efH: LD      A,(05467H)
+
+Indirect address 05468H. 4 references:
+--------------------------------------
+
+  053b2H: LD      (05468H),A
+  054c9H: LD      A,(05468H)
+  05535H: LD      A,(05468H)
+  0556fH: LD      A,(05468H)
+
+Indirect address 05469H. 3 references:
+--------------------------------------
+
+  05404H: LD      (05469H),HL
+  0556cH: LD      HL,(05469H)
+  05598H: LD      A,(05469H)
+
+Indirect address 0546bH. 4 references:
+--------------------------------------
+
+  05424H: LD      (0546BH),HL
+  054adH: LD      HL,(0546BH)
+  054bfH: LD      HL,(0546BH)
+  0551eH: LD      HL,(0546BH)
+
+Indirect address 05611H. 5 references:
+--------------------------------------
+
+  05617H: LD      (05611H),A
+  05628H: LD      (05611H),A
+  057e3H: LD      A,(05611H)
+  057f2H: LD      A,(05611H)
+  057ffH: LD      A,(05611H)
+
+Indirect address 05612H. 2 references:
+--------------------------------------
+
+  056a5H: LD      (05612H),HL
+  05736H: LD      HL,(05612H)
+
+Indirect address 05614H. 1 references:
+--------------------------------------
+
+  056faH: LD      HL,(05614H)
+
+Indirect address 058e0H. 1 references:
+--------------------------------------
+
+  058fdH: LD      (058E0H),A
+
+
+End of reference file for "XPATCH-5510.bin"
+

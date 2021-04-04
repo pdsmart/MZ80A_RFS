@@ -9,12 +9,13 @@
 ;-                  CPM TPA programs.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Jan 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
-;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
-;                              additional and different hardware. The SPI is now onboard the PCB and
-;                              not using the printer interface card.
+;-                  May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;-                             additional and different hardware. The SPI is now onboard the PCB and
+;-                             not using the printer interface card.
+;-                  Mar 2021 - Updates for the RFS v2.1 board.
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -49,7 +50,7 @@ CBIOS1_0:   LD      A,(BNKCTRLRST)
             NOP
             NOP
             NOP
-            XOR     A                                                    ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+            XOR     A                                                    ; We shouldnt arrive here after a reset, if we do, select MROM bank 0
             LD      (BNKSELMROM),A
             NOP
             NOP

@@ -9,12 +9,13 @@
 ;-                  CPM TPA programs.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Jan 2020 - Seperated Bank from RFS for dedicated use with CPM CBIOS.
-;                   May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
-;                              additional and different hardware. The SPI is now onboard the PCB and
-;                              not using the printer interface card.
+;-                  May 2020 - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;-                             additional and different hardware. The SPI is now onboard the PCB and
+;-                             not using the printer interface card.
+;-                  Mar 2021 - Updates for the RFS v2.1 board.
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -49,7 +50,7 @@ CBIOS3_0:   LD      A,(BNKCTRLRST)
             NOP
             NOP
             NOP
-            XOR     A                                                    ; We shouldnt arrive here after a reset, if we do, select UROM bank 0
+            XOR     A                                                    ; We shouldnt arrive here after a reset, if we do, select MROM bank 0
             LD      (BNKSELMROM),A
             NOP
             NOP
@@ -799,8 +800,17 @@ ADD32:      LD      BC,(SDSTARTSEC+2)
             CALL    ADD3216
 
             ; Now add the offset to account for the RFS image.
-            LD      BC, RFS_IMGSZ/SD_SECSIZE                             ; Sector offset for the RFS Image.
-            CALL    ADD3216
+            IF      RFS_IMGSZ/SD_SECSIZE < 010000H
+              LD      BC, RFS_IMGSZ/SD_SECSIZE                           ; Sector offset for the RFS Image.
+              CALL    ADD3216
+            ELSE
+              LD      BC,0                                               ; Padding is to an even address so lower word will always be zero.
+              ADD     HL,BC
+              EX      DE,HL
+              LD      BC,(RFS_END_ADDR/SD_SECSIZE) / 010000H             ; Upper word addition.
+              ADC     HL,BC
+              EX      DE,HL
+            ENDIF
 
             ; Store the final sum as the start sector.
             PUSH    HL

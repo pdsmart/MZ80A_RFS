@@ -7,15 +7,17 @@
 ;-                  Definitions for the RFS including SA1510 locations.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-21 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Sep 2019  - Initial version.
-;                   May 2020  - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
-;                               additional and different hardware. The SPI is now onboard the PCB and
-;                               not using the printer interface card.
-;                   July 2020 - Updated for the v2.1 hardware. RFS can run with a tranZPUter board with
-;                               or without the K64 I/O processor. RFS wont use the K64 processor all
-;                               operations are done by the Z80 under RFS.
+;-                  May 2020  - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
+;-                              additional and different hardware. The SPI is now onboard the PCB and
+;-                              not using the printer interface card.
+;-                  July 2020 - Updated for the tranZPUter v2.1 hardware. RFS can run with a tranZPUter
+;-                              board with or without the K64 I/O processor. RFS wont use the K64
+;-                              processor all operations are done by the Z80 under RFS.
+;-                  March 2021- Updates to accommodate the RFS v2.1 board along with back porting TZFS
+;-                              developments.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -46,6 +48,73 @@ UROMADDR                EQU     0E800H                                   ; Start
 UROMBSTBL               EQU     UROMADDR + 020H                          ; Entry point to the bank switching table.
 RFSJMPTABLE             EQU     UROMADDR + 00080H                        ; Start of jump table.
 FDCROMADDR              EQU     0F000H
+
+
+;-----------------------------------------------
+; Common character definitions.
+;-----------------------------------------------
+SCROLL                  EQU     001H                                     ;Set scroll direction UP.
+BELL                    EQU     007H
+SPACE                   EQU     020H
+TAB                     EQU     009H                                     ;TAB ACROSS (8 SPACES FOR SD-BOARD)
+CR                      EQU     00DH
+LF                      EQU     00AH
+FF                      EQU     00CH
+CS                      EQU     0CH                                      ; Clear screen
+DELETE                  EQU     07FH
+BACKS                   EQU     008H
+SOH                     EQU     1                                        ; For XModem etc.
+EOT                     EQU     4
+ACK                     EQU     6
+NAK                     EQU     015H
+NUL                     EQU     000H
+NULL                    EQU     000H
+CTRL_A                  EQU     001H
+CTRL_B                  EQU     002H
+CTRL_C                  EQU     003H
+CTRL_D                  EQU     004H
+CTRL_E                  EQU     005H
+CTRL_F                  EQU     006H
+CTRL_G                  EQU     007H
+CTRL_H                  EQU     008H
+CTRL_I                  EQU     009H
+CTRL_J                  EQU     00AH
+CTRL_K                  EQU     00BH
+CTRL_L                  EQU     00CH
+CTRL_M                  EQU     00DH
+CTRL_N                  EQU     00EH
+CTRL_O                  EQU     00FH
+CTRL_P                  EQU     010H
+CTRL_Q                  EQU     011H
+CTRL_R                  EQU     012H
+CTRL_S                  EQU     013H
+CTRL_T                  EQU     014H
+CTRL_U                  EQU     015H
+CTRL_V                  EQU     016H
+CTRL_W                  EQU     017H
+CTRL_X                  EQU     018H
+CTRL_Y                  EQU     019H
+CTRL_Z                  EQU     01AH
+ESC                     EQU     01BH
+CTRL_SLASH              EQU     01CH
+CTRL_LB                 EQU     01BH
+CTRL_RB                 EQU     01DH
+CTRL_CAPPA              EQU     01EH
+CTRL_UNDSCR             EQU     01FH
+CTRL_AT                 EQU     000H
+NOKEY                   EQU     0F0H
+CURSRIGHT               EQU     0F1H
+CURSLEFT                EQU     0F2H
+CURSUP                  EQU     0F3H
+CURSDOWN                EQU     0F4H
+DBLZERO                 EQU     0F5H
+INSERT                  EQU     0F6H
+CLRKEY                  EQU     0F7H
+HOMEKEY                 EQU     0F8H
+BREAKKEY                EQU     0FBH
+GRAPHKEY                EQU     0FCH
+ALPHAKEY                EQU     0FDH
+
 
 ;-------------------------------------------------------
 ; Function entry points in the standard SA-1510 Monitor.
@@ -93,7 +162,7 @@ WTAPE:                  EQU     00485H
 MSTOP:                  EQU     00700H
 
 ; Debugging
-ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
+ENADEBUG                EQU     1                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
 ; Memory mapped ports in hardware.
@@ -168,15 +237,33 @@ SETXMHZ                 EQU     062H                                     ; Selec
 SET2MHZ                 EQU     064H                                     ; Select the system 2MHz clock frequency.
 CLKSELRD                EQU     066H                                     ; Read clock selected setting, 0 = 2MHz, 1 = XMHz
 SVCREQ                  EQU     068H                                     ; I/O Processor service request.
+CPUCFG                  EQU     06CH                                     ; Version 2.2 CPU configuration register.
+CPUSTATUS               EQU     06CH                                     ; Version 2.2 CPU runtime status register.
+CPUINFO                 EQU     06DH                                     ; Version 2.2 CPU information register.
 CPLDCFG                 EQU     06EH                                     ; Version 2.1 CPLD configuration register.
 CPLDSTATUS              EQU     06EH                                     ; Version 2.1 CPLD status register.
 CPLDINFO                EQU     06FH                                     ; Version 2.1 CPLD version information register.
+MMIO0                   EQU     0E0H                                     ; MZ-700/MZ-800 Memory Management Set 0
+MMIO1                   EQU     0E1H                                     ; MZ-700/MZ-800 Memory Management Set 1
+MMIO2                   EQU     0E2H                                     ; MZ-700/MZ-800 Memory Management Set 2
+MMIO3                   EQU     0E3H                                     ; MZ-700/MZ-800 Memory Management Set 3
+MMIO4                   EQU     0E4H                                     ; MZ-700/MZ-800 Memory Management Set 4
+MMIO5                   EQU     0E5H                                     ; MZ-700/MZ-800 Memory Management Set 5
+MMIO6                   EQU     0E6H                                     ; MZ-700/MZ-800 Memory Management Set 6
+MMIO7                   EQU     0E7H                                     ; MZ-700/MZ-800 Memory Management Set 7
 
 ;-----------------------------------------------
 ; CPLD Configuration constants.
 ;-----------------------------------------------
-SET_MODE_MZ80A          EQU     1                                        ; Set to original unmodified hardware.
-SET_MODE_MZ700          EQU     2                                        ; Map keyboard and memory mode settings to MZ700 mode.
+MODE_MZ80K              EQU     0                                        ; Set to MZ-80K mode.
+MODE_MZ80C              EQU     1                                        ; Set to MZ-80C mode.
+MODE_MZ1200             EQU     2                                        ; Set to MZ-1200 mode.
+MODE_MZ80A              EQU     3                                        ; Set to MZ-80A mode (base mode on MZ-80A hardware).
+MODE_MZ700              EQU     4                                        ; Set to MZ-700 mode (base mode on MZ-700 hardware).
+MODE_MZ800              EQU     5                                        ; Set to MZ-800 mode.
+MODE_MZ80B              EQU     6                                        ; Set to MZ-80B mode.
+MODE_MZ2000             EQU     7                                        ; Set to MZ-2000 mode.
+MODE_VIDEO_FPGA         EQU     8                                        ; Bit flag (bit 3) to switch CPLD into using the new FPGA video hardware.
 
 ;-----------------------------------------------
 ; tranZPUter SW Memory Management modes
@@ -192,11 +279,16 @@ TZMM_CPM                EQU     006H + TZMM_ENIOWAIT                     ; CPM m
 TZMM_CPM2               EQU     007H + TZMM_ENIOWAIT                     ; CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
                                                                          ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 TZMM_COMPAT             EQU     008H + TZMM_ENIOWAIT                     ; Original mode but with main DRAM in Bank 0 to allow bootstrapping of programs from other machines such as the MZ700.
+TZMM_HOSTACCESS         EQU     009H + TZMM_ENIOWAIT                     ; Mode to allow code running in Bank 0, address E800:FFFF to access host memory. Monitor ROM 0000-0FFF and Main DRAM 0x1000-0xD000, video and memory mapped I/O are on the host machine, User/Floppy ROM E800-FFFF are in tranZPUter memory. 
 TZMM_MZ700_0            EQU     00AH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
 TZMM_MZ700_1            EQU     00BH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_2            EQU     00CH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_3            EQU     00DH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
 TZMM_MZ700_4            EQU     00EH + TZMM_ENIOWAIT                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+TZMM_MZ800              EQU     00FH + TZMM_ENIOWAIT                     ; MZ800 Mode - Tracks original hardware mode offering MZ700/MZ800 configurations.
+TZMM_FPGA               EQU     015H + TZMM_ENIOWAIT                     ; Open up access for the K64F to the FPGA resources such as memory. All other access to RAM or mainboard is blocked.
+TZMM_TZPUM              EQU     016H + TZMM_ENIOWAIT                     ; Everything in on mainboard, no access to tranZPUter memory.
+TZMM_TZPU               EQU     017H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU0              EQU     018H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU1              EQU     019H + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 1 is selected.
 TZMM_TZPU2              EQU     01AH + TZMM_ENIOWAIT                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 2 is selected.
@@ -258,69 +350,6 @@ ROMBANK8                EQU     8                                        ;      
 ROMBANK9                EQU     9                                        ;                     :  CBIOS Bank 2 - Screen / ANSI Terminal
 ROMBANK10               EQU     10                                       ;                     :  CBIOS Bank 3 - SD Card
 ROMBANK11               EQU     11                                       ;                     :  CBIOS Bank 4 - Floppy disk controller.
-
-OBJCD                   EQU     001h
-
-;-----------------------------------------------
-; Common character definitions.
-;-----------------------------------------------
-SCROLL                  EQU     001H                                     ; Set scrool direction UP.
-BELL                    EQU     007H
-SPACE                   EQU     020H
-TAB                     EQU     009H                                     ; TAB ACROSS (8 SPACES FOR SD-BOARD)
-CR                      EQU     00DH
-LF                      EQU     00AH
-FF                      EQU     00CH
-ESC                     EQU     01BH
-DELETE                  EQU     07FH
-BACKS                   EQU     008H
-SOH                     EQU     1                                        ; For XModem etc.
-EOT                     EQU     4
-ACK                     EQU     6
-NAK                     EQU     15H
-NUL                     EQU     00H
-NULL                    EQU     000H
-CTRL_A                  EQU     001H
-CTRL_B                  EQU     002H
-CTRL_C                  EQU     003H
-CTRL_D                  EQU     004H
-CTRL_E                  EQU     005H
-CTRL_F                  EQU     006H
-CTRL_G                  EQU     007H
-CTRL_H                  EQU     008H
-CTRL_I                  EQU     009H
-CTRL_J                  EQU     00AH
-CTRL_K                  EQU     00BH
-CTRL_L                  EQU     00CH
-CTRL_M                  EQU     00DH
-CTRL_N                  EQU     00EH
-CTRL_O                  EQU     00FH
-CTRL_P                  EQU     010H
-CTRL_Q                  EQU     011H
-CTRL_R                  EQU     012H
-CTRL_S                  EQU     013H
-CTRL_T                  EQU     014H
-CTRL_U                  EQU     015H
-CTRL_V                  EQU     016H
-CTRL_W                  EQU     017H
-CTRL_X                  EQU     018H
-CTRL_Y                  EQU     019H
-CTRL_Z                  EQU     01AH
-CTRL_SLASH              EQU     01CH
-CTRL_RB                 EQU     01DH
-CTRL_CAPPA              EQU     01EH
-CTRL_UNDSCR             EQU     01FH
-CTRL_AT                 EQU     000H
-NOKEY                   EQU     0F0H
-CURSRIGHT               EQU     0F1H
-CURSLEFT                EQU     0F2H
-CURSUP                  EQU     0F3H
-CURSDOWN                EQU     0F4H
-DBLZERO                 EQU     0F5H
-INSERT                  EQU     0F6H
-CLRKEY                  EQU     0F7H
-HOMEKEY                 EQU     0F8H
-BREAKKEY                EQU     0FBH
 
 
 ; MMC/SD command (SPI mode)
@@ -387,6 +416,18 @@ SDDIR_DIRSIZE           EQU  SDDIR_DIRENT * SDDIR_DIRENTSZ               ; Total
 SDDIR_BLOCKSZ           EQU  65536                                       ; Size of a file block per directory entry.
 SDDIR_IMGSZ             EQU  SDDIR_DIRSIZE + (SDDIR_DIRENT * SDDIR_BLOCKSZ) ; Total size of the RFS image.
 
+OBJCD                   EQU     001H                                     ; MZF contains a binary object.
+BTX1CD                  EQU     002H                                     ; MZF contains a BASIC program.
+BTX2CD                  EQU     005H                                     ; MZF contains a BASIC program.
+TZOBJCD0                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 0.
+TZOBJCD1                EQU     0F8H
+TZOBJCD2                EQU     0F8H
+TZOBJCD3                EQU     0F8H
+TZOBJCD4                EQU     0F8H
+TZOBJCD5                EQU     0F8H
+TZOBJCD6                EQU     0F8H
+TZOBJCD7                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 7.
+
 ;-----------------------------------------------
 ;    SA-1510 MONITOR WORK AREA (MZ80A)
 ;-----------------------------------------------
@@ -447,7 +488,9 @@ TMPLINECNT:             EQU     01022H                                   ; Tempo
 TMPSTACKP:              EQU     01024H                                   ; Temporary stack pointer save.
 SDVER:                  EQU     01026H
 SDCAP:                  EQU     01027H
-TZPU:                   EQU     01028H                                   ; Tranzputer present flag (0 = not present, > 0 = present and version number).
+SDDRIVENO               EQU     01028H                                   ; RFS SDCFS Active Drive Number
+CMTFILENO               EQU     01029H                                   ; Next Sequential file number to read when file request given without name.
+TZPU:                   EQU     0102AH                                   ; Tranzputer present flag (0 = not present, > 0 = present and version number).
 ; Variables sharing the BUFER buffer, normally the BUFER is only used to get keyboard input and so long as data in BUFER is processed
 ; before calling the CMT/SD commands and not inbetween there shouldnt be any issue. Also the space used is at the top end of the buffer which is not used so often.
 ; This frees up memory needed by the CMT and SD card.

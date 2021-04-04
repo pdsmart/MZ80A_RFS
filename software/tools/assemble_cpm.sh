@@ -8,7 +8,7 @@
 ##                  This script builds a CPM version compatible with the MZ-80A RFS system.
 ##
 ## Credits:         
-## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2020-21 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         January 2020   - Initial script written.
 ##
@@ -37,7 +37,9 @@ ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms                     # Compiled or source ROM files.
-MZFDIR=${ROOTDIR}/software/MZF                      # MZF Format source files.
+MZFDIR=${ROOTDIR}/software/MZF/Common               # MZF Format source files.
+MZBDIR=${ROOTDIR}/software/MZB/Common
+BLOCKSIZELIST="128 256"
 
 # Go through list and build images.
 #
@@ -58,8 +60,21 @@ do
             echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
             cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
         else
+            # Build standard MZF files for inclusion in the SD Drive.
             echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
             cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf
+
+            # Create sectored versions of file for inclusion into the ROM Drives.
+            for BLOCKSIZE in ${BLOCKSIZELIST}
+            do
+                FILESIZE=$(stat -c%s "${ASMTMPDIR}/${f}.obj")
+                if [ $((${FILESIZE} % ${BLOCKSIZE})) -ne 0 ]; then
+                    FILESIZE=$(( ((${FILESIZE} / ${BLOCKSIZE})+1 ) * ${BLOCKSIZE} ))
+                fi
+
+                dd if=/dev/zero ibs=1 count=${FILESIZE} 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/${f}.${BLOCKSIZE}.bin"
+                dd if="${ASMTMPDIR}/${f}.obj" of="${MZBDIR}/${f}.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
+            done            
         fi
     fi
 done

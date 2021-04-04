@@ -9,7 +9,7 @@
 ##                  into a ROM file using the GLASS Z80 assembler.
 ##
 ## Credits:         
-## Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         August 2018   - Initial script written.
 ##
@@ -35,12 +35,14 @@ ASM=glass.jar
 #BUILDROMLIST="MZ80AFI rfs rfs_mrom IPL monitor_SA1510 monitor_80c_SA1510 monitor_mz-1r12 quickdisk_mz-1e05 quickdisk_mz-1e14 monitor_1Z-013A monitor_80c_1Z-013A"
 BUILDROMLIST="monitor_SA1510_hiload monitor_80c_SA1510_hiload monitor_80c_SA1510 MZ80AFI monitor_SA1510 monitor_80c_SA1510 monitor_1Z-013A monitor_80c_1Z-013A IPL"
 #BUILDMZFLIST="hi-ramcheck sharpmz-test"
-BUILDMZFLIST="BASIC sharpmz-test"
+BUILDMZFLIST="SA-5510_RFS sharpmz-test"
 ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
 ROMDIR=${ROOTDIR}/software/roms
-MZFDIR=${ROOTDIR}/software/MZF
+MZFDIR=${ROOTDIR}/software/MZF/Common
+MZBDIR=${ROOTDIR}/software/MZB/Common
+BLOCKSIZELIST="128 256"
 
 # Go through list and build image.
 #
@@ -58,11 +60,26 @@ do
     then
         # The object file is binary, no need to link, copy according to build group.
         if [[ ${BUILDROMLIST} = *"${f}"* ]]; then
-            echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
+            echo "Copy ${ASMTMPDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
             cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
         else
-            echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.MZF"
+            # Build standard MZF files for inclusion in the SD Drive.
+            echo "Copy ${ASMTMPDIR}/${f}.obj to ${MZFDIR}/${f}.MZF"
             cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.MZF
+
+            # Create sectored versions of file for inclusion into the ROM Drives.
+            for BLOCKSIZE in ${BLOCKSIZELIST}
+            do
+                FILESIZE=$(stat -c%s "${ASMTMPDIR}/${f}.obj")
+                if [ $((${FILESIZE} % ${BLOCKSIZE})) -ne 0 ]; then
+                    FILESIZE=$(( ((${FILESIZE} / ${BLOCKSIZE})+1 ) * ${BLOCKSIZE} ))
+                fi
+
+                dd if=/dev/zero ibs=1 count=${FILESIZE} 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/${f}.${BLOCKSIZE}.bin"
+                dd if="${ASMTMPDIR}/${f}.obj" of="${MZBDIR}/${f}.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
+            done
         fi
     fi
 done
+
+

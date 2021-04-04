@@ -52,7 +52,7 @@ HEADER2:    IF BUILD_RFS = 1
             ENDIF
 
 HEADER3:    IF BUILD_TZFS = 1
-            DB      "TZFS BASIC V1.1", 0DH, 0DH                                                             ; Title/Name (17 bytes).
+            DB      "RFS BASIC V1.1 ", 0DH, 0DH                                                             ; Title/Name (17 bytes).
             DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
             DW      01200H                                                                                  ; Load address of program.
             DW      RELOC                                                                                   ; Exec address of program.
@@ -152,8 +152,10 @@ INIT3:      ; Setup keyboard buffer control.
             LD      (FLASHCTL),A
 
             ; Change to 80 character mode.
+            LD      HL,DSPCTL            ; Setup address of display control register latch.
             LD      A, 128               ; 80 char mode.
-            LD      (DSPCTL), A
+            LD      E,(HL)               ; Dummy operation to enable latch write via multivibrator.
+            LD      (HL), A
             CALL    MLDSP
             CALL    BEL                  ; Beep to indicate startup - for cases where screen is slow to startup.
             LD      A,0FFH
@@ -446,21 +448,21 @@ WORDTB:     DW      PEND
             DW      CONT
             DW      LIST
             DW      CLEAR
-            DW      SETANSITERM         ; Enable/disable the ANSI Terminal Emulator.
+            DW      SETANSITERM          ; Enable/disable the ANSI Terminal Emulator.
 
             ; Optional commands to be builtin when a tranZPUter board is present.
 OPTIONS1:   IF BUILD_TZFS = 1
-            DW      CLOADTZ             ; Load tokenised BASIC program.
-            DW      CSAVETZ             ; Save tokenised BASIC program.
-            DW      LOAD                ; Load ASCII text BASIC program.
-            DW      SAVE                ; Save BASIC as ASCII text.
-            DW      SETFREQ             ; Set the CPU Frequency.    
-            DW      DIRSDCARD           ; List out the SD directory.
-            DW      SETDIR              ; Change directory for all load and save operations.
+            DW      CLOADTZ              ; Load tokenised BASIC program.
+            DW      CSAVETZ              ; Save tokenised BASIC program.
+            DW      LOAD                 ; Load ASCII text BASIC program.
+            DW      SAVE                 ; Save BASIC as ASCII text.
+            DW      SETFREQ              ; Set the CPU Frequency.    
+            DW      DIRSDCARD            ; List out the SD directory.
+            DW      SETDIR               ; Change directory for all load and save operations.
             ENDIF
 OPTIONS2:   IF BUILD_RFS = 1
-            DW      CLOAD80A            ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A            ; Save tokenised BASIC program to tape.
+            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
+            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
             DW      REM
             DW      REM
             DW      REM
@@ -468,8 +470,8 @@ OPTIONS2:   IF BUILD_RFS = 1
             DW      REM
             ENDIF
 OPTIONS3:   IF BUILD_MZ80A = 1
-            DW      CLOAD80A            ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A            ; Save tokenised BASIC program to tape.
+            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
+            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
             DW      REM
             DW      REM
             DW      REM
@@ -480,61 +482,61 @@ OPTIONS3:   IF BUILD_MZ80A = 1
 
             ; RESERVED WORD TOKEN VALUES
 
-ZEND        EQU    080H                 ; END    - ZEND marks the start of the table.
-ZFOR        EQU    081H                 ; FOR
-ZDATA       EQU    083H                 ; DATA
-ZGOTO       EQU    088H                 ; GOTO
-ZGOSUB      EQU    08CH                 ; GOSUB
-ZREM        EQU    08EH                 ; REM
-ZPRINT      EQU    09EH                 ; PRINT
-ZNEW        EQU    0AAH                 ; NEW    - ZNEW marks the end of the table
-                                        ; AA..BF are reserved for future commands.
+ZEND        EQU     080H                 ; END    - ZEND marks the start of the table.
+ZFOR        EQU     081H                 ; FOR
+ZDATA       EQU     083H                 ; DATA
+ZGOTO       EQU     088H                 ; GOTO
+ZGOSUB      EQU     08CH                 ; GOSUB
+ZREM        EQU     08EH                 ; REM
+ZPRINT      EQU     09EH                 ; PRINT
+ZNEW        EQU     0AAH                 ; NEW    - ZNEW marks the end of the table
+                                         ; AA..BF are reserved for future commands.
 
             ; Space for expansion, a block of tokens for commands has been created from 0xA5 to 0xBF.
 
-FUNCSTRT    EQU    0C0H                 ; Function start.
-ZTAB        EQU    FUNCSTRT + 00H       ; 0A5H            ; TAB
-ZTO         EQU    FUNCSTRT + 01H       ; 0A6H            ; TO
-ZFN         EQU    FUNCSTRT + 02H       ; 0A7H            ; FN
-ZSPC        EQU    FUNCSTRT + 03H       ; 0A8H            ; SPC
-ZTHEN       EQU    FUNCSTRT + 04H       ; 0A9H            ; THEN
-ZNOT        EQU    FUNCSTRT + 05H       ; 0AAH            ; NOT
-ZSTEP       EQU    FUNCSTRT + 06H       ; 0ABH            ; STEP
+FUNCSTRT    EQU     0C0H                 ; Function start.
+ZTAB        EQU     FUNCSTRT + 00H       ; 0A5H            ; TAB
+ZTO         EQU     FUNCSTRT + 01H       ; 0A6H            ; TO
+ZFN         EQU     FUNCSTRT + 02H       ; 0A7H            ; FN
+ZSPC        EQU     FUNCSTRT + 03H       ; 0A8H            ; SPC
+ZTHEN       EQU     FUNCSTRT + 04H       ; 0A9H            ; THEN
+ZNOT        EQU     FUNCSTRT + 05H       ; 0AAH            ; NOT
+ZSTEP       EQU     FUNCSTRT + 06H       ; 0ABH            ; STEP
 
-ZPLUS       EQU    FUNCSTRT + 07H       ; 0ACH            ; +
-ZMINUS      EQU    FUNCSTRT + 08H       ; 0ADH            ; -
-ZTIMES      EQU    FUNCSTRT + 09H       ; 0AEH            ; *
-ZDIV        EQU    FUNCSTRT + 0AH       ; 0AFH            ; /
-                                        ; 0B0H
-                                        ; 0B1H
-ZOR         EQU    FUNCSTRT + 0dH       ; 0B2H            ; OR
-ZGTR        EQU    FUNCSTRT + 0eH       ; 0B3H            ; >
-ZEQUAL      EQU    FUNCSTRT + 0fH       ; 0B4H            ; M
-ZLTH        EQU    FUNCSTRT + 10H       ; 0B5H            ; <
-ZSGN        EQU    FUNCSTRT + 11H       ; 0B6H            ; SGN
-                                        ; 0B7H
-                                        ; 0B8H
-                                        ; 0B9H
-                                        ; 0BAH
-                                        ; 0BBH
-                                        ; 0BCH
-                                        ; 0BDH
-                                        ; 0BEH
-                                        ; 0BFH
-                                        ; 0C0H
-                                        ; 0C1H
-                                        ; 0C2H
-                                        ; 0C3H
-                                        ; 0C4H
-                                        ; 0C5H
-                                        ; 0C6H
-ZPOINT      EQU    FUNCSTRT + 22H       ; 0C7H            ; POINT
-                                        ; 0C8H
-                                        ; 0C9H
-                                        ; 0CAH
-                                        ; 0CBH
-                                        ; 0CCH
-ZLEFT       EQU    FUNCSTRT + 2aH       ; 0CFH            ; LEFT$
+ZPLUS       EQU     FUNCSTRT + 07H       ; 0ACH            ; +
+ZMINUS      EQU     FUNCSTRT + 08H       ; 0ADH            ; -
+ZTIMES      EQU     FUNCSTRT + 09H       ; 0AEH            ; *
+ZDIV        EQU     FUNCSTRT + 0AH       ; 0AFH            ; /
+                                         ; 0B0H
+                                         ; 0B1H
+ZOR         EQU     FUNCSTRT + 0dH       ; 0B2H            ; OR
+ZGTR        EQU     FUNCSTRT + 0eH       ; 0B3H            ; >
+ZEQUAL      EQU     FUNCSTRT + 0fH       ; 0B4H            ; M
+ZLTH        EQU     FUNCSTRT + 10H       ; 0B5H            ; <
+ZSGN        EQU     FUNCSTRT + 11H       ; 0B6H            ; SGN
+                                         ; 0B7H
+                                         ; 0B8H
+                                         ; 0B9H
+                                         ; 0BAH
+                                         ; 0BBH
+                                         ; 0BCH
+                                         ; 0BDH
+                                         ; 0BEH
+                                         ; 0BFH
+                                         ; 0C0H
+                                         ; 0C1H
+                                         ; 0C2H
+                                         ; 0C3H
+                                         ; 0C4H
+                                         ; 0C5H
+                                         ; 0C6H
+ZPOINT      EQU     FUNCSTRT + 22H       ; 0C7H            ; POINT
+                                         ; 0C8H
+                                         ; 0C9H
+                                         ; 0CAH
+                                         ; 0CBH
+                                         ; 0CCH
+ZLEFT       EQU     FUNCSTRT + 2aH       ; 0CFH            ; LEFT$
 
             ; Space for expansion, reserve a block of tokens for functions.
 
@@ -623,7 +625,7 @@ INITAB:     JP      WARMST               ; Warm start jump
             RET
 
             DB      1                    ; POS (x) number (1)
-            DB      COLW                 ; Terminal width
+INITABW:    DB      COLW                 ; Terminal width
             DB      28                   ; Width for commas (3 columns)
             DB      0                    ; No nulls after input bytes
             DB      0                    ; Output enabled (^O off)
@@ -5556,7 +5558,6 @@ SWEP1:      LD      D,088H                                               ; Break
             JR      SWEP9                   
 SWEP1A:     JP      REBOOT                                               ; Shift + Graph + Break ON = RESET.
             ;
-            JR      SWEP9                   
 SWEP6:      LD      HL,SWPW
             PUSH    HL
             JR      NC,SWEP11                
@@ -8611,7 +8612,7 @@ NUMBERBUF   DS      20,   0                                              ; Buffe
 NUMBERPOS   DW      1,    NUMBERBUF                                      ; Address within buffer
 CHARACTERNO DS      1,    0                                              ; Byte within Ansi sequence. 0=first,255=other
 CURSORCOUNT DS      1,    0                                              ; 1/50ths of a second since last change
-FONTSET     DS      1,    017H                                           ; Ansi font setup - Blue background White Foreground as default.
+FONTSET     DS      1,    071H                                           ; Ansi font setup - Blue background White Foreground as default.
 JSW_FF      DS      1,    0                                              ; Byte value to turn on/off FF routine
 JSW_LF      DS      1,    0                                              ; Byte value to turn on/off LF routine
 CHARACTER   DS      1,    0                                              ; To buffer character to be printed.    

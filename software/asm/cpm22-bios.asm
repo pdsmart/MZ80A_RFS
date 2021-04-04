@@ -40,7 +40,7 @@ BOOTLDR2:   LD      A, (BNKCTRLRST)
             DJNZ    BOOTLDR2
             LD      A, 0x07                               
             LD      (BNKCTRL), A                                         ; Setup the User ROM Bank default.
-            LD      A, (MEMSW)
+            LD      A, (MEMSW)                                           ; Swap 0000:0FFF to C000:CFFF so lower location uses DRAM.
             LD      A, 0x02
             LD      (BNKSELMROM), A                                      ; Setup the Monitor ROM bank default.
             JP      CBIOSSTART                                           ; Cold start the CBIOS.

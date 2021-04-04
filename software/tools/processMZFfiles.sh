@@ -59,9 +59,11 @@ do
     
     IFS=' '; while read -r FSIZE FNAME;
     do
-      TNAME=`echo $FNAME | sed 's/mzf/MZF/g'`
-      if [ "$FNAME" != "$TNAME" ]; then
-          mv "$FNAME" "$TNAME"
+      FDIRNAME=`dirname ${FNAME}`
+      FILENAME=`basename ${FNAME}`
+      TNAME=`echo $FILENAME | sed 's/mzf/MZF/g'`
+      if [ "${FILENAME}" != "${TNAME}" ]; then
+          mv "${FILENAME}" "${TNAME}"
       fi
       set +x
       for BLOCKSIZE in ${BLOCKSIZELIST}
@@ -72,8 +74,8 @@ do
             if [ `echo ${FSIZE} - ${SECTORSIZE}   | bc` -le 0 ];
             then
                 echo $BASE $TNAME $SECTORSIZE
-                dd if=/dev/zero ibs=1 count=$SECTORSIZE 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/${SUBDIR}/$BASE.${BLOCKSIZE}.bin"
-                dd if="${MZFDIR}/${SUBDIR}/$TNAME" of="${MZBDIR}/${SUBDIR}/$BASE.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
+                dd if=/dev/zero ibs=1 count=$SECTORSIZE 2>/dev/null | tr "\000" "\377" > "${MZBDIR}/${FDIRNAME}/${BASE}.${BLOCKSIZE}.bin"
+                dd if="${MZFDIR}/${FDIRNAME}/$TNAME" of="${MZBDIR}/${FDIRNAME}/${BASE}.${BLOCKSIZE}.bin" conv=notrunc 2>/dev/null
                 break;
             fi
           done
