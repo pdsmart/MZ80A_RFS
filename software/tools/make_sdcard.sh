@@ -51,8 +51,10 @@ function addFileToImage
     # Parameters.
     local DRIVENO=$1
     local FILETYPE=$2
-    local FILTER=$3
-    local FILENAME=$4
+    local FORMAT=$3
+    local FILEATTR=$4
+    local FILTER=$5
+    local FILENAME=$6
     local result=0
 
     # Identify type of file.
@@ -61,14 +63,23 @@ function addFileToImage
 
     # Use the File Type and ROM File List to filter out duplicates.
     #
-    if [ ${FILETYPE} == $ft ]; then
+    if [[ ${FILETYPE} == $ft ]] || [[ ${FORMAT} -eq 1 ]]; then
         grep `basename "${FILENAME}" .MZF` ${ROM_LIST_FILE} > /dev/null
         if [ $? -eq 1 -o ${FILTER} -eq 0 ]; then
 
             # Filter out CPM ROM Drive images.
             if [[ "${FILENAME}" != *CPM22-DRV* ]] && [[ "${FILENAME}" != *CPM_RFS_* ]]; then
                 echo "Adding ${FILENAME} to RFS Drive:${DRIVENO}..."
-                ${SDTOOL} --image ${RFS_IMAGE_FILE}${DRIVENO}.${RFS_IMAGE_EXT} --add ${FILENAME}
+
+                # Add according to format.
+                if [[ ${FORMAT} -eq 1 ]]; then
+                    ${SDTOOL} --image ${RFS_IMAGE_FILE}${DRIVENO}.${RFS_IMAGE_EXT} --add ${FILENAME} --binary --exec-addr 0x1200 --attribute ${FILEATTR}
+                elif [[ ${FORMAT} -eq 0 ]]; then
+                    ${SDTOOL} --image ${RFS_IMAGE_FILE}${DRIVENO}.${RFS_IMAGE_EXT} --add ${FILENAME}
+                else
+                    echo "Unrecognised File Type Format, 0 = MZF, 1 = Binary, aborting..."
+                    result=12
+                fi
                 result=$?
                 if [ $result -ne 0 ]; then
                     if [ $result = 60 ]; then
@@ -95,26 +106,36 @@ function addMachineFiles
     local DRIVENO=$1
     local SRCDIR=$2
     local FILTER=$3
+    local FORMAT=$4
+    local FILEATTR=$5
     local result=0
 
-    for f in `(cd ${MZF_PATH}/${SRCDIR}; ls *.MZF)`
+    if [[ ${FORMAT} -eq 1 ]] && [[ "${SRCDIR}" == "CAS"  ]]; then
+        FILELIST=`(cd ${MZF_PATH}/${SRCDIR}; ls *.cas)`
+    elif [[ ${FORMAT} -eq 1 ]] && [[ "${SRCDIR}" == "BAS"  ]]; then
+        FILELIST=`(cd ${MZF_PATH}/${SRCDIR}; ls *.bas)`
+    else
+        FILELIST=`(cd ${MZF_PATH}/${SRCDIR}; ls *.MZF)`
+    fi
+
+    for f in ${FILELIST}
     do
-        addFileToImage ${DRIVENO} 1 ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
+        addFileToImage ${DRIVENO} 1 ${FORMAT} ${FILEATTR} ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
         result=$?
         if [[ ${result} -eq 1 ]] && [[ "${SRCDIR}" = "MZ-80A" ]]; then
-            addFileToImage 5 2 ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
+            addFileToImage 5 2 ${FORMAT} ${FILEATTR} ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
             result=$?
         fi
         if [[ ${result} -eq 1 ]] && [[ "${SRCDIR}" = "MZ-80K" ]]; then
-            addFileToImage 6 2 ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
+            addFileToImage 6 2 ${FORMAT} ${FILEATTR} ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
             result=$?
         fi
         if [[ ${result} -eq 1 ]] && [[ "${SRCDIR}" = "MZ-700" ]]; then
-            addFileToImage 7 5 ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
+            addFileToImage 7 5 ${FORMAT} ${FILEATTR} ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
             result=$?
         fi
         if [[ ${result} -eq 1 ]] && [[ "${SRCDIR}" = "MZ-800" ]]; then
-            addFileToImage 7 5 ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
+            addFileToImage 7 5 ${FORMAT} ${FILEATTR} ${FILTER} ${MZF_PATH}/${SRCDIR}/${f}
             result=$?
         fi
         if [ ${result} -ne 0 -a ${result} -ne 1 ]; then
@@ -151,45 +172,53 @@ done
 #   5       BASIC programs, type 2 (MZ80A)
 #   6       BASIC programs, type 2 (MZ80K)
 #   7       BASIC programs, type 5 (MZ700/800) 
-#   8       Other programs.
+#   8       MS-BASIC programs.
 #   9       Other programs. 
 #
 # Files are filtered out if they already exist in the Flash RAMS. The script make_roms.sh creates
 # a list of files it adds into the Flash RAMS which is used by this script.
 # NB: A maximum of 256 files can be added due to the limit of the RFS directory.
 #
-addMachineFiles 0 Common 0
+addMachineFiles 0 Common 0 0 1
 RESULT=$?
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 0 MZ-80A 1
+    addMachineFiles 0 MZ-80A 1 0 1
     RESULT=$?
 fi
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 1 MZ-80K 1
+    addMachineFiles 1 MZ-80K 1 0 1
     RESULT=$?
 fi
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 2 MZ-700 1
+    addMachineFiles 2 MZ-700 1 0 1
     RESULT=$?
 fi
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 3 MZ-800 1
+    addMachineFiles 3 MZ-800 1 0 1
     RESULT=$?
 fi
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 3 MZ-1500 1
+    addMachineFiles 3 MZ-1500 1 0 1
     RESULT=$?
 fi
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 4 MZ-2000 1
+    addMachineFiles 4 MZ-2000 1 0 1
     RESULT=$?
 fi
 if [ ${RESULT} -eq 0 ]; then
-    addMachineFiles 4 MZ-80B 1
+    addMachineFiles 4 MZ-80B 1 0 1
+    RESULT=$?
+fi
+if [ ${RESULT} -eq 0 ]; then
+    addMachineFiles 8 CAS 1 1 126
+    RESULT=$?
+fi
+if [ ${RESULT} -eq 0 ]; then
+    addMachineFiles 8 BAS 1 1 127
     RESULT=$?
 fi
 if [ ${RESULT} -ne 0 ]; then
-    echo "Aborting due to ealier errors..."
+    echo "Aborting due to earlier errors..."
     exit 1
 fi
 

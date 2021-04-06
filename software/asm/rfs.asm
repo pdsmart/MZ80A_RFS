@@ -137,6 +137,7 @@ CMT_WRINF:  JP       _CMT_WRINF                                          ; UROMA
 CMT_WRDATA: JP       _CMT_WRDATA                                         ; UROMADDR+8FH - Tape/SD intercept handler - Write Data
 CMT_VERIFY: JP       _CMT_VERIFY                                         ; UROMADDR+92H - Tape/SD intercept handler - Verify Data
 CMT_DIR:    JP       _CMT_DIR                                            ; UROMADDR+95H - SD card directory listing command.
+CNV_ATOS:   JP       _CNV_ATOS                                           ; UROMADDR+98H - Convert string from Ascii to Sharp Ascii
             ;-----------------------------------------
 
 
@@ -309,7 +310,11 @@ CMDCMP6:    LD      DE,CMDCMPEND                                         ; Put r
 CMDNOCMP:   LD      DE,MSGBADCMD
             LD      HL,PRINTMSG
             CALL    BKSW0to6
-CMDCMPEND:  JP      ST1X
+CMDCMPEND:  LD      A,(RESULT)
+            CP      0FEH                                                 ; A Result code of 0FEH means execute loaded code, address is in the CMT Header EXADR location.
+            JP      NZ,ST1X
+            LD      HL,(EXADR)
+            JP      (HL)
 
             ; Monitor command table. This table contains the list of recognised commands along with the 
             ; handler function and bank in which it is located.
@@ -1036,28 +1041,32 @@ LOADBASIC:  LD      DE,BASICFILENM
             ;-------------------------------------------------------------------------------
 
             ; Method to set the RFS Drive number from the Load/Save string provided.
-SETDRIVE:   PUSH    AF
-            PUSH    BC
-SETDRV0:    LD      A,(DE)                                               ; If a drive is given it will be in format <driveno>:<filename>
+SETDRIVE:   LD      A,(DE)                                               ; If a drive is given it will be in format <driveno>:<filename>
             OR      A                                                    ; Exit if null or CR found, no drive specifier present.
-            JR      Z,SETDRV2
+            JR      Z,SETDRV3
             CP      00DH
-            JR      Z,SETDRV2
+            JR      Z,SETDRV3
             CP      '"'                                                  ; String quotes, skip over.
             JR      NZ,SETDRV1
             INC     DE
-            JR      SETDRV0
+            JR      SETDRIVE
             ;
-SETDRV1:    SUB     '0'                                                  ; Check the drive number, should be in range 0..9
-            CP      10
-            JR      NC,SETDRV2
+SETDRV1:    LD      A,(DE)                                               ; Check for <digit>:, if no colon exit.
             LD      C,A
             INC     DE
             LD      A,(DE)
             DEC     DE
-            CP      ':'                                                  ; Is the drive being specified?
-            JR      NZ,SETDRV2
+            CP      ':'
+            JR      NZ, SETDRV3
+            ;
             LD      A,C
+            CP      'C'                                                  ; CMT unit specified by C:
+            JR      Z,SETDRV2
+            SUB     '0'                                                  ; Check the drive number, should be in range 0..9
+            JP      C,SD_INVDRV
+            CP      10
+            JP      NC,SD_INVDRV
+SETDRV2:    INC     DE
             LD      (SDDRIVENO),A                                        ; Store drive number for later use.
             XOR     A
             LD      (CMTFILENO),A                                        ; Setup the starting file number for sequential file reads (ie. when no filename given).
@@ -1072,8 +1081,7 @@ SETDRV1:    SUB     '0'                                                  ; Check
             LDIR
             POP     DE
             ;
-SETDRV2:    POP     BC
-            POP     AF
+SETDRV3:    XOR     A
             RET
 
             ; Method to check if the active drive is the CMT.
@@ -1117,6 +1125,7 @@ TOHEX:      PUSH    DE
             ;
             ; No registers or flags should be affected as we dont know the caller state.
 _CMT_RDINF: CALL    SETDRIVE                                             ; Set drive if specified.
+            RET     NZ
             CALL    CHECKCMT                                             ; If drive is set to the CMT Unit exit with Z set so that the original CMT handlers are called.
             JP      Z,?RDI
             LD      A,(DE)                                               ; Check to see if empty string given, if so expand the default Next file number into the buffer.
@@ -1167,6 +1176,7 @@ _CMT_RDERR: SCF
 _CMT_WRINF: LD      DE,NAME                                              ; Caller has already setup the CMT header so we use this for processing.
             ;
             CALL    SETDRIVE                                             ; Set drive if specified.
+            RET     NZ
             CALL    CHECKCMT
             JP      Z,?WRI
             ;
@@ -1204,13 +1214,16 @@ _CMT_WRDATA: LD      HL,SAVESDDATA
             ;
             ; No registers or flags should be affected as we dont know the caller state.
 _CMT_VERIFY:CALL    SETDRIVE                                             ; Set drive if specified.
+            RET     NZ
             CALL    CHECKCMT
             JR      Z,_VERIFY
-            ;
-            RET
+            LD      DE,MSGNOVERIFY
+            JR      SD_ERRMSG
 
 _VERIFY:    JP      ?VRFY
 
+SD_INVDRV:  LD      DE,MSGINVDRV                                         ; Invalid drive specified.
+            JR      SD_ERRMSG
 SD_NOTFND:  LD      DE,MSGNOTFND
 SD_ERRMSG:  LD      HL,PRINTMSG
             CALL    BKSW0to6                                             ; Print message that file wasnt found.
@@ -1220,6 +1233,7 @@ SD_ERRMSG:  LD      HL,PRINTMSG
 
             ; Method to list the contents of the active RFS drive number.
 _CMT_DIR:   CALL    SETDRIVE                                             ; Change to the given drive.
+            RET     NZ
             CALL    CHECKCMT                                             ; Cannot DIR tape drive so give error.
             JP      Z,_CMT_NODIR
             LD      HL,DIRSDCARD
@@ -1227,6 +1241,17 @@ _CMT_DIR:   CALL    SETDRIVE                                             ; Chang
             RET
 _CMT_NODIR: LD      DE,MSGNOCMTDIR
             JR      SD_ERRMSG
+
+            ; Stub to call the ASCII to Sharp ASCII conversion routine stored in Bank 5.
+            ; Inputs: DE = String to convert, NULL or CR terminated.
+            ;          B = Maximum number of characters to convert.
+            ; All registers except AF preserved.
+            ;
+_CNV_ATOS:  PUSH    HL
+            LD      HL,CNVSTR_AS
+            CALL    BKSW0to5
+            POP     HL
+            RET
 
             ;-------------------------------------------------------------------------------
             ; END OF DEVICE DRIVERS

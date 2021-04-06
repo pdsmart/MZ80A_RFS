@@ -228,7 +228,7 @@ SDINIT:     LD      A,0FFH                                               ; CS to
             ;
             CALL    SPIINIT                                              ; Train SD with our clock.
             ;
-            LD      A,000H                                               ; CS to active (low)
+            XOR     A                                                    ; CS to active (low)
             CALL    SPICS
             LD      BC,01FFFH                                            ; Number of retries before giving up, card not responding.
             ;
@@ -333,9 +333,9 @@ SDINIT13:   LD      A,CMD16                                              ; No re
             LD      A,(SDBUF+6)
             OR      A
             JR      Z,SDINIT14
-            LD      A,0
+            XOR     A
             LD      (SDCAP),A                                            ; No capabilities on this unknown card.
-SDINIT14:   LD      A,0
+SDINIT14:   XOR     A
             JR      SD_EXIT
 SD_EXIT:    LD      L,A                                                  ; Return value goes into HL.
             LD      H,0
@@ -631,7 +631,7 @@ LBATOADDR:  LD      HL,(SDSTARTSEC+1)
             LD      A,D
             LD      (BC),A
             INC     BC
-            LD      A,0
+            XOR     A
             LD      (BC),A
             RET
 
@@ -647,7 +647,7 @@ LBATOADDR:  LD      HL,(SDSTARTSEC+1)
             ;
 SD_READ:    PUSH    HL                                                   ; Store the load address.
             PUSH    BC                                                   ; Store the read size.
-            LD      A,000H
+            XOR     A 
             CALL    SPICS                                                ; Set CS low (active).
 
             LD      HL,(SDCAP)                                           ; Test to see if CT_BLOCK is available.
@@ -712,7 +712,7 @@ SD_READ4:   PUSH    HL                                                   ; Start
             INC     BC
             CALL    SPISKIP                                              ; Skip unread bytes + CRC.
             POP     HL
-            LD      A,0                                                  ; And exit with success.
+            XOR     A                                                    ; And exit with success.
 SD_READ5:   PUSH    AF
             LD      A,0FFH                                               ; De-activate CS.
             CALL    SPICS
@@ -733,7 +733,7 @@ SD_READ6:   POP     BC
 SD_WRITE:   PUSH    HL
             PUSH    BC
 
-            LD      A,000H                                               ; Activate CS (set low).
+            XOR     A                                                    ; Activate CS (set low).
             CALL    SPICS
 
             ; Open transaction.
@@ -794,7 +794,7 @@ SD_WRITE4:  LD      A,B                                                  ; Test 
             JP      Z,SD_WRITE5                    
             DEC     BC
             PUSH    BC
-            LD      A,0                                                  ; Send 0's as padding bytes and CRC.
+            XOR     A                                                    ; Send 0's as padding bytes and CRC.
             CALL    SPIOUT
             POP     BC
             JP      SD_WRITE4
@@ -871,19 +871,25 @@ PRTNOWAIT:  LD      A,E
             LD      A, D                                                 ; Print out file number and increment.
             CALL    PRTHX
             LD      A,C
-            CP      OBJCD
-            LD      A, '.'                                               ; File type is MACHINE CODE program.
+            LD      C,02AH
+
+            CP      BTX1CD                                               ; '*' File type is 80K/80A BASIC.
             JR      Z,PRTDIR0A
-            LD      A,C
-            CP      BTX1CD
-            LD      A,'-'                                                ; File type is BASIC.
+            INC     C
+            CP      BTX2CD                                               ; '+' File type is 700/800 BASIC.
             JR      Z,PRTDIR0A
-            LD      A,C
-            CP      BTX2CD
-            LD      A,'_'                                                ; File type is BASIC.
+            INC     C
+            CP      BTX3CD                                               ; ',' File type is a NASCOM Cassette BASIC program.
             JR      Z,PRTDIR0A
-            LD      A,'+'
-PRTDIR0A:   CALL    PRNT
+            INC     C
+            CP      BTX4CD                                               ; '-' File type is a NASCOM ASCII TEXT BASIC program.
+            JR      Z,PRTDIR0A
+            INC     C
+            CP      OBJCD                                                ; '.' File type is MACHINE CODE program.
+            JR      Z,PRTDIR0A
+            INC     C
+PRTDIR0A:   LD      A,C
+            CALL    PRNT
             POP     DE
             PUSH    DE                                                   ; Get pointer to the file name and print.
 
@@ -1011,7 +1017,7 @@ GETDIRSD1:  ADD     HL,DE                                                ; Direc
             DJNZ    GETDIRSD1
 GETDIRSD2:  POP     DE
             POP     BC
-            LD      A,0
+            XOR     A
 GETDIRSD3:  OR      A
             RET
             ;
@@ -1019,8 +1025,7 @@ DIRSDERR:   EX      DE,HL                                                ; Print
             PUSH    HL
             POP     BC                                                   ; HL to BC as the call requires the value to be displayed in BC.
             LD      DE,MSGSDRERR
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    SDPRINT                                              ; Print out the filename.
             POP     DE
             POP     BC
             LD      A,1
@@ -1068,14 +1073,13 @@ WRSDDIRENT: LD      A,(DIRSECBUF)                                        ; Get t
             ;
             OR      A
             JR      NZ,DIRSDWERR
-            LD      A,0
+            XOR     A
 WRSDDIRENT1:OR      A
             RET
 DIRSDWERR:  LD      DE,MSGSDWERR
             PUSH    HL
             POP     BC                                                   ; HL to BC as the call requires the value to be displayed in BC.
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    SDPRINT                                              ; Print out the filename.
             LD      A,1
             JR      WRSDDIRENT1
 
@@ -1094,9 +1098,13 @@ DIRSDCARD:  LD      A,1                                                  ; Setup
             LD      A,0FFH
             LD      (DIRSECBUF),A                                        ; Reset the sector buffer in memory indicator.
             ;
+            LD      A,(SDDRIVENO)
+            CP      'C'
+            JR      Z,DIRSDP
+            ADD     A,'0'
+DIRSDP:     LD      C,A                                                  ; C is printed as a character embedded in the message.
             LD      DE,MSGCDIRLST                                        ; Print out header.
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    SDPRINT                                              ; Print out the filename.
             ;
 DIRSD0:     LD      E,0                                                  ; Directory entry number
             LD      D,0                                                  ; Directory file number (incr when a valid dirent is found).
@@ -1178,10 +1186,12 @@ FINDSD4:    LD      (TMPADR), DE                                         ; Save 
             INC     HL
             INC     HL                                                   ; Hop over flags.
 FINDSD5:    LD      A,(DE)
-            CP      (HL)
-            JR      NZ,FINDSD8                                           ; Mot a match.
+            OR      A
+            JR      Z, FINDSD9A
             CP      00Dh                                                 ; If we find a terminator then this is a valid name.
             JR      Z, FINDSD9A
+            CP      (HL)
+            JR      NZ,FINDSD8                                           ; Mot a match.
 FINDSD6:    INC     DE
             INC     HL
             DJNZ    FINDSD5                                              ; Loop for all the filename characters until terminator or difference found.
@@ -1196,7 +1206,7 @@ FINDSD8:    POP     BC                                                   ; Retri
 FINDSD9A:   POP     BC                                                   ; Waste the directory count.
             LD      DE,(TMPADR)                                          ; Retrieve the directory position and file number.
 FINDSD9:    POP     BC                                                   ; Waste the pointer to the input string.
-            LD      A,0                                                  ; D contains the filenumber.
+            XOR     A                                                    ; D contains the filenumber.
 FINDSD10:   OR      A
             RET
 
@@ -1218,7 +1228,7 @@ ERASESD:    CALL    FINDSDX
             POP     BC                                                   ; Get the directory entry number.
             LD      B,0
             LD      DE,MSGERASEDIR
-            LD      A,0                                                  ; Success.
+            XOR     A                                                    ; Success.
             JR      SDPRINTRES
 ERASESD1:   LD      A,1
             LD      DE,MSGERAFAIL                                        ; Fail, print out message.
@@ -1240,7 +1250,7 @@ LOADSDCP:   LD      A,0FFH
 LOADSDCARDX:LD      A,0FFH
             JR      LOADSD1
 
-LOADSDCARD: LD      A,000H
+LOADSDCARD: XOR     A
 LOADSD1:    LD      (SDAUTOEXEC),A
             XOR     A                                                    ; Clear copying flag.
 LOADSD2:    LD      (SDCOPY),A   
@@ -1254,8 +1264,7 @@ LOADSD3:    LD      DE,MSGNOTFND
             ; Helper method for the CMT replacement functions3. This method is inter bank called to locate a file pointed to by DE and set the header information.
 LOADSDINF:  CALL    FINDSDX 
             JR      Z,LOADSD9                                            ; Same as section above difference is we want to return after the header information has been extracted.
-            LD      A,2                                                  ; Return code for failure.
-            JR      LOADSD9B
+            JP      LOADSDXERR
 
             ; Helper method for CMT replacement functions. This method is called to load data with details already set in the CMT header and SD command buffer.
 LOADSDDATA: LD      DE,(DTADR)                                           ; Update the load address in case caller changed it after reading the header.
@@ -1328,15 +1337,12 @@ LOADSD9A:   LD      (DTADR),DE
             INC     HL 
             LD      D,(HL)                                               ; Execution address, store in tape header memory.
             LD      (EXADR),DE
-            XOR     A                                                    ; Return code for success.
-LOADSD9B:   LD      (RESULT),A                                           ; Store result in memory as interbank calls dont preserve AF.
-            RET
+            JR      LOADSDX                                              ; Exit with ok.
             ;
 LOADSD10    CALL    LOADSD9                                              ; Modularised file find as the CMT replacement functions need it.
             LD      DE,MSGLOAD+1                                         ; Skip initial CR.
             LD      BC,NAME
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    SDPRINT                                              ; Print out the filename.
             CALL    LOADSD11
             JR      C,LOADSD14
             JR      NZ,LOADSDERR
@@ -1369,14 +1375,18 @@ LOADSD12A:  LD      HL,(SDLOADSIZE)
             LD      (SDLOADSIZE),HL
             JR      LOADSD11
 
+            ; 
+            ; Execute code loaded.
 LOADSD14:   LD      A,(SDAUTOEXEC)                                       ; Autoexecute turned off?
             CP      0FFh
             JP      Z,LOADSD15                                           ; Go back to monitor if it has been, else execute.
             LD      A,(ATRB)
             CP      OBJCD
             JR      NZ,LOADSD17
-            LD      HL,(EXADR)
-            JP      (HL)                                                 ; Execution address.
+            LD      A,0FEH                                               ; Indicate that the program needs executing, must occur from ROM Bank 0.
+            JR      LOADSDEXIT
+            ;
+            ; Load only.
 LOADSD15:   LD      DE,MSGCMTDATA                                        ; Indicate where the program was loaded and the execution address.
             LD      HL,(DTADR)
             PUSH    HL
@@ -1384,21 +1394,22 @@ LOADSD15:   LD      DE,MSGCMTDATA                                        ; Indic
             PUSH    HL
             LD      BC,(SIZE)
 LOADSD16:   LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    BKSW2to6                                             ; Print out the filename with stack parameters.
             POP     BC
             POP     BC                                                   ; Remove parameters off stack.
-LOADSDX:    LD      A,0                                                  ; Non error exit.
-LOADSDX1:   LD      (RESULT),A
+LOADSDX:    XOR     A                                                    ; Non error exit.
+LOADSDEXIT: LD      (RESULT),A                                           ; 0 = No error, 2 = Error, 0xFE = Execute code, address at EXADR
             RET
-LOADSD17:   LD      DE,MSGNOTBIN
-            JR      LOADSD16
 
-LOADSDERR:  LD      DE,MSGSDRERR
-            LD      HL,PRINTMSG
+            ; Not a binary file so cannot execute.
+LOADSD17:   LD      DE,MSGNOTBIN
+            JR      LOADSDERR2
+
+LOADSDERR:  LD      DE,MSGSDRERR                                         ; Print out the filename.
             LD      BC,(TMPCNT)
-            CALL    BKSW2to6                                             ; Print out the filename.
-            LD      A,2
-            JR      LOADSDX1
+LOADSDERR2: CALL    SDPRINT
+LOADSDXERR: LD      A,2
+            JR      LOADSDEXIT
 
             ; Setup for saving an application to SD Card but using the CMT header. Also set the copy flag because the values in the header
             ; may not reflect where the image is stored (ie. CTM LOAD=0x0000 -> data is at 0x1200).
@@ -1438,8 +1449,7 @@ SAVESD4:    PUSH    DE                                                   ; Save 
             LD      B,0
             LD      C,E
             LD      DE,MSGSVDIRENT
-            LD      HL,PRINTMSG
-            CALL    BKSW2to6                                             ; Print out the filename.
+            CALL    SDPRINT                                              ; Print out the filename.
             POP     HL                                                   ; HL points to the directory entry buffer.
             LD      A,080H
             LD      (HL),A                                               ; Set directory entry flag indicating that the entry is in use.

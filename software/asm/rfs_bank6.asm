@@ -176,7 +176,10 @@ PRINTMSG:   LD      A,(DE)
             JR      Z,PRINTMSG9
             CP      0FAH                                                 ; Marker to print out a filename with filename address stored in BC.
             JR      Z,PRINTMSG10
-            CALL    PRINTASCII
+            CP      0F9H                                                 ; Marker to print out C as a character.
+            JR      NZ,PRINTMSG1
+            LD      A,C
+PRINTMSG1:  CALL    PRINTASCII
 PRINTMSG2:  INC     DE
             JR      PRINTMSG
 PRINTMSG3:  LD      HL,8+0                                               ; Get first stack parameter, there are 2 pushes on the stack plus return address before the parameters.
@@ -454,7 +457,7 @@ MSGNOTFND:  DB      "Not Found",                               00DH, 000H
 MSGRDIRLST: DB      "ROM Directory:",                          00DH, 000H
 MSGTRM:     DB                                                 00DH, 000H
 MSGBADCMD:  DB      "???",                                     00DH, 000H
-MSGCDIRLST: DB      "SD Card Directory:",                      00DH, 000H
+MSGCDIRLST: DB      "SD Card Directory ",0F9H,":",             00DH, 000H
 MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                      000H
 MSGSDWERR:  DB      "SD Write error, Sec:",0FBH,                     000H
 MSGSVFAIL:  DB      "SD Error, save failed.",                  00DH, 000H
@@ -473,7 +476,7 @@ MSGSAVEOK:  DB      "Tape image saved.",                       00DH, 000H
 MSGBOOTDRV: DB      00DH, "Floppy boot drive ?",                     000H
 MSGLOADERR: DB      00DH, "Disk loading error",                00DH, 000H
 MSGIPLLOAD: DB      00DH, "Disk loading ",                           000H
-MSGDSKNOTMST:DB     00DH, "This is not a boot disk",           00Dh, 000H
+MSGDSKNOTMST:DB     00DH, "Not a boot disk",                   00Dh, 000H
 MSGINITM:   DB      "Init memory",                             00DH, 000H
 MSGREAD4HEX:DB      "Bad hex number",                          00DH, 000H
 MSGT2SDERR: DB      "Copy from Tape to SD Failed",             00DH, 000H
@@ -481,7 +484,9 @@ MSGSD2TERR: DB      "Copy from SD to Tape Failed",             00DH, 000H
 MSGT2SDOK:  DB      "Success, Tape to SD done.",               00DH, 000H
 MSGSD2TOK:  DB      "Success, SD to Tape done.",               00DH, 000H
 MSGNOTZINST:DB      "No tranZPUter >=v2 card installed.",      00DH, 000H
-MSGNOCMTDIR:DB      "Cannot list CMT directory.",              00DH, 000H
+MSGNOCMTDIR:DB      "CMT has no directory.",                   00DH, 000H
+MSGINVDRV:  DB      "Invalid drive, SD=0..9 or C=CMT",         00DH, 000H
+MSGNOVERIFY:DB      "No Verify for SD drive.",                 00DH, 000H
 
             ALIGN   0EFFFh
             DB      0FFh

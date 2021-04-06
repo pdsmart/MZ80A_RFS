@@ -17,6 +17,7 @@
 ;                               only enable the control registers if a fixed number of reads is made
 ;                               into the upper 8 bytes which normally wouldnt occur. Caveat - ensure
 ;                               that no loop instruction is ever placed into EFF8H - EFFFH.
+;                   Mar 2021 -  Add mapping utilities for Sharp<->ASCII conversion.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -36,7 +37,7 @@
 
             ;======================================
             ;
-            ; USER ROM BANK 5
+            ; USER ROM BANK 5 - Utilities
             ;
             ;======================================
             ORG     UROMADDR
@@ -120,6 +121,90 @@ BKSWRET5:   POP     AF                                                       ; G
             LD      (BNKSELUSER), A                                          ; Return to that bank.
             POP     AF
             RET  
+
+
+            ; Method to convert a string with Sharp ASCII codes into standard ASCII codes via map lookup.
+            ; Inputs: DE = pointer to string for conversion.
+            ;         B  = Maximum number of characters to convert if string not terminated.
+            ;
+CNVSTR_SA:  PUSH    HL
+            PUSH    DE
+            PUSH    BC
+CNVSTRSA1:  LD      A,(DE)                                                   ; Get character for conversion.
+            OR      A                                                        ; Exit at End of String (NULL, CR)
+            JR      Z,CNVSTRSAEX
+            CP      00DH
+            JR      Z,CNVSTRSAEX
+            CP      020H                                                     ; No point mapping control characters.
+            JR      C,CNVSTRSA2
+            ;
+            LD      HL,SHARPTOASC                                            ; Start of mapping table.
+            PUSH    BC
+            LD      C,A
+            LD      B,0
+            ADD     HL,BC                                                    ; Add in character offset.
+            POP     BC
+            LD      A,(HL)
+            LD      (DE),A                                                   ; Map character.
+CNVSTRSA2:  INC     DE
+            DJNZ    CNVSTRSA1
+CNVSTRSAEX: POP     BC                                                       ; Restore all registers used except AF.
+            POP     DE
+            POP     HL
+            RET
+
+            ; Method to convert a string with standard ASCII into Sharp ASCII codes via scan lookup in the mapping table.
+            ; Inputs: DE = pointer to string for conversion.
+            ;         B  = Maximum number of characters to convert if string not terminated.
+CNVSTR_AS:  PUSH    HL
+            PUSH    DE
+            PUSH    BC
+CNVSTRAS1:  LD      A,(DE)                                                   ; Get character for conversion.
+            OR      A                                                        ; Exit at End of String (NULL, CR)
+            JR      Z,CNVSTRSAEX
+            CP      00DH
+            JR      Z,CNVSTRSAEX
+            CP      020H                                                     ; No point mapping control characters.
+            JR      C,CNVSTRAS5
+
+            LD      HL,SHARPTOASC + 020H
+            PUSH    BC
+            LD      B, 0100H - 020H
+CNVSTRAS2:  CP      (HL)                                                     ; Go through table looking for a match.
+            JR      Z,CNVSTRAS3
+            INC     HL
+            DJNZ    CNVSTRAS2
+            JR      CNVSTRAS4                                                ; No match then dont convert.
+CNVSTRAS3:  LD      BC,SHARPTOASC                                            ; On match or expiration of BC subtract table starting point to arrive at index.
+            OR      A
+            SBC     HL,BC
+            LD      A,L                                                      ; Index is used as the converted character.
+CNVSTRAS4:  LD      (DE),A
+            POP     BC
+CNVSTRAS5:  INC     DE
+            DJNZ    CNVSTRAS1
+            JR      CNVSTRSAEX
+
+            ; Mapping table to convert between Sharp ASCII and standard ASCII.
+            ; Sharp -> ASCII : Index with Sharp value into table to obtain conversion.
+            ; ASCII -> Sharp : Scan into table looking for value, on match the idx is the conversion. NB 0x20 = 0x20.
+SHARPTOASC: DB      000H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  000H,  020H,  020H ; 0x0F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x1F
+            DB      020H,  021H,  022H,  023H,  024H,  025H,  026H,  027H,  028H,  029H,  02AH,  02BH,  02CH,  02DH,  02EH,  02FH ; 0x2F
+            DB      030H,  031H,  032H,  033H,  034H,  035H,  036H,  037H,  038H,  039H,  03AH,  03BH,  03CH,  03DH,  03EH,  03FH ; 0x3F
+            DB      040H,  041H,  042H,  043H,  044H,  045H,  046H,  047H,  048H,  049H,  04AH,  04BH,  04CH,  04DH,  04EH,  04FH ; 0x4F
+            DB      050H,  051H,  052H,  053H,  054H,  055H,  056H,  057H,  058H,  059H,  05AH,  05BH,  05CH,  05DH,  05EH,  05FH ; 0x5F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x6F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x7F
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0x8F
+            DB      020H,  020H,  065H,  020H,  020H,  020H,  074H,  067H,  068H,  020H,  062H,  078H,  064H,  072H,  070H,  063H ; 0x9F
+            DB      071H,  061H,  07AH,  077H,  073H,  075H,  069H,  020H,  04FH,  06BH,  066H,  076H,  020H,  075H,  042H,  06AH ; 0xAF
+            DB      06EH,  020H,  055H,  06DH,  020H,  020H,  020H,  06FH,  06CH,  041H,  06FH,  061H,  020H,  079H,  020H,  020H ; 0xBF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xCF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xDF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xEF
+            DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xFF
+
 
             ALIGN   0EFFFh
             DB      0FFh

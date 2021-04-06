@@ -1257,7 +1257,7 @@ PATTRN2:DB 0,22,0,0,0,0    ;(* serial number bytes *).
 ;*
 ;**************************************************************
 ;
-FBASE:  JP  FBASE1
+FBASE:  JP FBASE1
 ;
 ;   Bdos error table.
 ;
@@ -1269,7 +1269,8 @@ ROFILE: DW ERROR4      ;file is read only.
 ;   Entry into bdos. (DE) or (E) are the parameters passed. The
 ; function number desired is in register (C).
 ;
-FBASE1: EX  DE,HL       ;save the (DE) parameters.
+FBASE1: 
+    EX  DE,HL       ;save the (DE) parameters.
     LD  (PARAMS),HL
     EX  DE,HL
     LD  A,E     ;and save register (E) in particular.
@@ -3745,6 +3746,7 @@ CKSUMTBL: DB   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
            INCLUDE "CPM_Definitions.asm"
            INCLUDE "cpm22-bios.asm"
 
+           ALIGN_NOPS        CBIOSSTART
 
 ;*
 ;******************   E N D   O F   C P / M   *****************

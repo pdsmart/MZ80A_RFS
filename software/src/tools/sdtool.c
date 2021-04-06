@@ -94,6 +94,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <getopt.h>
+#include <libgen.h>
 
 #define VERSION              "1.0"
 #define RFS_MAX_DIR_ENTRIES  256
@@ -407,6 +408,24 @@ static t_asciiMap asciiMap[] = {
     { 0x20, "SPACE"}  // 0XFF
 };
 
+// Simple function to convert an ascii filename into a Sharp filename using the asciimap table in reverse.
+void convertToSharpFileName(char *filename)
+{
+    char *p = filename;
+
+    while(*p != 0x00)
+    {
+        for(uint32_t idx=0; idx <= 255; idx++)
+        {
+            if(*p == asciiMap[idx].asciiPrintable[0] && strlen(asciiMap[idx].asciiPrintable) == 1)
+            {
+                *p = (char)idx;
+            }
+        }
+        p++;
+    }
+
+}
 
 
 // Simple help screen to remmber how this utility works!!
@@ -416,6 +435,7 @@ void usage(void)
     printf("SDTOOL v%s\n", VERSION);
     printf("\nOptions:-\n");
     printf("  -a | --add <file>        Add given file into the Image.\n");
+    printf("  -A | --attribute <val>   For a binary file, set the MZF attribute to the given val, default=0x01.\n");
     printf("  -b | --binary            Indicate file being added is a binary file, not an MZF format file.\n");
     printf("  -c | --create-image      Create or re-initialise the given image file.\n");
     printf("  -e | --exec-addr <addr>  For a binary file, set the execution address to be written into the directory entry.\n");
@@ -461,6 +481,7 @@ int main(int argc, char *argv[])
     int        listDir_flag      = 0;
     int        createImage_flag  = 0;
     int        verbose_flag      = 0;
+    uint8_t    attribute         = 0x01;
     uint16_t   loadAddr          = 0x1200;
     uint16_t   execAddr          = 0x1200;
     char       imageFile[1024];
@@ -483,6 +504,7 @@ int main(int argc, char *argv[])
     static struct option long_options[] =
     {
         {"add",         required_argument, 0,   'a'},
+        {"attribute",   required_argument, 0,   'A'},
         {"binary",      no_argument,       0,   'b'},
         {"create-image",no_argument,       0,   'c'},
         {"exec-addr",   required_argument, 0,   'e'},
@@ -496,12 +518,16 @@ int main(int argc, char *argv[])
 
     // Parse the command line options.
     //
-    while((opt = getopt_long(argc, argv, ":bcdha;i:l:e:", long_options, &option_index)) != -1)  
+    while((opt = getopt_long(argc, argv, ":bcdha;A:i:l:e:", long_options, &option_index)) != -1)  
     {  
         switch(opt)  
         {  
             case 'a':
                 strcpy(addFile, optarg);
+                break;
+
+            case 'A':
+                attribute = (uint8_t)atoi(optarg);
                 break;
 
             case 'b':
@@ -693,9 +719,25 @@ int main(int argc, char *argv[])
         rfs_directory[dirEntry].execAddr = mzf_header.EXADR;
     } else
     {
-        rfs_directory[dirEntry].flag2 = 0x01;
-        strncpy(rfs_directory[dirEntry].fileName, addFile, 17);
-        rfs_directory[dirEntry].fileName[(strlen(addFile) < 17 ? strlen(addFile) : 16)] = 0x0d;
+        // Extract the filename for insertion into the MZF header.
+        char *baseFileName = basename(addFile);
+        if(baseFileName == NULL)
+        {
+            printf("Error processing filename to extract basename.\n");
+            exit(50);
+        }
+        char *dot=strchr(baseFileName, '.');
+        if(dot != NULL)
+        {
+            *dot = 0x00;
+        }
+        convertToSharpFileName(baseFileName);
+            
+        rfs_directory[dirEntry].flag2 = attribute;
+        for(int idx=0; idx < 17; idx++)
+        {
+            rfs_directory[dirEntry].fileName[idx] = (idx >= strlen(baseFileName) ? 0x0d : baseFileName[idx]);
+        }
         rfs_directory[dirEntry].startSector = swap_endian((RFS_FILEBLOCK_START + (dirEntry * RFS_FILESIZE))/512);
         rfs_directory[dirEntry].size = fileSize;
         rfs_directory[dirEntry].loadAddr = loadAddr;

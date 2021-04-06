@@ -417,16 +417,18 @@ SDDIR_BLOCKSZ           EQU  65536                                       ; Size 
 SDDIR_IMGSZ             EQU  SDDIR_DIRSIZE + (SDDIR_DIRENT * SDDIR_BLOCKSZ) ; Total size of the RFS image.
 
 OBJCD                   EQU     001H                                     ; MZF contains a binary object.
-BTX1CD                  EQU     002H                                     ; MZF contains a BASIC program.
-BTX2CD                  EQU     005H                                     ; MZF contains a BASIC program.
+BTX1CD                  EQU     002H                                     ; MZF contains an MZ-80K/80A BASIC program.
+BTX2CD                  EQU     005H                                     ; MZF contains an MZ-700/800 BASIC program.
+BTX3CD                  EQU     07EH                                     ; MZF contains a NASCOM Cassette BASIC program.
+BTX4CD                  EQU     07FH                                     ; MZF contains a NASCOM ASCII TEXT BASIC program.
 TZOBJCD0                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 0.
-TZOBJCD1                EQU     0F8H
-TZOBJCD2                EQU     0F8H
-TZOBJCD3                EQU     0F8H
-TZOBJCD4                EQU     0F8H
-TZOBJCD5                EQU     0F8H
-TZOBJCD6                EQU     0F8H
-TZOBJCD7                EQU     0F8H                                     ; MZF contains a TZFS binary object for page 7.
+TZOBJCD1                EQU     0F9H
+TZOBJCD2                EQU     0FAH
+TZOBJCD3                EQU     0FBH
+TZOBJCD4                EQU     0FCH
+TZOBJCD5                EQU     0FDH
+TZOBJCD6                EQU     0FEH
+TZOBJCD7                EQU     0FFH                                     ; MZF contains a TZFS binary object for page 7.
 
 ;-----------------------------------------------
 ;    SA-1510 MONITOR WORK AREA (MZ80A)

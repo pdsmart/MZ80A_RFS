@@ -1,6 +1,6 @@
 ;--------------------------------------------------------------------------------------------------------
 ;-
-;- Name:            BASIC_Definitions.asm
+;- Name:            MSBASIC_Definitions.asm
 ;- Created:         June 2020
 ;- Author(s):       Philip Smart
 ;- Description:     Sharp MZ series CPM v2.23
@@ -14,6 +14,8 @@
 ;                              additional and different hardware. The SPI is now onboard the PCB and
 ;                              not using the printer interface card.
 ;                   Jun 2020 - Copied and strpped from TZFS for BASIC.
+;                   Mar 2021 - Updates to run on v2.1 RFS board and provide SD card CLOAD/CSAVE and DIR
+;                              along with bug fixes.
 ;
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -39,17 +41,59 @@
 ;-----------------------------------------------
 ; Configurable settings.
 ;-----------------------------------------------
+; Build options. Set just one to '1' the rest to '0'.
+; NB: As there are now 4 versions and 1 or more need to be built, ie. MZ-80A and RFS version for RFS, a flag is set in the file
+; BASIC_build.asm which configures the equates below for the correct build.
+                        IF BUILD_VERSION = 0
+BUILD_MZ80A               EQU   1                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
+BUILD_RFS                 EQU   0                                        ; Build for standard RFS with SD enhancements.
+BUILD_RFSTZ               EQU   0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
+BUILD_TZFS                EQU   0                                        ; Build for TZFS where extended memory is available.
+                        ENDIF
+                        IF BUILD_VERSION = 1
+BUILD_MZ80A               EQU   0
+BUILD_RFS                 EQU   1
+BUILD_RFSTZ               EQU   0
+BUILD_TZFS                EQU   0
+                        ENDIF
+                        IF BUILD_VERSION = 2
+BUILD_MZ80A               EQU   0
+BUILD_RFS                 EQU   0
+BUILD_RFSTZ               EQU   1
+BUILD_TZFS                EQU   0
+                        ENDIF
+                        IF BUILD_VERSION = 3
+BUILD_MZ80A               EQU   0
+BUILD_RFS                 EQU   0
+BUILD_RFSTZ               EQU   0
+BUILD_TZFS                EQU   1
+                        ENDIF
+INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
+
 TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
-COLW:                   EQU     80                                       ; Width of the display screen (ie. columns).
+                        IF BUILD_MZ80A = 1
+COLW:                     EQU   40                                       ; Width of the display screen (ie. columns).
+MODE80C:                  EQU   0
+                        ENDIF
+                        IF BUILD_RFS+BUILD_RFSTZ+BUILD_TZFS > 0
+COLW:                     EQU   80                                       ; Width of the display screen (ie. columns).
+MODE80C:                  EQU   1
+                        ENDIF
 ROW:                    EQU     25                                       ; Number of rows on display screen.
 SCRNSZ:                 EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
 SCRLW:                  EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
-MODE80C:                EQU     1
 
 ; BIOS equates
 KEYBUFSIZE              EQU     64                                       ; Ensure this is a power of 2, max size 256.
-MAXMEM                  EQU     10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
-;MAXMEM                  EQU     0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
+                        IF BUILD_MZ80A = 1
+MAXMEM                    EQU   0CFFFH                                   ; Top of RAM on a standard Sharp MZ80A.
+                        ENDIF
+                        IF BUILD_RFS = 1
+MAXMEM                    EQU   0CFFFH - TZSVCSECSIZE                    ; Top of RAM on a standard RFS equipped Sharp MZ80A. Top 512 bytes used by RFS SD sector buffer.
+                        ENDIF
+                        IF BUILD_TZFS+BUILD_RFSTZ > 0
+MAXMEM                    EQU   10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+                        ENDIF
 
 ; Tape load/save modes. Used as a flag to enable common code.
 TAPELOAD                EQU     1
@@ -57,11 +101,6 @@ CTAPELOAD               EQU     2
 TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
 
-; Build options. Set just one to '1' the rest to '0'.
-BUILD_MZ80A             EQU     0                                        ; Build for the standard Sharp MZ80A, no lower memory. Manually change MAXMEM above.
-BUILD_RFS               EQU     1                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
-BUILD_TZFS              EQU     0                                        ; Build for TZFS where extended memory is available.
-INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
 
 ; Debugging
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
@@ -74,8 +113,12 @@ ATR_BASIC_PROG          EQU     2
 ATR_BASIC_DATA          EQU     3
 ATR_SRC_FILE            EQU     4
 ATR_RELOC_FILE          EQU     5
+ATR_BASIC_MSCAS         EQU     07EH
+ATR_BASIC_MSTXT         EQU     07FH
 ATR_PASCAL_PROG         EQU     0A0H
 ATR_PASCAL_DATA         EQU     0A1H
+CMTATRB                 EQU     010F0H
+CMTNAME                 EQU     010F1H
 
 ;-------------------------------------------------------
 ; Function entry points in the standard SA-1510 Monitor.
@@ -85,6 +128,17 @@ QWRD                    EQU     00024h
 QRDI                    EQU     00027h
 QRDD                    EQU     0002Ah
 QVRFY                   EQU     0002Dh
+
+;-------------------------------------------------------
+; Function entry points in the RFS ROM.
+;-------------------------------------------------------
+CMT_RDINF               EQU     0E886H                                   ; UROMADDR+86H - Tape/SD intercept handler - Read Header
+CMT_RDDATA              EQU     0E889H                                   ; UROMADDR+89H - Tape/SD intercept handler - Read Data
+CMT_WRINF               EQU     0E88CH                                   ; UROMADDR+80H - Tape/SD intercept handler - Write Header
+CMT_WRDATA              EQU     0E88FH                                   ; UROMADDR+8FH - Tape/SD intercept handler - Write Data
+CMT_VERIFY              EQU     0E892H                                   ; UROMADDR+92H - Tape/SD intercept handler - Verify Data
+CMT_DIR                 EQU     0E895H                                   ; UROMADDR+95H - SD directory command.
+CNV_ATOS                EQU     0E898H                                   ; UROMADDR+98H - Convert an ASCII string into Sharp ASCII
 
 ;-----------------------------------------------
 ; BASIC ERROR CODE VALUES
@@ -137,6 +191,13 @@ INVDSP:                 EQU     0E014H
 NRMDSP:                 EQU     0E015H
 SCLDSP:                 EQU     0E200H
 SCLBASE:                EQU     0E2H
+BNKCTRLRST:             EQU     0EFF8H                                   ; Bank control reset, returns all registers to power up default.
+BNKCTRLDIS:             EQU     0EFF9H                                   ; Disable bank control registers by resetting the coded latch.
+HWSPIDATA:              EQU     0EFFBH                                   ; Hardware SPI Data register (read/write).
+HWSPISTART:             EQU     0EFFCH                                   ; Start an SPI transfer.
+BNKSELMROM:             EQU     0EFFDh                                   ; Select RFS Bank1 (MROM) 
+BNKSELUSER:             EQU     0EFFEh                                   ; Select RFS Bank2 (User ROM)
+BNKCTRL:                EQU     0EFFFH                                   ; Bank Control register (read/write).
 
 ;-----------------------------------------------
 ; IO Registers
@@ -213,6 +274,67 @@ CLRKEY                  EQU     0F7H
 HOMEKEY                 EQU     0F8H
 BREAKKEY                EQU     0FBH
 
+;-----------------------------------------------
+; Rom File System variable addresses.
+;-----------------------------------------------
+; Starting 1000H - Generally unused bytes not cleared by the monitor.
+ROMBK1:                 EQU     01016H                                   ; CURRENT MROM BANK 
+ROMBK2:                 EQU     01017H                                   ; CURRENT USERROM BANK 
+WRKROMBK1:              EQU     01018H                                   ; WORKING MROM BANK 
+WRKROMBK2:              EQU     01019H                                   ; WORKING USERROM BANK 
+ROMCTL:                 EQU     0101AH                                   ; Current Bank control register setting.
+SCRNMODE:               EQU     0101BH                                   ; Mode of screen, 0 = 40 char, 1 = 80 char.
+TMPADR:                 EQU     0101CH                                   ; TEMPORARY ADDRESS STORAGE
+TMPSIZE:                EQU     0101EH                                   ; TEMPORARY SIZE
+TMPCNT:                 EQU     01020H                                   ; TEMPORARY COUNTER
+TMPLINECNT:             EQU     01022H                                   ; Temporary counter for displayed lines.
+TMPSTACKP:              EQU     01024H                                   ; Temporary stack pointer save.
+SDVER:                  EQU     01026H
+SDCAP:                  EQU     01027H
+SDDRIVENO               EQU     01028H                                   ; RFS SDCFS Active Drive Number
+CMTFILENO               EQU     01029H                                   ; Next Sequential file number to read when file request given without name.
+TZPU:                   EQU     0102AH                                   ; Tranzputer present flag (0 = not present, > 0 = present and version number).
+; Variables sharing the BUFER buffer, normally the BUFER is only used to get keyboard input and so long as data in BUFER is processed
+; before calling the CMT/SD commands and not inbetween there shouldnt be any issue. Also the space used is at the top end of the buffer which is not used so often.
+; This frees up memory needed by the CMT and SD card.
+SECTORBUF:              EQU     0CE00H                                   ; Working buffer to place an SD card sector.
+SDSTARTSEC              EQU     BUFER+50+0                               ; Starting sector of data to read/write from/to SD card.
+SDLOADADDR              EQU     BUFER+50+4                               ; Address to read/write data from/to SD card.
+SDLOADSIZE              EQU     BUFER+50+6                               ; Total remaining byte count data to read/write from/to SD card.
+SDAUTOEXEC              EQU     BUFER+50+8                               ; Flag to indicate if a loaded image should be executed (=0xFF)
+SDBUF:                  EQU     BUFER+50+9                               ; SD Card command fram buffer for the command and response storage.
+DIRSECBUF:              EQU     BUFER+50+20                              ; Directory sector in cache.
+DUMPADDR:               EQU     BUFER+50+22                              ; Address used by the D(ump) command so that calls without parameters go onto the next block.
+CMTLOLOAD:              EQU     BUFER+50+24                              ; Flag to indicate that a tape program is loaded into hi memory then shifted to low memory after ROM pageout.
+CMTCOPY:                EQU     BUFER+50+25                              ; Flag to indicate that a CMT copy operation is taking place.
+CMTAUTOEXEC:            EQU     BUFER+50+26                              ; Auto execution flag, run CMT program when loaded if flag clear.
+DTADRSTORE:             EQU     BUFER+50+27                              ; Backup for load address if actual load shifts to lo memory or to 0x1200 for copy.
+SDCOPY:                 EQU     BUFER+50+29                              ; Flag to indicate an SD copy is taking place, either CMT->SD or SD->CMT.
+RESULT:                 EQU     BUFER+50+30                              ; Result variable needed for interbank calls when a result is needed.
+
+;--------------------------------------------------
+; RFS ROM Banks, 0-7 are reserved for alternative
+;                Monitor versions, CPM and RFS
+;                code in MROM bank,
+;                0-7 are reserved for RFS code in
+;                the User ROM bank.
+;                8-15 are reserved for CPM code in
+;                the User ROM bank.
+;--------------------------------------------------
+MROMPAGES               EQU     8
+USRROMPAGES             EQU     12                                       ; Monitor ROM         :  User ROM
+ROMBANK0                EQU     0                                        ; MROM SA1510 40 Char :  RFS Bank 0 - Main RFS Entry point and functions.
+ROMBANK1                EQU     1                                        ; MROM SA1510 80 Char :  RFS Bank 1 - Floppy disk controller and utilities.
+ROMBANK2                EQU     2                                        ; CPM 2.2 CBIOS       :  RFS Bank 2 - SD Card controller and utilities.
+ROMBANK3                EQU     3                                        ; RFS Utilities       :  RFS Bank 3 - Cmdline tools (Memory, Printer, Help)
+ROMBANK4                EQU     4                                        ; MZ700 1Z-013A 40C   :  RFS Bank 4 - CMT Utilities.
+ROMBANK5                EQU     5                                        ; MZ700-1Z-013A 80C   :  RFS Bank 5
+ROMBANK6                EQU     6                                        ; MZ-80B IPL          :  RFS Bank 6
+ROMBANK7                EQU     7                                        ; Free                :  RFS Bank 7 - Memory and timer test utilities.
+ROMBANK8                EQU     8                                        ;                     :  CBIOS Bank 1 - Utilities
+ROMBANK9                EQU     9                                        ;                     :  CBIOS Bank 2 - Screen / ANSI Terminal
+ROMBANK10               EQU     10                                       ;                     :  CBIOS Bank 3 - SD Card
+ROMBANK11               EQU     11                                       ;                     :  CBIOS Bank 4 - Floppy disk controller.
 
 ;-----------------------------------------------
 ; IO ports in hardware and values.
