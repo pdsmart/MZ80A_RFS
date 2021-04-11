@@ -32,6 +32,11 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
+            ; Bring in definitions and macros.
+            INCLUDE "CPM_BuildVersion.asm"
+            INCLUDE "CPM_Definitions.asm"
+            INCLUDE "Macros.asm"
+
             ;======================================
             ;
             ; USER ROM CPM CBIOS BANK 1
@@ -447,7 +452,3 @@ GETKY2:     LD      A,(KEYCOUNT)                                         ; No ke
 
 
             ALIGN_NOPS    UROMADDR + 0800h
-
-            ; Bring in additional macros.
-            INCLUDE "CPM_Definitions.asm"
-            INCLUDE "Macros.asm"

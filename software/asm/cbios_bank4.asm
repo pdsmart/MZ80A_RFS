@@ -31,6 +31,11 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
+            ; Bring in definitions and macros.
+            INCLUDE "CPM_BuildVersion.asm"
+            INCLUDE "CPM_Definitions.asm"
+            INCLUDE "Macros.asm"
+
             ;============================================================
             ;
             ; USER ROM CPM CBIOS BANK 4 - Floppy Disk Controller functions.
@@ -141,10 +146,17 @@ SETDRVMAP2: LD      A,B
             LD      A,(HL)
             POP     HL
 
-            BIT     4,A                                                  ; Disk type = FDC
+            BIT     4,A                                                  ; Disk type = FDC?
+            JR      NZ,SETDRVMAP2A        
+            BIT     3,A
             JR      Z,SETDRVMAP4                                         ; Is this an FDC controlled disk, if so store the mapping number in the map unchanged.
             ;
-            BIT     3,A                                                  ; Is this an SD Card disk, if so, add 080H to the mapping number and store.
+            LD      A,E
+            OR      020H                                                 ; This is a RAM drive, add 020H to the mapping number and store.
+            INC     E
+            JR      SETDRVMAP5
+            ;
+SETDRVMAP2A:BIT     3,A                                                  ; Is this an SD Card disk, if so, add 080H to the mapping number and store.
             JR      Z,SETDRVMAP3
             LD      A,E
             OR      080H
@@ -226,11 +238,15 @@ SETDRV1A:   INC     A                                                    ; Add 1
             ;
             XOR     A                                                    ; Disk type = FDC
             BIT     4,(HL)
-            JR      Z,SETDRV2
-            LD      A,DSKTYP_ROM                                         ; Disk type = ROMFS
+            JR      NZ,SETDRV1B                                          ; 4 = 1?
             BIT     3,(HL)
+            JR      Z,SETDRV2                                            ; 3 = 0 - FDC
+            LD      A,DSKTYP_RAM
+            JR      SETDRV2
+SETDRV1B:   LD      A,DSKTYP_ROM                                         ; Disk type = ROMFS
+            BIT     3,(HL)                                               ; 3 = 0? Thus 1:0 = ROM
             JR      Z,SETDRV2
-            LD      A,DSKTYP_SDC                                         ; Disk type = SD Card
+            LD      A,DSKTYP_SDC                                         ; Disk type = SD Card, ie. 1:1 
 SETDRV2:    LD      (DISKTYPE),A
             POP     BC
             POP     DE
@@ -252,12 +268,11 @@ SETDRV2:    LD      (DISKTYPE),A
             LD      A,(HL)                                               ; Get the physical number after mapping from the CDISK.
             POP     BC
             POP     HL
-;CHECK THIS TYPO AND REMOVE SEEMS A COPY PASTE ERROR
-            RET     NC                                                   ; This isnt a physical floppy disk, no need to perform any actions, exit.
+            RET
 
             ; Select FDC drive (make active) based on value in DISKMAP[CDISK].
 ?SELDRIVE:  CALL    ?GETMAPDSK
-            CP      040H                                                 ; Anything with bit 6 or 7 set is not an FDC drive.
+            CP      020H                                                 ; Anything with bit 7:5 set is not an FDC drive.
             RET     NC                                                   ; This isnt a physical floppy disk, no need to perform any actions, exit.
             LD      (FDCDISK),A
             CALL    DSKMTRON                                             ; yes, set motor on and wait
@@ -620,7 +635,3 @@ DATAOVRMSG: DB      "DISK ERROR - DATA OVERRUN",    CR, NUL
 CRCERRMSG:  DB      "DISK ERROR - CRC ERROR",       CR, NUL
 
             ALIGN_NOPS    UROMADDR + 0800h
-
-            ; Bring in additional macros.
-            INCLUDE "CPM_Definitions.asm"
-            INCLUDE "Macros.asm"

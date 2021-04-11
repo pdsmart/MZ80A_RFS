@@ -34,6 +34,11 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
+            ; Bring in definitions and macros.
+            INCLUDE "CPM_BuildVersion.asm"
+            INCLUDE "CPM_Definitions.asm"
+            INCLUDE "Macros.asm"
+
             ;======================================
             ;
             ; USER ROM CPM CBIOS BANK 2
@@ -1458,7 +1463,3 @@ RCP:        LD      HL,(CURSORPSAV)                                      ; (curr
             ;-------------------------------------------------------------------------------
 
             ALIGN_NOPS    UROMADDR + 0800h
-
-            ; Bring in additional macros.
-            INCLUDE "CPM_Definitions.asm"
-            INCLUDE "Macros.asm"

@@ -17,6 +17,8 @@
 ;-                             additional and different hardware. The SPI is now onboard the PCB and
 ;-                             not using the printer interface card.
 ;-                  Mar 2021 - Updates for the RFS v2.1 board.
+;-                  Apr 2021 - Removed ROM and RAM Drive functionality as it provided no performance or
+;-                             use benefit over SD which are much larger and RW.
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
 ;- it under the terms of the GNU General Public License as published
@@ -31,6 +33,11 @@
 ;- You should have received a copy of the GNU General Public License
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
+
+            ; Bring in definitions and macros.
+            INCLUDE "CPM_BuildVersion.asm"
+            INCLUDE "CPM_Definitions.asm"
+            INCLUDE "Macros.asm"
 
             ORG     CBIOSSTART
 
@@ -325,11 +332,14 @@ INIT3:      LD      A,(BNKCTRLRST)
             LD      A,080H                                               ; Cursor on (Bit D7=1).
             LD      (FLASHCTL),A
 
-            ; Change to 80 character mode.
-            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
-            LD      A, 128                                               ; 80 char mode.
-            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
-            LD      (HL), A
+            ; Change to 80 character mode if enabled.
+            IF      BUILD_80C = 1
+              LD    HL,DSPCTL                                            ; Setup address of display control register latch.
+              LD    A, 128                                               ; 80 char mode.
+              LD    E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+              LD    (HL), A
+            ENDIF
+
             CALL    ?MLDSP
             CALL    ?NL
             LD      DE,CBIOSSIGNON                                       ; Start of sign on message, as devices are detected they are added to the sign on.
@@ -345,6 +355,20 @@ INIT3:      LD      A,(BNKCTRLRST)
             LD      (IOBYT),A
             LD      (CDISK),A            
 
+            ; DRVAVAIL flag definition. Version 1.25 - removed ROM Drives and RAM drives as they provided no speed or use benefit compared with SD drives.
+            ;
+            ; 1 = Active.
+            ;
+            ; 7 6 5 4 3 2 1 0
+            ; ^ ^ ^ ^ ^ ^ ^ ^
+            ; | | | | | | | |-- Floppy Drive Present
+            ; | | | | | | |---- ROM Drive Present
+            ; | | | | | |------ SD Card Present
+            ; | | | | |-------- RAM Drive Present
+            ; | | | |----------          
+            ; | | |------------
+            ; | |--------------
+            ; |---------------- Drives present                
             ;
             ; Initialise the SD Card subsystem (if connected).
             ;
@@ -353,144 +377,53 @@ INIT3:      LD      A,(BNKCTRLRST)
             JR      NZ,STRT2
             SET     2,A                                                  ; Assume the SD Card is present.
             ;
-            PUSH    AF                                                   ; Output indicator that SDC drives are available.
             LD      DE,SDAVAIL
-            CALL    MONPRTSTR
-            POP     AF
-            SET     7,A
+            CALL    PRTSTRTMSG
             ;
             ; Locate the CPM Image and store the Bank/Block to speed up warm boot.
 STRT2:      LD      (DRVAVAIL),A
             ;
+            ; Find the CPM binary in the ROM, used for Warm restart CCP/BDOS reload.
             LD      HL,CPMROMFNAME                                       ; Name of CPM File in rom.
             CALL    FINDMZF
-            JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM! This shouldnt happen as we boot from ROM.
+            JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM! This shouldnt happen even if we boot from SD card, a copy needs to be in the ROM.
             LD      (CPMROMLOC),BC
 
-            ; Locate the ROMFS CPM Disk Images.
-            LD      HL,0FFFFh
-            LD      (CPMROMDRV0),HL
-            LD      (CPMROMDRV1),HL
-            LD      HL,CPMRDRVFN0                                        ; Name of CPM Rom Drive File 0 in rom.
-            CALL    FINDMZF
-            JR      NZ,STRT3                                             ; Failed to find the drive image in the ROM!
-            LD      (CPMROMDRV0),BC                                      ; If found store the bank and page the image is located at.
-            LD      A,(DRVAVAIL)
-            SET     1,A                                                  ; Indicate ROM drives are available.
-            ; 
-            PUSH    AF                                                   ; Output indicator that ROM 1 drive is available.
-            BIT     7,A
-            JR      Z,STRT2A
-            LD      A,','
-            CALL    ?PRNT
-STRT2A:     LD      DE,ROM1AVAIL
-            CALL    MONPRTSTR
-            POP     AF
-            SET     7,A
-            LD      (DRVAVAIL),A
-            ;
-STRT3:      LD      HL,CPMRDRVFN1                                        ; Name of CPM Rom Drive File 1 in rom.
-            CALL    FINDMZF
-            JR      NZ,STRT4                                             ; Failed to find the drive image in the ROM!
-            LD      (CPMROMDRV1),BC                                      ; If found store the bank and page the image is located at.
-            LD      A,(DRVAVAIL)
-            SET     1,A                                                  ; Indicate ROM drives are available.
-            ;
-            PUSH    AF                                                   ; Output indicator that ROM 2 drive is available.
-            BIT     7,A
-            JR      Z,STRT3A
-            LD      A,','
-            CALL    ?PRNT
-STRT3A:     LD      DE,ROM2AVAIL
-            CALL    MONPRTSTR
-            POP     AF
-            SET     7,A
-            LD      (DRVAVAIL),A
-            ;
 STRT4:      CALL    ?DSKINIT                                             ; Initialise the disk subsystem.
             JR      NZ,STRT5
             LD      A,(DRVAVAIL)
             SET     0,A                                                  ; Indicate Floppy drives are available.
 
-            PUSH    AF                                                   ; Output indicator that FDC drives are available.
-            BIT     7,A
-            JR      Z,STRT4A
-            LD      A,','
-            CALL    ?PRNT
-STRT4A:     LD      DE,FDCAVAIL
-            CALL    MONPRTSTR
-            POP     AF
-            SET     7,A
-            LD      (DRVAVAIL),A
+            LD      DE,FDCAVAIL
+            CALL    PRTSTRTMSG
             ;
 STRT5:      LD      DE,CBIOSIGNEND                                       ; Terminate the signon message which now includes list of drives detected.
             CALL    MONPRTSTR
             CALL    ?NL
+            ;
+            ; Allocate DPB according to drives detected in priorty, SD,FDC
             ;
             LD      DE,DPBASE                                            ; Base of parameter block.
             LD      A,0                                                  ; Using scratch area, setup the disk count, pointer to ALV memory and pointer to CSV memory.
             LD      (CDIRBUF),A
             LD      HL,CSVALVMEM
             LD      (CDIRBUF+1),HL
-            ;
-            LD      A,(DRVAVAIL)
-            BIT     1,A
-            JR      Z,STRT7                                              ; No ROM drives available then skip.
-            ;
-            LD      BC,0                                                 ; Setup CSV/ALV parameters for a ROM drive - ie. fixed drive so 0.
-            LD      (CDIRBUF+3),BC
-            LD      BC,20               ; 240/8 + 1                      ; 240/8 + 1 for a 240K drive with 1024B block, 159/8 + 1 for a 320K drive with 2048B block.
-            LD      (CDIRBUF+5),BC
-            LD      BC,DPBLOCK1
-            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
 
-            LD      A,(CPMROMDRV0)                                       ; Drive 0 available?
-            CP      0FFH
-            JR      Z,STRT6
-            ;
-            CALL    COPYDPB                                              ; Copy and set parameters
+            ; Drives A,B default to SD card if present.
+            CALL    ADDSDDRIVE
+            CALL    ADDSDDRIVE
 
-STRT6:      LD      A,(CPMROMDRV1)                                       ; Drive 1 available?
-            CP      0FFH
-            JR      Z,STRT7
+            ; Floppy drive controller always has 2 drives so set them up, which will be C,D when SD card present else A,B.
+            CALL    ADDFLPYDRV
+            CALL    ADDFLPYDRV
 
-            LD      BC,DPBLOCK2
-            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
-            CALL    COPYDPB
-
-STRT7:      LD      A,(DRVAVAIL)
-            BIT     0,A
-            JR      Z,STRT8                                              ; No Floppy drives available then skip.
-
-            LD      BC,128/4                                             ; Setup CSV/ALV parameters for a 1.4MB Floppy drive.
-            LD      (CDIRBUF+3),BC
-            LD      BC,91   ; 720/8 + 1
-            LD      (CDIRBUF+5),BC
-            LD      BC,DPBLOCK3
-            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
-
-            ; Floppy drive controller always has 2 drives so set them up.
-            CALL    COPYDPB
-            CALL    COPYDPB
-
-STRT8:      LD      A,(DRVAVAIL)
-            BIT     2,A
-            JR      Z,STRT10                                             ; No SD Card drives available then skip.
-
-            LD      BC,0                                                 ; Setup CSV/ALV parameters for a 16MB SD Card drive.
-            LD      (CDIRBUF+3),BC
-            LD      BC,257    ; 2048/8 + 1
-            LD      (CDIRBUF+5),BC
-            LD      BC,DPBLOCK4
-            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
-
-            CALL    COPYDPB                                              ; Add in 2 SD drives by default.
-STRT9:      CALL    COPYDPB
+            ; Add additional SD card drives according to free space.
+STRT9:      CALL    ADDSDDRIVE
             ;
             ; Now add as many additional SD drives as we have RAM available within the CBIOS.
             ;
             LD      BC,(CDIRBUF+1)
-            LD      HL,CSVALVEND - 2048/8 + 1                            ; Subtract the size of the ALV (CSV has no size for a fixed SD drive)
+            LD      HL,CSVALVEND - 257                                   ; Subtract the size of the ALV (CSV has no size for a fixed SD drive)
             OR      A
             SBC     HL,BC
             JR      C,STRT10                                             ; If there is no more space, exit.
@@ -498,7 +431,7 @@ STRT9:      CALL    COPYDPB
 
 STRT10:     LD      A,(CDIRBUF)
             LD      (NDISKS),A                                           ; Setup max number of system disks found on this boot up.
-         
+
             ; Setup timer interrupts
             LD      IX,TIMIN                                             ; Pass the interrupt service handler vector.
             LD      BC,00000H                                            ; Time starts at 00:00:00 01/01/1980 on initialisation.
@@ -507,7 +440,7 @@ STRT10:     LD      A,(CDIRBUF)
             CALL    ?TIMESET
 
             ; Signon message after all the hardware has been initialised.
-            LD      DE,CPMSIGNON
+            LD      DE,CPMCOPYRMSG
             CALL    MONPRTSTR
            
             ; CP/M init
@@ -557,6 +490,48 @@ WBTDSKOK2:  CALL    ?SETDRVMAP                                           ; Refre
             ;
 GOCPM:      EI
             JP      CCP                                                  ; Start the CCP.
+
+            ; Method to add an SD drive into the CPM disk definitions.
+            ; If the SD controller hasnt been detected the routine exits without configuration.
+ADDSDDRIVE: LD      A,(DRVAVAIL)
+            BIT     2,A
+            RET     Z                                                    ; No SD interface so skip.
+
+            LD      BC,0                                                 ; Setup CSV/ALV parameters for a 16MB SD Card drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,257    ; 2048/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPBLOCK4
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+            CALL    COPYDPB                                              ; Add in an SD drive.
+            RET
+
+            ; Method to add a Floppy drive into the CPM disk definitions table.
+            ; If the Floppy controller hasnt been detected then skip without configuration.
+ADDFLPYDRV: LD      A,(DRVAVAIL)
+            BIT     0,A
+            RET     Z                                                    ; No Floppy drives available then skip.
+
+            LD      BC,128/4                                             ; Setup CSV/ALV parameters for a 1.4MB Floppy drive.
+            LD      (CDIRBUF+3),BC
+            LD      BC,91   ; 720/8 + 1
+            LD      (CDIRBUF+5),BC
+            LD      BC,DPBLOCK3
+            LD      (CDIRBUF+7),BC                                       ; Address of Disk Parameters
+            CALL    COPYDPB                                              ; Add in a floppy drive.
+            RET
+
+            ; Helper method to print a message with a comma if Bit 7 of A is set.
+PRTSTRTMSG: PUSH    AF
+            BIT     7,A
+            JR      Z,PRTCOMMA1
+            LD      A,','
+            CALL    ?PRNT
+PRTCOMMA1:  CALL    MONPRTSTR
+            POP     AF
+            SET     7,A
+            LD      (DRVAVAIL),A
+            RET
 
             ;-------------------------------------------------------------------------------
             ;  WBOOT                                                                       
@@ -774,11 +749,9 @@ SELDSK_:    LD      (SPSAVE),SP                                          ; The o
             LD      (CDISK),A                                            ; Setup drive.
 SELDSK0:    CALL    ?SETDRVCFG                                
             LD      A,(DISKTYPE)
-            CP      DSKTYP_ROM
-            JR      Z,SELROMDSK                                          ; Select ROM.
             CP      DSKTYP_SDC
             JR      Z,SELSDCDSK                                          ; Select SD Card.
-            ; If it is not a ROM drive or an SD drive then it must be a floppy disk.
+            ; If it is not an SD drive then it must be a floppy disk.
             LD      A,C
             JR      CALCHL
 SELDSK1:    LD      SP,(SPSAVE)                                          ; Restore the CPM stack.
@@ -789,21 +762,7 @@ SELSDCDSK:  LD      A,(DRVAVAIL)
             BIT     2,A
             JR      Z,SELDSK1                                            ; No SD Card drives available then skip.
             LD      A,C
-            JR      CALCHL
 
-            ; For ROM drives, check that at least one drive is present, otherwise illegal disk.
-SELROMDSK:  CALL    ?GETMAPDSK                                           ; Map CDISK to controller + drive number.
-            AND     03FH                                                 ; Mask out controller id bits.
-            JR      NZ,SELDSK2                                           ; There are only 2 ROM drives, so if it isnt drive 0, then always select drive 1.
-            LD      DE,(CPMROMDRV0)                                      ; Retrieve the bank and page the image is located at.
-            JR      SELDSK3
-SELDSK2:    LD      DE,(CPMROMDRV1)                                      ; Retrieve the bank and page the image is located at.
-SELDSK3:    INC     DE
-            LD      A,D
-            OR      E
-            JR      Z,SELDSK1                                            ; If the bank and page are FFFFh then no drive, exit.
-            ;
-            LD      A,C
             ;
             ; Code for blocking and deblocking algorithm
             ; (see CP/M 2.2 Alteration Guide p.34 and APPENDIX G)
@@ -958,23 +917,48 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
             ; During normal operations the control registers are enabled. When access is needed to the full User ROM space, ie for drive read/write then the registers are disabled after
             ; setting the correct bank. The upper bits of the User ROM address space (ie. bits 20:19 which select the device) are set to by the ROMCTL variable.
             ;
+;SELUSRBNK:  DI
+;            EXX
+;            EX      AF,AF'
+;            LD      A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
+;            LD      C,A
+;            RRA
+;            RRA
+;            CPL
+;            AND     00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
+;            LD      B,A                                                  ; Set value to B for loop.
+;            LD      A,(BNKCTRLDIS)                                       ; Do a reset for the case where the above read enabled the latch, possible if external programs are reading/writing the latch area.
+;            LD      A,(BNKCTRL)                                          ; Sample latch at start to detect change.
+;            LD      E,A
+;SELUSRBNK1: LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
+;            CP      E
+;            JR      NZ,SELUSRBNK2
+;            DJNZ    SELUSRBNK1
+;SELUSRBNK2: LD      A,C
+;            LD      (BNKCTRL),A
+;            EX      AF,AF'
+;            LD      (BNKSELUSER),A                                       ; Select the required bank.
+;            EXX
+;            JR      C,SELUSRBNK3                                         ; If Carry is set by caller then leave the control registers active.
+;            LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
+;SELUSRBNK3: EI
+;            RET
 SELUSRBNK:  PUSH    BC
             PUSH    AF
-            LD      A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
-            LD      C,A
-            RRA
-            RRA
-            CPL
-            AND     00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
-            LD      B,A                                                  ; Set value to B for loop.
-SELUSRBNK1: LD      A,(BNKSELUSER)
+            ; Reset to a known state to allow for spurious read/writes to control area clocking the up counter.
+            LD      B,15
+SELUSRBNK0: LD      A,(BNKCTRLDIS)
+            DJNZ    SELUSRBNK0
+            ; Now loop for the correct up counter required to enable the latches.
+            LD      B,15                                                 ; Set value to B for loop.
+SELUSRBNK1: LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
             DJNZ    SELUSRBNK1
-            LD      A,C
-            LD      (BNKCTRL),A
             POP     AF
-            LD      (BNKSELUSER),A                                       ; Select the required bank.
             POP     BC
-            JR      C,SELUSRBNK2                                         ; If Carry is set by caller then leave the control registers active.
+            LD      (BNKSELUSER),A                                       ; Select the required bank.
+            LD      A,(ROMCTL)
+            LD      (BNKCTRL),A
+            JR      C,SELUSRBNK2
             LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
 SELUSRBNK2: RET
 
@@ -1395,6 +1379,16 @@ L09E8:      LD      (HL),D
             DJNZ    ?DINT                   
             RET  
 
+MULT16x8:   LD      HL,0
+            LD      B,8
+MULT16x8_1: ADD     HL,HL
+            RLCA
+            JR      NC,MULT16x8_2
+            ADD     HL,DE
+MULT16x8_2: DJNZ    MULT16x8_1
+            RET
+
+
             ;-------------------------------------------------------------------------------
             ; START OF ROM DRIVE FUNCTIONALITY
             ;-------------------------------------------------------------------------------
@@ -1505,6 +1499,7 @@ FINDMZF2:   PUSH    BC                                                   ; Prese
             LD      B,A
             LD      C,0
             ADD     HL,BC
+
             CALL    ISMZF                                                ; Check to see if this looks like a header entry.
             POP     DE
             POP     BC
@@ -1603,7 +1598,7 @@ LROMLOAD0:  LD      A,(HL)                                               ; Issue
             LD      A,B
             OR      C
             JR      NZ,LROMLOAD0
-            ;LDIR
+
             LD      DE,MZFHDRSZ - MZFHDRNCSZ                             ; Account for the full MZF header (we only load the initial part to save RAM).
             ADD     HL,DE
             POP     DE
@@ -1658,7 +1653,8 @@ LROMLOAD4:  LD      (TMPSIZE), HL                                        ; HL co
             OR      C
             JR      Z, LROMLOAD8
 
-LROMLOAD9:  LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+LROMLOAD9:  LD       (BNKCTRLDIS),A                                       ; There exists an issue with using the mainboard decoder signal which I havent quite understood, random activation of the upcounter occurs which appears to be the refresh circuit. 
+            LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
             INC     HL
             LD      (DE),A
             INC     DE
@@ -1666,7 +1662,6 @@ LROMLOAD9:  LD      A,(HL)                                               ; Issue
             LD      A,B
             OR      C
             JR      NZ,LROMLOAD9
-            ;LDIR
 
             LD      BC, (TMPSIZE)
             LD      A, B                                                 ; Post check to ensure we still have bytes
@@ -1699,189 +1694,7 @@ LROMLOAD5:  PUSH    AF
             POP     AF
             RET
 
-            ; Calculate offset into the ROM of the required sector.
-            ; The sector size is 128 bytes due to the MZF header creating a 128 byte offset. Larger sector
-            ; sizes will need to see the math enhanced to cater for the offset.
-            
-            ; Inputs: (HSTTRK) - 16bit track number.
-            ;         (HSTSEK) - 8bit sector number.
-            ;         (CDISK)  - Disk drive number.
-            ;
-ROMREAD:    LD      DE,(HSTTRK)                                          ; To cater for larger RFS images in the future we use the full 16bit track number.
-            LD      (TRACKNO),DE
-            LD      A, BANKSPERTRACK * SECTORSPERBANK
-            LD      B,8
-            LD      HL,0 
-ROMREAD2:   ADD     HL,HL 
-            RLCA 
-            JR      NC,ROMREAD3
-            ADD     HL,DE
-ROMREAD3:   DJNZ    ROMREAD2
-            ; HL contains the number of sectors for the given tracks.
-            LD      A,(HSTSEC)
-            OR      A
-            RL      A
-            RL      A
-            LD      (SECTORNO), A                                        ; Sector number converted from host 512 byte to local RFS 128 byte.
-            LD      E,A
-            LD      D,0
-            ADD     HL,DE                                                ; Add the number of sectors.
-            ; HL contains the number of sectors for the given tracks and sector.
-            PUSH    HL
-            CALL    ?GETMAPDSK
-            AND     03FH                                                 ; Mask out the controller id bits.
-            JR      NZ,ROMREAD3A                                         ; Only 2 ROM drives, so if it isnt drive 0 then it must be drive 1.
-            LD      BC,(CPMROMDRV0)
-            JR      ROMREAD3B
-ROMREAD3A:  LD      BC,(CPMROMDRV1)
-ROMREAD3B:  LD      A,C                                                  ; Set upper address bits by masking out 7:6 and adding to ROMCTL variable.
-            AND     0C0H
-            LD      D,A
-            LD      A,(ROMCTL)
-            AND     03FH
-            OR      D
-            LD      (ROMCTL),A
-            ;
-            LD      A,C                                                  ; Remove upper address bits from starting block.
-            AND     03FH
-            LD      C,A
-            ;
-            LD      E,B                                                  ; Place number of banks offset and multiply into sectors.
-            LD      D,0
-            LD      A,SECTORSPERBANK
-            LD      B,8 
-            LD      HL,0 
-ROMREAD4:   ADD     HL,HL 
-            RLCA 
-            JR      NC,ROMREAD5
-            ADD     HL,DE                                                
-ROMREAD5:   DJNZ    ROMREAD4                                             ; HL contains the number of sectors for the offset to the drive image.
-            POP     DE
-            ADD     HL,DE
-            ; HL contains the sectors for the number of tracks plus the sectors for the offset to the drive image.
-                                                                         ; C contains current block number.
-            LD      D,SECTORSPERBLOCK                                    ; Calculate the sectors in the block offset (as RFS uses a different sector size).
-            LD      B,8 
-ROMREAD6:   XOR     A 
-            RLCA
-            RLC     C
-            JR      NC,ROMREAD7
-            ADD     A,D 
-ROMREAD7:   DJNZ    ROMREAD6
-            LD      E,A
-            LD      D,0
-            INC     HL                                                   ; The MZF Header consumes 1 sector so skip it.
-            ADD     HL,DE                                                ; HL contains the final absolute sector number to read in ROM.
-
-            ; Divide HL by SECTORSPERBANK to obtain the starting bank.
-            LD      C,SECTORSPERBANK
-            LD      B,16
-            XOR     A
-ROMREAD8:   ADD     HL,HL
-            RLA
-            CP      C
-            JR      C,ROMREAD9
-            INC     L
-            SUB     C
-ROMREAD9:   DJNZ    ROMREAD8
-            ; HL contains the absolute bank number. A contains the block sector.
-            PUSH    HL
-            LD      DE,ROMSECTORSIZE
-            LD      B,8 
-            LD      HL,0
-ROMREAD10:  ADD     HL,HL 
-            RLCA 
-            JR      NC,ROMREAD11
-            ADD     HL,DE
-ROMREAD11:  DJNZ    ROMREAD10
-            LD      DE,UROMADDR
-            ADD     HL,DE
-            POP     DE                                                   ; DE contains the absolute bank number, HL contains the address offset in that bank.
-            LD      C,A
-            LD      B,E                                                  ; Currently only 8bit bank number, store in B.
-            LD      A, E
-            OR      A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
-            CALL    SELUSRBNK 
-            PUSH    BC
-            PUSH    HL
-            LD      DE,HSTBUF                                            ; Target is the host buffer.
-            LD      HL,384                                               ; Size of host sector.
-            LD      BC,ROMSECTORSIZE
-            JR      ROMREAD14
-
-            ; HL = address in active block to read.
-            ;  B = Bank
-            ;  C = Block 
-ROMREAD12:  LD      A, B
-            OR      A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
-            CALL    SELUSRBNK 
-            ;
-            LD      A,H                                                  ; If we reach the top of the user rom space, wrap around.
-            CP      FDCROMADDR / 0100H                                   ; Compare high byte against high byte of floppy rom.
-            JR      NZ,ROMREAD13
-            LD      HL,UROMADDR
-            ;
-ROMREAD13:  PUSH    BC
-            PUSH    HL
-            LD      DE, (TMPADR)
-            LD      HL, (TMPSIZE)
-            LD      BC, ROMSECTORSIZE ;128 ;RFSSECTSZ
-            CCF
-            SBC     HL, BC
-            JR      NC, ROMREAD14
-            LD      BC, (TMPSIZE)
-            LD      HL, 0
-ROMREAD14:  LD      (TMPSIZE), HL                                        ; HL contains remaining amount of bytes to load.
-            POP     HL
-            ;
-            LD      A, B                                                 ; Pre check to ensure BC is not zero.
-            OR      C
-            JR      Z, ROMREAD16
-
-ROMREAD18:  LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
-            INC     HL
-            LD      (DE),A
-            INC     DE
-            DEC     BC
-            LD      A,B
-            OR      C
-            JR      NZ,ROMREAD18
-            ;LDIR
-
-            LD      BC, (TMPSIZE)
-            LD      A, B                                                 ; Post check to ensure we still have bytes
-            OR      C
-            JR      Z, ROMREAD16
-            ;
-            LD      (TMPADR),DE                                          ; Address we are loading into.
-            POP     BC
-ROMREAD15:  INC     C
-            LD      A, C
-            CP      SECTORSPERBANK                                       ; Max blocks per page reached?
-            JR      C, ROMREAD12 
-            LD      C, 0
-            INC     B
-            LD      A, B
-            CP      000h
-            JR      NZ, ROMREAD12
-            OR      1
-            JR      ROMREAD17
-            ;
-ROMREAD16:  POP     BC
-ROMREAD17:  PUSH    AF
-            LD      A,(ROMCTL)
-            AND     03FH
-            LD      (ROMCTL),A                                           ; Switch back to primary Flash RAM I device.
-            LD      A,ROMBANK9                                           ; Reselect utilities bank.
-            SCF                                                          ; Select the required user bank and Set carry so that the control registers remain enabled.
-            CALL    SELUSRBNK 
-            POP     AF
-            JP      READHST3                                             ; HL/BC pushed onto stack in READHST, a jump was made this method not a call.
-
             ; Rom filing system error messages.
-ROMLOADERR: LD      DE,ROMLDERRMSG
-            JR      MONPRTSTR                                                
-
 ROMFINDERR: LD      DE,ROMFDERRMSG
             JR      MONPRTSTR 
 
@@ -1895,6 +1708,7 @@ MONPRTSTR2: CALL    ?PRNT
             ;-------------------------------------------------------------------------------
             ; END OF ROM DRIVE FUNCTIONALITY
             ;-------------------------------------------------------------------------------
+
 
             ;-------------------------------------------------------------------------------
             ; START OF SD CARD DRIVE FUNCTIONALITY
@@ -2100,8 +1914,6 @@ SEKTRKCMP:  EX      DE, HL
 READHST:    PUSH    BC
             PUSH    HL
             LD      A,(DISKTYPE)
-            CP      DSKTYP_ROM                                           ; Is the drive a ROM?
-            JP      Z,ROMREAD
             CP      DSKTYP_SDC                                           ; Is the drive an SD Card?
             JP      Z,SDCREAD
 READHST2:   CALL    ?DSKREAD                                             ; Floppy card, use the FDC Controller.
@@ -2117,8 +1929,6 @@ READHST3:   POP     HL
 WRITEHST:   PUSH    BC
             PUSH    HL
             LD      A,(DISKTYPE)
-            CP      DSKTYP_ROM                                           ; Is the drive a ROM? We cannot (yet) write to the Flash ROM, so error.
-            JP      Z,WRITEHST4
             CP      DSKTYP_SDC                                           ; Is the drive an SD Card?
             JP      Z,SDCWRITE
             CALL    ?DSKWRITE
@@ -2656,18 +2466,21 @@ KTBLC:      ; CTRL ON
 
 
 
-CBIOSSIGNON:DB      "** CBIOS v1.23, (C) P.D. Smart, 19-21. Drives:",                  NUL
-CBIOSIGNEND:DB       " **",                                                        CR, NUL
-CPMSIGNON:  DB      "CP/M v2.23 (48K) COPYRIGHT(C) 1979, DIGITAL RESEARCH",    CR, LF, NUL
-NOBDOS:     DB      "Failed to load BDOS, aborting!",                          CR, LF, NUL
+CBIOSSIGNON:IF      BUILD_80C = 1
+              DB    "** CBIOS v1.25, (C) P.D. Smart, 2019-21. Drives:",                NUL
+            ELSE
+              DB    "*CBIOS v1.25, (C) P.D. Smart, 2019-21.*",                         CR
+              DB    "Drives:",                                                         NUL
+            ENDIF
+CBIOSIGNEND:IF      BUILD_80C = 1
+              DB    " **",                                                         CR, NUL
+            ELSE
+              DB                                                                   CR, NUL
+            ENDIF
+NOBDOS:     DB      "No BDOS, aborting!",                                      CR, LF, NUL
 CPMROMFNAME:DB      "CPM223RFS",                                                       NUL
-CPMRDRVFN0: DB      "CPM22-DRV0",                                                      NUL
-CPMRDRVFN1: DB      "CPM22-DRV1",                                                      NUL
-ROMLDERRMSG:DB      "ROM LOAD ERR",                                                CR, NUL
 ROMFDERRMSG:DB      "ROM FIND ERR",                                                CR, NUL
 SDAVAIL:    DB      "SD",                                                              NUL
-ROM1AVAIL:  DB      "ROM1",                                                            NUL
-ROM2AVAIL:  DB      "ROM2",                                                            NUL
 FDCAVAIL:   DB      "FDC",                                                             NUL
             ;-------------------------------------------------------------------------------
             ; END OF STATIC LOOKUP TABLES AND CONSTANTS
@@ -2802,9 +2615,26 @@ DPB4:       DW      128                                                  ; SPT -
                                                                          ;       Bit 2   = Invert, 1 = Invert data, 0 = Use data as read (on MB8866 this is inverted).
                                                                          ;       Bit 4:3 = Disk type, 00 = FDC, 10 = ROM, 11 = SD Card, 01 = Unused
                                                                          ;       Bit 5   = ROMFS Image, 0 = DRV0, 1 = DRV1
+
+
+; Rom Filing System RAM Drive.
+; If the RFS v2.x board has the optional 512KRAM installed in slot 3 then this definition is used to create a RAM based disk drive within it.
+;
+DPB5:       DW      128                                                  ; SPT - 128 bytes sectors per track
+            DB      4     ; 3                                            ; BSH - block shift factor                    (Set to 3 for a 240K RomRFS Image).
+            DB      15    ; 7                                            ; BLM - block mask                            (Set to 7 for a 240K RomRFS Image).
+            DB      0                                                    ; EXM - Extent mask
+            DW      159   ; 240                                          ; DSM - Storage size (blocks - 1)             (Set to 240 for a 240K RomRFS Image).
+            DW      63    ; 31                                           ; DRM - Number of directory entries - 1
+            DB      128                                                  ; AL0 - 1 bit set per directory block
+            DB      0                                                    ; AL1 -            "
+            DW      0     ; 16                                           ; CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
+            DW      0                                                    ; OFF - Reserved tracks
+            DB      8                                                    ; CFG - MZ80A Addition, configuration flag:
+                                                                         ;       Bit 1:0 = FDC: Sector Size, 00 = 128, 10 = 256, 11 = 512, 01 = Unused.
+                                                                         ;       Bit 2   = Invert, 1 = Invert data, 0 = Use data as read (on MB8866 this is inverted).
+                                                                         ;       Bit 4:3 = Disk type, 00 = FDC, 10 = ROM, 11 = SD Card, 01 = RAM
+                                                                         ;       Bit 5   = ROMFS Image, 0 = DRV0, 1 = DRV1
+
             
             ALIGN_NOPS SCRN
-
-            ; Bring in additional macros.
-            INCLUDE "CPM_Definitions.asm"
-            INCLUDE "Macros.asm"

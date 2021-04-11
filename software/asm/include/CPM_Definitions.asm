@@ -14,6 +14,8 @@
 ;                              additional and different hardware. The SPI is now onboard the PCB and
 ;                              not using the printer interface card.
 ;                   Mar 2021 - Changes to work with the RFS v2.1 board.
+;-                  Apr 2021 - Removed ROM and RAM Drive functionality as it provided no performance or
+;-                             use benefit over SD which are much larger and RW.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -38,6 +40,49 @@ SW_SPI_ENA              EQU     0                                        ; Set t
 PP_SPI_ENA              EQU     0                                        ; Set to 1 if using the SPI interface via the Parallel Port, ie. for RFS PCB v1 which doesnt have SPI onboard.
 
 ;-----------------------------------------------
+; Configurable settings.
+;-----------------------------------------------
+; Build time options, only set to '1' to build, '0' to disable, only 1 can be set to '1'.
+;                        IF BUILD_VERSION = 0
+BUILD_80C               EQU     1                                        ; Build for an MZ-80A with a 40/80 column card.
+BUILD_40C               EQU     0                                        ; Build for a standard 40 column MZ-80A.
+;                        ENDIF
+;                        IF BUILD_VERSION = 1
+;BUILD_80C               EQU     0                                        ; Build for an MZ-80A with a 40/80 column card.
+;BUILD_40C               EQU     1                                        ; Build for a standard 40 column MZ-80A.
+;                        ENDIF
+
+MAXRDRETRY              EQU     002h 
+MAXWRRETRY              EQU     002h
+BLKSIZ                  EQU     4096                                     ; CP/M allocation size
+HSTSIZ                  EQU     512                                      ; host disk sector size
+HSTSPT                  EQU     32                                       ; host disk sectors/trk
+HSTBLK                  EQU     HSTSIZ/128                               ; CP/M sects/host buff
+CPMSPT                  EQU     HSTBLK * HSTSPT                          ; CP/M sectors/track
+SECMSK                  EQU     HSTBLK-1                                 ; sector mask
+WRALL                   EQU     0                                        ; write to allocated
+WRDIR                   EQU     1                                        ; write to directory
+WRUAL                   EQU     2                                        ; write to unallocated
+TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
+MTROFFMSECS             EQU     100                                      ; Time from last access to motor being switched off in seconds in TMRTICKINTV ticks.
+;                        IF BUILD_80C = 1
+COLW                      EQU   80                                       ; Width of the display screen (ie. columns).
+;                        ELSE
+;COLW                      EQU   40                                       ; Width of the display screen (ie. columns).
+;                        ENDIF
+ROW                     EQU     25                                       ; Number of rows on display screen.
+SCRNSZ                  EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
+SCRLW                   EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
+
+; BIOS equates
+MAXDISKS                EQU     7                                        ; Max number of Drives supported
+KEYBUFSIZE              EQU     16                                       ; Ensure this is a power of 2, max size 256.
+
+; Debugging
+ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
+
+
+;-----------------------------------------------
 ; Entry/compilation start points.
 ;-----------------------------------------------
 CBIOSSTART              EQU     0C000h
@@ -48,6 +93,7 @@ CBASE                   EQU     0A000H
 CPMCCP                  EQU     CBASE                                    ; CP/M System entry
 CPMBDOS                 EQU     CPMCCP + 0806H                           ; BDOS entry
 CPMBIOS                 EQU     CPMCCP + 01600H                          ; Original CPM22 BIOS entry
+CPMCOPYRMSG             EQU     CBASE+8                                  ; Copyright message stored in CP/M binary.
 BOOT                    EQU     CBIOSSTART + 0
 WBOOT                   EQU     CBIOSSTART + 3
 WBOOTE                  EQU     CBIOSSTART + 3
@@ -73,7 +119,7 @@ CCPCLRBUF               EQU     CBASE + 3
 DPBASE                  EQU     CPMBIOS
 CDIRBUF                 EQU     CPMBIOS + (MAXDISKS * 16)
 CSVALVMEM               EQU     CDIRBUF + 128 
-CSVALVEND               EQU     CSVALVMEM + 1253
+CSVALVEND               EQU     CBIOSDATA - 1 ;CSVALVMEM + 1253
 IOBYT                   EQU     00003H                                   ; IOBYTE address
 CDISK                   EQU     00004H                                   ; Address of Current drive name and user number
 CPMUSERDMA              EQU     00080h                                   ; Default CPM User DMA address.
@@ -86,37 +132,6 @@ DPBLOCK4                EQU     DPBLOCK3 + DPSIZE
 DPBLOCK5                EQU     DPBLOCK4 + DPSIZE
 DPBLOCK6                EQU     DPBLOCK5 + DPSIZE
 DPBLOCK7                EQU     DPBLOCK6 + DPSIZE
-
-
-;-----------------------------------------------
-; Configurable settings.
-;-----------------------------------------------
-MAXRDRETRY              EQU     002h 
-MAXWRRETRY              EQU     002h
-BLKSIZ                  EQU     4096                                     ; CP/M allocation size
-HSTSIZ                  EQU     512                                      ; host disk sector size
-HSTSPT                  EQU     32                                       ; host disk sectors/trk
-HSTBLK                  EQU     HSTSIZ/128                               ; CP/M sects/host buff
-CPMSPT                  EQU     HSTBLK * HSTSPT                          ; CP/M sectors/track
-SECMSK                  EQU     HSTBLK-1                                 ; sector mask
-WRALL                   EQU     0                                        ; write to allocated
-WRDIR                   EQU     1                                        ; write to directory
-WRUAL                   EQU     2                                        ; write to unallocated
-TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
-MTROFFMSECS             EQU     100                                      ; Time from last access to motor being switched off in seconds in TMRTICKINTV ticks.
-COLW:                   EQU     80                                       ; Width of the display screen (ie. columns).
-ROW:                    EQU     25                                       ; Number of rows on display screen.
-SCRNSZ:                 EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
-SCRLW:                  EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
-MODE80C:                EQU     1
-ROMDRVSIZE:             EQU     320                                      ; Size in K of the Rom RFS Drive, currently 240 or 320 are coded. Please set value in make_cpmdisks.sh when changing this parameter.
-
-; BIOS equates
-MAXDISKS                EQU     7                                        ; Max number of Drives supported
-KEYBUFSIZE              EQU     16                                       ; Ensure this is a power of 2, max size 256.
-
-; Debugging
-ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-------------------------------------------------------
 ; Function entry points in the CBIOS ROMS
@@ -247,6 +262,9 @@ SECTORSPERBANK          EQU     UROMSIZE / ROMSECTORSIZE                 ; (16)
 SECTORSPERBLOCK         EQU     RFSSECTSZ/ROMSECTORSIZE                  ; (2)
 ROMSECTORSIZE           EQU     128
 ROMSECTORS              EQU     128
+RAMDRVSECTORSIZE        EQU     512
+RAMDRVMAXBANK           EQU     (RAMDRVSIZE * 1024)/UROMSIZE             ; Maximum Bank number for the RAM drive.
+
 ;ROMBK1:                EQU     01016H                                   ; CURRENT MROM BANK 
 ;ROMBK2:                EQU     01017H                                   ; CURRENT USERROM BANK 
 ;WRKROMBK1:             EQU     01018H                                   ; WORKING MROM BANK 
@@ -393,6 +411,7 @@ CT_BLOCK                EQU     008H                                     ; Block
 DSKTYP_FDC              EQU     0                                        ; Type of disk is a Floppy disk and handled by the FDC controller.
 DSKTYP_ROM              EQU     1                                        ; Type of disk is a ROM and handled by the ROM methods.
 DSKTYP_SDC              EQU     2                                        ; Type of disk is an SD Card and handled by the SD Card methods.
+DSKTYP_RAM              EQU     3                                        ; Type of disk is a RAM Drive handled by ROM/RAM methods.
 
 ;
 ; Rom Filing System constants.
@@ -490,8 +509,8 @@ TMPSIZE                 DS      virtual 2                                ; TEMPO
 TMPCNT                  DS      virtual 2                                ; TEMPORARY COUNTER
 ;
 CPMROMLOC:              DS      virtual 2                                ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Image.
-CPMROMDRV0:             DS      virtual 2                                ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 0.
-CPMROMDRV1:             DS      virtual 2                                ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 1.
+;CPMROMDRV0:             DS      virtual 2                                ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 0.
+;CPMROMDRV1:             DS      virtual 2                                ; Upper Byte = ROM Bank, Lower Byte = Page of CPM Rom Drive Image Disk 1.
 NDISKS:                 DS      virtual 1                                ; Dynamically calculated number of disks on boot.
 DISKMAP:                DS      virtual MAXDISKS                         ; Disk map of CPM logical to physical controller disk.
 FDCDISK:                DS      virtual 1                                ; Physical disk number.
@@ -563,7 +582,7 @@ BIOSSTACK               EQU     $
 ISRSTACK                EQU     $
 
 DBGSTACKP:              DS      virtual 2
-                        DS      virtual 64
+                        DS      virtual 36
 DBGSTACK:               EQU     $
 
 VAREND                  EQU     $                                        ; End of variables

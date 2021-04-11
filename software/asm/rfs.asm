@@ -20,6 +20,7 @@
 ;                   July 2020 - Updated for the v2.1 hardware. RFS can run with a tranZPUter board with
 ;                               or without the K64 I/O processor. RFS wont use the K64 processor all
 ;                               operations are done by the Z80 under RFS.
+;-                  April 2021- Updates for the v2.1 RFS board.
 ;-
 ;--------------------------------------------------------------------------------------------------------
 ;- This source file is free software: you can redistribute it and-or modify
@@ -249,7 +250,9 @@ ST1X:       CALL    NL                                                   ; Comma
             LD      (SDDRIVENO),A
             JR      ST1X
             ;
-CMDCMP:     LD      HL,CMDTABLE
+CMDCMP:     XOR     A                                                    ; Clear the result variable used by interbank calls. Some functions set this variable and we act on it.
+            LD      (RESULT),A
+            LD      HL,CMDTABLE
 CMDCMP0:    LD      DE,BUFER+1                                           ; First command byte after the * prompt.
             LD      A,(HL)
             CP      000H
@@ -333,13 +336,13 @@ CMDTABLE:   DB      000H | 000H | 000H | 002H                            ; Bit 2
             DB      000H | 000H | 000H | 003H
             DB      "700"                                                ; Switch to 40 column MZ700 mode.
             DW      SETMODE700
-            DB      000H | 000H | 010H | 005H
+            DB      000H | 000H | 000H | 005H
             DB      "BASIC"                                              ; Load and run BASIC SA-5510.
             DW      LOADBASIC
-            DB      000H | 000H | 000H | 001H
+            DB      000H | 000H | 020H | 001H
             DB      'B'                                                  ; Bell.
             DW      SGX
-            DB      000H | 000H | 010H | 003H
+            DB      000H | 000H | 000H | 003H
             DB      "CPM"                                                ; Load and run CPM.
             DW      LOADCPM
             DB      000H | 000H | 018H | 001H
@@ -870,8 +873,8 @@ LOADROMNX:  LD      L,0FFH
 LOADROM:    LD      L,000H
 LOADROM1:   DI
             PUSH    HL                                                   ; Preserve execute flag.
-
             EX      DE,HL                                                ; User ROM expects HL to have the filename pointer.
+
             PUSH    HL                                                   ; Save pointer to filename for FINDMZF in Monitor ROM.
 
             ; D = File sequence number.
@@ -1023,13 +1026,26 @@ LROMLOAD9:  RET
 
             ; Quick method to load CPM. So long as the filename doesnt change this method will load and boot CPM.
 LOADCPM:    LD      DE,CPMFN48                                           ; Load up the 48K version of CPM
-LOADPROG:   LD      HL,LOADSDCARD
-            CALL    BKSW0to2
-            RET
+LOADPRGNM:  PUSH    HL
+            LD      HL,BUFER
+LOADPRGNM1: LD      A,(DE)
+            LD      (HL),A
+            CP      CR
+            JR      Z,LOADPRGNM2
+            INC     DE
+            INC     HL
+            JR      LOADPRGNM1
+LOADPRGNM2: POP     HL
+            LD      DE,BUFER
+            JP      LOADROM
 
             ; Quick method to load the basic interpreter. So long as the filename doesnt change this method will load and boot Basic.
 LOADBASIC:  LD      DE,BASICFILENM
-            JR      LOADPROG
+            JR      LOADPRGNM
+
+LOADPROG:   LD      HL,LOADSDCARD
+            CALL    BKSW0to2
+            RET
 
             ;-------------------------------------------------------------------------------
             ; END OF RFS COMMAND FUNCTIONS.
@@ -1265,8 +1281,8 @@ _CNV_ATOS:  PUSH    HL
             ;--------------------------------------
 
             ; Quick load program names.
-CPMFN48:    DB      "CPM223RFS", 00DH
-BASICFILENM:DB      "BASIC SA-5510", 00DH            
+CPMFN48:    DB      "CPM223RFS",        00DH
+BASICFILENM:DB      "BASIC SA-5510RFS", 00DH            
 DEFAULTFN:  DB      "DEFAULT"
 DEFAULTFNE: EQU     $
            

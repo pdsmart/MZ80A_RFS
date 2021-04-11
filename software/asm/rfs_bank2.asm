@@ -230,14 +230,15 @@ SDINIT:     LD      A,0FFH                                               ; CS to
             ;
             XOR     A                                                    ; CS to active (low)
             CALL    SPICS
-            LD      BC,01FFFH                                            ; Number of retries before giving up, card not responding.
+            LD      BC,SD_RETRIES                                        ; Number of retries before giving up, card not responding.
             ;
 SDINIT1:    LD      A,CMD0                                               ; Command 0
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00000H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
-            CALL    SDCMD
-
             PUSH    BC
+            ;
+            CALL    SDCMD
+            ;
             LD      A,(SDBUF+6)                                          ; Get response code.
             DEC     A                                                    ; Set Z flag to test if response is 0x01
             JP      Z,SDINIT2                                            ; Command response 0x01? Exit if match.
@@ -248,6 +249,7 @@ SDINIT1:    LD      A,CMD0                                               ; Comma
             JR      NZ,SDINIT1                                           ; Retry for BC times.
             LD      A,1
             JP      SD_EXIT                                              ; Error, card is not responding to CMD0
+
 SDINIT2:    POP     BC
             ; Now send CMD8 to get card details. This command can only be sent 
             ; when the card is idle.
@@ -380,10 +382,24 @@ SDCMD1:     PUSH    BC
             POP     BC
             DJNZ    SDCMD1
             PUSH    HL
-SDCMD2:     CALL    SPIIN
+            LD      HL,SD_RETRIES
+SDCMD2:     PUSH    HL
+            CALL    SPIIN
+            POP     HL
             CP      0FFH
-            JR      Z,SDCMD2
-            JR      SDCMD4
+            JR      NZ,SDCMD4
+            DEC     HL
+            LD      A,H
+            OR      L
+            JR      NZ,SDCMD2
+            ;
+            ; Error as we are not receiving data.
+            ;
+            POP     HL
+            LD      A,1                                                  ; Force return code to be error.
+            LD      (SDBUF+6),A
+            RET
+
 SDCMD3:     PUSH    BC
             PUSH    HL
             CALL    SPIIN                                                ; 

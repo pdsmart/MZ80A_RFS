@@ -287,29 +287,56 @@ INITBNK_1: LD       A,(BNKCTRLRST)
 
            ; Function to select a User Bank. If Carry is clear upon entry, on exit the control registers will be disabled. If carry is set then the control registers are left active.
            ;
-SELUSRBNK: PUSH     BC
-           PUSH     AF
-           LD       A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
-           LD       C,A
-           RRA
-           RRA
-           CPL
-           AND      00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
-           LD       B,A                                                  ; Set value to B for loop.
-           LD       A,(BNKCTRLDIS)
-SELUSRBNK1:LD       A,(BNKSELUSER)
-           DJNZ     SELUSRBNK1
-           POP      AF
-           LD       (BNKSELUSER),A                                       ; Select the required bank.
-           LD       A,C
-           POP      BC
-           JR       NC,SELUSRBNK2                                        ; If Carry is set by caller then leave the control registers active.
-           AND      03FH                                                 ; When we leave the registers active, set upper bank bits to 0 to select Flash RAM I, the default.
-           LD       (BNKCTRL),A
-           RET
-SELUSRBNK2:LD       (BNKCTRL),A                                          ; Update the upper address lines according to in-memory value.
-           LD       (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
-           RET
+
+;SELUSRBNK: PUSH     BC
+;           PUSH     AF
+;           LD       A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
+;           LD       C,A
+;           RRA
+;           RRA
+;           CPL
+;           AND      00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
+;           LD       B,A                                                  ; Set value to B for loop.
+;           LD       A,(BNKCTRLDIS)
+;SELUSRBNK1:LD       A,(BNKSELUSER)
+;           DJNZ     SELUSRBNK1
+;           POP      AF
+;           LD       (BNKSELUSER),A                                       ; Select the required bank.
+;           LD       A,C
+;           POP      BC
+;           JR       NC,SELUSRBNK2                                        ; If Carry is set by caller then leave the control registers active.
+;           AND      03FH                                                 ; When we leave the registers active, set upper bank bits to 0 to select Flash RAM I, the default.
+;           LD       (BNKCTRL),A
+;           RET
+;SELUSRBNK2:LD       (BNKCTRL),A                                          ; Update the upper address lines according to in-memory value.
+;           LD       (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
+;           RET
+
+            ; Function to select a User Bank. If Carry is clear upon entry, on exit the control registers will be disabled. If carry is set then the control registers are left active.
+            ; During normal operations the control registers are enabled. When access is needed to the full User ROM space, ie for drive read/write then the registers are disabled after
+            ; setting the correct bank. The upper bits of the User ROM address space (ie. bits 20:19 which select the device) are set to by the ROMCTL variable.
+            ;
+SELUSRBNK:  PUSH    BC
+            PUSH    AF
+            ; Reset to a known state to allow for spurious read/writes to control area clocking the up counter.
+            LD      B,15
+SEL1:       LD      A,(BNKCTRLDIS)
+            DJNZ    SEL1
+            ; Now loop for the correct up counter required to enable the latches.
+            LD      B,15                                                 ; Set value to B for loop.
+SELUSRBNK1: LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
+            DJNZ    SELUSRBNK1
+            POP     AF
+            POP     BC
+            LD      (BNKSELUSER),A                                       ; Select the required bank.
+            LD      A,(ROMCTL)
+            JR      NC,SELUSRBNK2
+            AND     03FH                                                 ; When we leave the registers active, set upper bank bits to 0 to select Flash RAM I, the default.
+            LD      (BNKCTRL),A
+            RET
+SELUSRBNK2: LD      (BNKCTRL),A
+            LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
+            RET
 
 
            ; HL contains address of block to check.
@@ -574,7 +601,6 @@ LROMLOAD1: LD       A,(HL)                                               ; Issue
            LD       A,B
            OR       C
            JR       NZ,LROMLOAD1
-           ;LDIR
 
            PUSH     HL
            LD       DE, (DTADR)
@@ -593,8 +619,6 @@ LROMLOAD2: LD       A, B
            LD       (WRKROMBK2), A
            OR       A                                                    ; Select the required user bank and Clear carry so that the control registers are disabled.
            CALL     SELUSRBNK 
-
-     ; LD       (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
 
 LROMLOAD3: PUSH     BC
            LD       HL, 0E800h
@@ -625,7 +649,8 @@ LROMLOAD4: LD       (TMPSIZE), HL                                        ; HL co
            OR       C
            JR       Z, LROMLOAD8
 
-LROMLOAD9: LD       A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+LROMLOAD9: LD       (BNKCTRLDIS),A                                       ; There exists an issue with using the mainboard decoder signal which I havent quite understood, random activation of the upcounter occurs which appears to be the refresh circuit. 
+           LD       A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
            INC      HL
            LD       (DE),A
            INC      DE
@@ -633,7 +658,6 @@ LROMLOAD9: LD       A,(HL)                                               ; Issue
            LD       A,B
            OR       C
            JR       NZ,LROMLOAD9
-           ;LDIR
 
            LD       BC, (TMPSIZE)
            LD       A, B                                                 ; Post check to ensure we still have bytes
@@ -645,7 +669,7 @@ LROMLOAD9: LD       A,(HL)                                               ; Issue
 LROMLOAD6: INC      C
            LD       A, C
            CP       UROMSIZE/RFSSECTSZ                                   ; Max blocks per page reached?
-           JR       C, LROMLOAD3         ;LROMLOAD7
+           JR       C, LROMLOAD2 ;LROMLOAD3         ;LROMLOAD7
            LD       C, 0
            INC      B
            ;

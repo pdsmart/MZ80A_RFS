@@ -31,6 +31,11 @@
 ;- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;--------------------------------------------------------------------------------------------------------
 
+            ; Bring in definitions and macros.
+            INCLUDE "CPM_BuildVersion.asm"
+            INCLUDE "CPM_Definitions.asm"
+            INCLUDE "Macros.asm"
+
             ;============================================================
             ;
             ; USER ROM CPM CBIOS BANK 3 - SD Card Controller functions.
@@ -800,8 +805,8 @@ ADD32:      LD      BC,(SDSTARTSEC+2)
             CALL    ADD3216
 
             ; Now add the offset to account for the RFS image.
-            IF      RFS_IMGSZ/SD_SECSIZE < 010000H
-              LD      BC, RFS_IMGSZ/SD_SECSIZE                           ; Sector offset for the RFS Image.
+            IF      RFS_END_ADDR/SD_SECSIZE < 010000H
+              LD      BC, RFS_END_ADDR/SD_SECSIZE                        ; Sector offset for the RFS Image.
               CALL    ADD3216
             ELSE
               LD      BC,0                                               ; Padding is to an even address so lower word will always be zero.
@@ -865,7 +870,3 @@ SDC_WRITE1: RET
 
 
             ALIGN_NOPS    UROMADDR + 0800h
-
-            ; Bring in additional macros.
-            INCLUDE "CPM_Definitions.asm"
-            INCLUDE "Macros.asm"

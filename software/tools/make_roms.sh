@@ -15,6 +15,8 @@
 ##
 ## History:         January 2020   - Initial script written.
 ##                  March 2021     - Updates for the RFS v2.1 board.
+##                  April 2021     - Removed the CPM ROM Drive functionality as it provided no benefit
+##                                   over SD card and SD cards are larger.
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -36,7 +38,7 @@ MZB_PATH=${ROOTDIR}/software/MZB
 ROM_PATH=${ROOTDIR}/software/roms/
 ROM_LIST_FILE=/tmp/ROMLIST
 SECTORSIZE=256
-CPMDISKMODE=SPLIT
+#CPMDISKMODE=SPLIT
 MZFTOOL=${ROOTDIR}/software/tools/mzftool.pl
 MONITOR_ROM=/tmp/mrom.rom
 USER_ROM_I=/tmp/user.rom
@@ -72,29 +74,29 @@ cat ${MZB_PATH}/Common/cpm22.${SECTORSIZE}.bin >> ${USER_ROM_I}
 
 # According to flag set above, either put the CPM Disks in the first ROM, or place one in each ROM allowing for better write spread and larger disks.
 #
-if [ "${CPMDISKMODE}" != "SPLIT" ]; then
-    # CPM RFS Disks currently only in User ROM.
-    for f in 1 2
-    do
-        if [ -f ${MZB_PATH}/Common/CPM_RFS_${f}.${SECTORSIZE}.bin ]; then
-            echo "cat ${MZB_PATH}/Common/CPM_RFS_${f}.${SECTORSIZE}.bin >> ${USER_ROM_I}"
-            cat ${MZB_PATH}/Common/CPM_RFS_${f}.${SECTORSIZE}.bin >> ${USER_ROM_I}
-            basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
-        fi
-    done
-else
-    if [ -f ${MZB_PATH}/Common/CPM_RFS_1.${SECTORSIZE}.bin ]; then
-        echo "cat ${MZB_PATH}/Common/CPM_RFS_1.${SECTORSIZE}.bin >> ${USER_ROM_I}"
-        cat ${MZB_PATH}/Common/CPM_RFS_1.${SECTORSIZE}.bin >> ${USER_ROM_I}
-        basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
-    fi
-
-    if [ -f ${MZB_PATH}/Common/CPM_RFS_2.${SECTORSIZE}.bin ]; then
-        echo "cat ${MZB_PATH}/Common/CPM_RFS_2.${SECTORSIZE}.bin >> ${USER_ROM_II}"
-        cat ${MZB_PATH}/Common/CPM_RFS_2.${SECTORSIZE}.bin >> ${USER_ROM_II}
-        basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
-    fi
-fi
+#if [ "${CPMDISKMODE}" != "SPLIT" ]; then
+#    # CPM RFS Disks currently only in User ROM.
+#    for f in 1 2
+#    do
+#        if [ -f ${MZB_PATH}/Common/CPM_RFS_${f}.${SECTORSIZE}.bin ]; then
+#            echo "cat ${MZB_PATH}/Common/CPM_RFS_${f}.${SECTORSIZE}.bin >> ${USER_ROM_I}"
+#            cat ${MZB_PATH}/Common/CPM_RFS_${f}.${SECTORSIZE}.bin >> ${USER_ROM_I}
+#            basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
+#        fi
+#    done
+#else
+#    if [ -f ${MZB_PATH}/Common/CPM_RFS_1.${SECTORSIZE}.bin ]; then
+#        echo "cat ${MZB_PATH}/Common/CPM_RFS_1.${SECTORSIZE}.bin >> ${USER_ROM_I}"
+#        cat ${MZB_PATH}/Common/CPM_RFS_1.${SECTORSIZE}.bin >> ${USER_ROM_I}
+#        basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
+#    fi
+#
+#    if [ -f ${MZB_PATH}/Common/CPM_RFS_2.${SECTORSIZE}.bin ]; then
+#        echo "cat ${MZB_PATH}/Common/CPM_RFS_2.${SECTORSIZE}.bin >> ${USER_ROM_II}"
+#        cat ${MZB_PATH}/Common/CPM_RFS_2.${SECTORSIZE}.bin >> ${USER_ROM_II}
+#        basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
+#    fi
+#fi
 
 # Manually choose the programs you want installed into the ROMS. The files will be first placed into the USER ROM and when full into the 
 # Monitor ROM. Thus order is important if you want a particular program in a particular ROM.
@@ -105,13 +107,40 @@ ROM_INCLUDE=""
 #
 # Common
 #
-ROM_INCLUDE+="${MZB_PATH}/Common/A-BASIC_SA-5510.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/SA-5510_RFS.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_SA5510.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_SA6510.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/MSBASIC_MZ80A.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/MSBASIC_RFS.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/SA-5510_COMPILER.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BAS_MOD_V374.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/XPATCH_5510_V2.2.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_SP5025.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_SP5030.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_SP-5035MC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/SOLO_BASIC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_OM-500.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_OM-1000.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/BASIC_OM-1001.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/HU-BASIC_V1.3_K.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/HUCOMPILMC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/COMPILER_A2.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/EXPRESS_COMPILER.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/K_A_CONVERTER.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/HISOFT_PASCAL4.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/Z80ASSEMBLER2MC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/EDITOR-ASSEMBLER_SP2202MC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/ZEN.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/8048_CPU_DISAS.MC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/6502BETRMC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/6502DEMO2MC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/6502DEMOMC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/Common/FORTRANSOSZ80.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/Common/MZ700_FORTH1.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/Common/SA-5510_COMPILER.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/Common/XPATCH_5510_V2.2.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/Common/RFSBASIC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/KNIFORTH.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/TINYLISPMC.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/APOLLO_WORD_1.9MMC_.${SECTORSIZE}.bin:"
+ROM_INCLUDE+="${MZB_PATH}/Common/HUCALC_80A_M.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/Common/SEND-1.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/Common/APOLLO_CHESS_V2A.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/Common/5Z009-1B.MZF:"
@@ -123,7 +152,7 @@ ROM_INCLUDE+="${MZB_PATH}/Common/APOLLO_CHESS_V2A.${SECTORSIZE}.bin:"
 #
 # MZ-80A
 #
-ROM_INCLUDE+="${MZB_PATH}/MZ-80A/SA-6510.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80A/SA-6510.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/3-D_MAZE.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/80A_PENCIL.A2_C2.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/80A_PENCIL.A2_S.${SECTORSIZE}.bin:"
@@ -135,7 +164,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80A/ALIEN_ATTACK_MACHINECODE.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/ALIEN_EAGLE.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/ALLIGATOR.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80A/APOLLO_CHESS_V2A.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80A/BASIC80A.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80A/BASIC80A.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80A/BASIC_SA-5510.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80A/BASIC.SA-5510.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/BLOCKING.${SECTORSIZE}.bin:"
@@ -169,9 +198,9 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80A/GALAXY_INVADERS.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/GREEDY_GREMLINS.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HANGMAN2.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HORSE_RACE2.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HUCALC_80A_C2.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HUCALC_80A_M.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HUCALC_80A_S.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HUCALC_80A_C2.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HUCALC_80A_M.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80A/HUCALC_80A_S.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/LAND_ESCAPE.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/LASER_DEFENCE.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80A/LE_MANS.${SECTORSIZE}.bin:"
@@ -222,10 +251,10 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80A/WITCHES.${SECTORSIZE}.bin:"
 #
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/3DSPACECBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/3-D_WAY_OUT_BBG_SOFTWARE.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/6502BETRMC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/6502DEMO2MC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/6502DEMOMC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/8048_CPU_DISAS.MC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/6502BETRMC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/6502DEMO2MC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/6502DEMOMC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/8048_CPU_DISAS.MC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/A-BASIC_SA-5510.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ABENTEUEBASIC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ADVANCE-GUARDMC.${SECTORSIZE}.bin:"
@@ -233,7 +262,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ADVANCE_GUARD_WICS_1983.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/AIMEMC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ALIENMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ANDROMEDAMC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/APOLLO_WORD_1.9MMC_.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/APOLLO_WORD_1.9MMC_.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ASCII_GAMEBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ATCF_DATAMC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ATTACKERSCRAMBLEMC.${SECTORSIZE}.bin:"
@@ -271,7 +300,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80K/COWBOY_DUELMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/DEFEND_THE_CITYBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/DON_CHACKBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/DONKEY_DERBY.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/EDITOR-ASSEMBLER_SP2202MC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/EDITOR-ASSEMBLER_SP2202MC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ELEKTRONIC_MUSICMC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/EMPIRE_CLIMBERMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/EMPIRE_CLIMBER_WICS.${SECTORSIZE}.bin:"
@@ -291,8 +320,8 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80K/FORTH_SIMULATORBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/GOMOKUMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/HAT_THE_BOXBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/HOME_BUDGET_MK2BASIC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/HUCOMPILERMC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/HUCOMPILMC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/HUCOMPILERMC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/HUCOMPILMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/IDENTI-KIT.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/JAMPACMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/JINTORIMC.${SECTORSIZE}.bin:"
@@ -323,7 +352,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80K/NOTUTORIBASIC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/OTHELLOMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/OTORI_ATTACKMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/PACMANMC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/PASCAL_SP-6610MC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/PASCAL_SP-6610MC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/PHOENIXMC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/PRINTMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/PUCKMANMC.${SECTORSIZE}.bin:"
@@ -372,7 +401,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TEN-PIN_BOWLING.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TEST_MATCH.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/THE_MUNCHIES_C_SMITH.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TIME_BOMBBASIC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TINYLISPMC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TINYLISPMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TOMAHAWK_HIROSHI_MASUKO.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TOMAHAWKMC.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-80K/TOWERINGMC.${SECTORSIZE}.bin:"
@@ -396,7 +425,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-80K/VOICEMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/WILHELM-TELLMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/WILLHELM_TELLMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/YAKYUKENBASIC.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-80K/Z80ASSEMBLER2MC.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-80K/Z80ASSEMBLER2MC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ZARDOSMC.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ZARDOS_MZ_SOFT_GROUP.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-80K/ZEICHENGMC.${SECTORSIZE}.bin:"
@@ -510,7 +539,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-700/1Z-013B.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/KASBOEK.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/K-BASIC_V.5.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/KENTUCKY_DERBY.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-700/KNIFORTH.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-700/KNIFORTH.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/KNIGHT'S_CASTLE.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/KNIGHTS_UFO.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/KP_DBASIC.800B.${SECTORSIZE}.bin:"
@@ -660,7 +689,7 @@ ROM_INCLUDE+="${MZB_PATH}/MZ-700/KUMA_INTERPR..${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/XBC_F_1_02.${SECTORSIZE}.bin:"
 #ROM_INCLUDE+="${MZB_PATH}/MZ-700/YAMS.${SECTORSIZE}.bin:"
 ROM_INCLUDE+="${MZB_PATH}/MZ-700/Z80_DESASSEMBLEUR.${SECTORSIZE}.bin:"
-ROM_INCLUDE+="${MZB_PATH}/MZ-700/ZEN.${SECTORSIZE}.bin:"
+#ROM_INCLUDE+="${MZB_PATH}/MZ-700/ZEN.${SECTORSIZE}.bin:"
 
 # Set the pointer which indicates the next ROM to be filled with applications.
 GENROM=0
@@ -675,19 +704,8 @@ do
 
         if [ ${FILETYPE} == 1 ]; then
 
+            # Fill the User ROM as these get listed first.
             if (( ${GENROM} == 0 )); then
-                cat ${MONITOR_ROM} "${f}" > /tmp/tmp.size
-                FILESIZE=$(stat -c%s "/tmp/tmp.size")
-                if (( ${FILESIZE} < 524288 )); then
-                    echo "Adding $f to Monitor Rom"
-                    cat "${f}" >> ${MONITOR_ROM}
-                    basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
-                else
-                    GENROM=1
-                fi
-            fi
-
-            if (( ${GENROM} == 1 )); then
                 cat ${USER_ROM_I} "${f}" > /tmp/tmp.size
                 FILESIZE=$(stat -c%s "/tmp/tmp.size")
                 if (( ${FILESIZE} < 524288 )); then
@@ -695,10 +713,23 @@ do
                     cat "${f}" >> ${USER_ROM_I}
                     basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
                 else
+                    GENROM=1
+                fi
+            fi
+
+            if (( ${GENROM} == 1 )); then
+                cat ${MONITOR_ROM} "${f}" > /tmp/tmp.size
+                FILESIZE=$(stat -c%s "/tmp/tmp.size")
+                if (( ${FILESIZE} < 524288 )); then
+                    echo "Adding $f to Monitor Rom"
+                    cat "${f}" >> ${MONITOR_ROM}
+                    basename "${f}" .${SECTORSIZE}.bin >> ${ROM_LIST_FILE}
+                else
                     GENROM=2
                 fi
             fi
 
+            # User ROM II and III are optional.
             if (( ${GENROM} == 2 )); then
                 cat ${USER_ROM_II} "${f}" > /tmp/tmp.size
                 FILESIZE=$(stat -c%s "/tmp/tmp.size")

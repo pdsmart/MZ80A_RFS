@@ -12,17 +12,17 @@ fi
 cd $SW_DIR
 tools/assemble_rfs.sh
 if [ $? != 0 ]; then
-	echo "TZFS assembly failed..."
-	exit 1
-fi
-tools/assemble_roms.sh
-if [ $? != 0 ]; then
-	echo "ROMS assembly failed..."
+	echo "RFS assembly failed..."
 	exit 1
 fi
 tools/assemble_cpm.sh
 if [ $? != 0 ]; then
 	echo "CPM assembly failed..."
+	exit 1
+fi
+tools/assemble_roms.sh
+if [ $? != 0 ]; then
+	echo "ROMS assembly failed..."
 	exit 1
 fi
 
