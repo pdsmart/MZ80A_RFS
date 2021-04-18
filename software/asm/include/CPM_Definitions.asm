@@ -39,9 +39,6 @@ HW_SPI_ENA              EQU     1                                        ; Set t
 SW_SPI_ENA              EQU     0                                        ; Set to 1 if software SPI is present on the RFS PCB v2 board.
 PP_SPI_ENA              EQU     0                                        ; Set to 1 if using the SPI interface via the Parallel Port, ie. for RFS PCB v1 which doesnt have SPI onboard.
 
-;-----------------------------------------------
-; Configurable settings.
-;-----------------------------------------------
 ; Build time options, only set to '1' to build, '0' to disable, only 1 can be set to '1'.
 ;                        IF BUILD_VERSION = 0
 BUILD_80C               EQU     1                                        ; Build for an MZ-80A with a 40/80 column card.
@@ -52,6 +49,9 @@ BUILD_40C               EQU     0                                        ; Build
 ;BUILD_40C               EQU     1                                        ; Build for a standard 40 column MZ-80A.
 ;                        ENDIF
 
+;-----------------------------------------------
+; Configurable settings.
+;-----------------------------------------------
 MAXRDRETRY              EQU     002h 
 MAXWRRETRY              EQU     002h
 BLKSIZ                  EQU     4096                                     ; CP/M allocation size
@@ -65,11 +65,11 @@ WRDIR                   EQU     1                                        ; write
 WRUAL                   EQU     2                                        ; write to unallocated
 TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
 MTROFFMSECS             EQU     100                                      ; Time from last access to motor being switched off in seconds in TMRTICKINTV ticks.
-;                        IF BUILD_80C = 1
+                        IF BUILD_80C = 1
 COLW                      EQU   80                                       ; Width of the display screen (ie. columns).
-;                        ELSE
-;COLW                      EQU   40                                       ; Width of the display screen (ie. columns).
-;                        ENDIF
+                        ELSE
+COLW                      EQU   40                                       ; Width of the display screen (ie. columns).
+                        ENDIF
 ROW                     EQU     25                                       ; Number of rows on display screen.
 SCRNSZ                  EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
 SCRLW                   EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.

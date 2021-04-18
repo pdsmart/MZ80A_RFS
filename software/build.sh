@@ -27,7 +27,7 @@ if [ $? != 0 ]; then
 fi
 
 # Only needed if the program source tree changes, takes too long to run on every build!
-if [ ${PROCESS_MFZ_FILES} != 1 ]; then
+if [[ ${PROCESS_MFZ_FILES} -eq 1 ]]; then
 	tools/processMZFfiles.sh
 	if [ $? != 0 ]; then
 		echo "Failed to process MZF files into sectored variants...."

@@ -399,7 +399,7 @@ STRT4:      CALL    ?DSKINIT                                             ; Initi
             ;
 STRT5:      LD      DE,CBIOSIGNEND                                       ; Terminate the signon message which now includes list of drives detected.
             CALL    MONPRTSTR
-            CALL    ?NL
+           ;CALL    ?NL
             ;
             ; Allocate DPB according to drives detected in priorty, SD,FDC
             ;
@@ -917,50 +917,30 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
             ; During normal operations the control registers are enabled. When access is needed to the full User ROM space, ie for drive read/write then the registers are disabled after
             ; setting the correct bank. The upper bits of the User ROM address space (ie. bits 20:19 which select the device) are set to by the ROMCTL variable.
             ;
-;SELUSRBNK:  DI
-;            EXX
-;            EX      AF,AF'
-;            LD      A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
-;            LD      C,A
-;            RRA
-;            RRA
-;            CPL
-;            AND     00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
-;            LD      B,A                                                  ; Set value to B for loop.
-;            LD      A,(BNKCTRLDIS)                                       ; Do a reset for the case where the above read enabled the latch, possible if external programs are reading/writing the latch area.
-;            LD      A,(BNKCTRL)                                          ; Sample latch at start to detect change.
-;            LD      E,A
-;SELUSRBNK1: LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
-;            CP      E
-;            JR      NZ,SELUSRBNK2
-;            DJNZ    SELUSRBNK1
-;SELUSRBNK2: LD      A,C
-;            LD      (BNKCTRL),A
-;            EX      AF,AF'
-;            LD      (BNKSELUSER),A                                       ; Select the required bank.
-;            EXX
-;            JR      C,SELUSRBNK3                                         ; If Carry is set by caller then leave the control registers active.
-;            LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
-;SELUSRBNK3: EI
-;            RET
-SELUSRBNK:  PUSH    BC
+SELUSRBNK:  DI
+            PUSH    BC
             PUSH    AF
             ; Reset to a known state to allow for spurious read/writes to control area clocking the up counter.
-            LD      B,15
+            LD      B,16
 SELUSRBNK0: LD      A,(BNKCTRLDIS)
             DJNZ    SELUSRBNK0
             ; Now loop for the correct up counter required to enable the latches.
             LD      B,15                                                 ; Set value to B for loop.
-SELUSRBNK1: LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
+            LD      A,(BNKCTRL)
+            LD      C,A
+SELUSRBNK1: CP      C
+            JR      NZ,SELUSRBNK2
+            LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
             DJNZ    SELUSRBNK1
-            POP     AF
+SELUSRBNK2: POP     AF
             POP     BC
             LD      (BNKSELUSER),A                                       ; Select the required bank.
             LD      A,(ROMCTL)
             LD      (BNKCTRL),A
-            JR      C,SELUSRBNK2
+            JR      C,SELUSRBNK3
             LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
-SELUSRBNK2: RET
+SELUSRBNK3: EI
+            RET
 
 
             ; Helper method to set up a Disk Parameter Block.
@@ -1590,7 +1570,8 @@ UROMLOAD:   PUSH    BC
             LD      C,0
             ADD     HL,BC
             LD      BC, MZFHDRNCSZ
-LROMLOAD0:  LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
+LROMLOAD0:  LD      A,(BNKCTRLDIS)
+            LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
             INC     HL
             LD      (DE),A
             INC     DE
@@ -1653,7 +1634,7 @@ LROMLOAD4:  LD      (TMPSIZE), HL                                        ; HL co
             OR      C
             JR      Z, LROMLOAD8
 
-LROMLOAD9:  LD       (BNKCTRLDIS),A                                       ; There exists an issue with using the mainboard decoder signal which I havent quite understood, random activation of the upcounter occurs which appears to be the refresh circuit. 
+LROMLOAD9:  LD       (BNKCTRLDIS),A                                      ; There exists an issue with using the mainboard decoder signal which I havent quite understood, random activation of the upcounter occurs which appears to be the refresh circuit. 
             LD      A,(HL)                                               ; Issues with LDIR and a signal artifact from the mainboard, so manual copy.
             INC     HL
             LD      (DE),A
@@ -2469,7 +2450,7 @@ KTBLC:      ; CTRL ON
 CBIOSSIGNON:IF      BUILD_80C = 1
               DB    "** CBIOS v1.25, (C) P.D. Smart, 2019-21. Drives:",                NUL
             ELSE
-              DB    "*CBIOS v1.25, (C) P.D. Smart, 2019-21.*",                         CR
+              DB    "CBIOS v1.25, (C) P.D. Smart, 2019-21.   " 
               DB    "Drives:",                                                         NUL
             ENDIF
 CBIOSIGNEND:IF      BUILD_80C = 1

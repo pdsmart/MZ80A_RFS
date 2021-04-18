@@ -451,8 +451,8 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             ; Message table
             ;
             ;--------------------------------------
-MSGSON:     DB      "+ RFS ",    0ABh, "2.1 **",               00DH, 000H                      ; Version 2.0-> as we are now using the v2.x PCB with 4 devices on-board
-MSGSONTZ:   DB      "+ TZ+RFS ", 0ABh, "2.0 **",               00DH, 000H                      ; Version 2.0 with version 2.1+ of tranZPUter board installed.
+MSGSON:     DB      "+ RFS ",    0ABh, "2.1 **",               00DH, 000H                      ; Version 2.x-> as we are now using the v2.x PCB with 4 devices on-board
+MSGSONTZ:   DB      "+ TZ+RFS ", 0ABh, "2.1 **",               00DH, 000H                      ; Version 2.x with version 2.1+ of tranZPUter board installed.
 MSGNOTFND:  DB      "Not Found",                               00DH, 000H
 MSGRDIRLST: DB      "ROM Directory:",                          00DH, 000H
 MSGTRM:     DB                                                 00DH, 000H

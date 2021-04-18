@@ -49,36 +49,39 @@ BUILD_MZ80A               EQU   1                                        ; Build
 BUILD_RFS                 EQU   0                                        ; Build for standard RFS with SD enhancements.
 BUILD_RFSTZ               EQU   0                                        ; Build for RFS where the tranZPUter board is available without the K64F and running under RFS.
 BUILD_TZFS                EQU   0                                        ; Build for TZFS where extended memory is available.
+BUILD_80C                 EQU   0
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
                         ENDIF
                         IF BUILD_VERSION = 1
 BUILD_MZ80A               EQU   0
 BUILD_RFS                 EQU   1
 BUILD_RFSTZ               EQU   0
 BUILD_TZFS                EQU   0
+BUILD_80C                 EQU   1
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
                         ENDIF
                         IF BUILD_VERSION = 2
 BUILD_MZ80A               EQU   0
 BUILD_RFS                 EQU   0
 BUILD_RFSTZ               EQU   1
 BUILD_TZFS                EQU   0
+BUILD_80C                 EQU   1
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
                         ENDIF
                         IF BUILD_VERSION = 3
 BUILD_MZ80A               EQU   0
 BUILD_RFS                 EQU   0
 BUILD_RFSTZ               EQU   0
 BUILD_TZFS                EQU   1
+BUILD_80C                 EQU   1
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
                         ENDIF
-INCLUDE_ANSITERM        EQU     1                                        ; Include the Ansi terminal emulation processor in the build.
-
-TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
-                        IF BUILD_MZ80A = 1
-COLW:                     EQU   40                                       ; Width of the display screen (ie. columns).
-MODE80C:                  EQU   0
-                        ENDIF
-                        IF BUILD_RFS+BUILD_RFSTZ+BUILD_TZFS > 0
+                        IF BUILD_80C = 1
 COLW:                     EQU   80                                       ; Width of the display screen (ie. columns).
-MODE80C:                  EQU   1
+                        ELSE
+COLW:                     EQU   40                                       ; Width of the display screen (ie. columns).
                         ENDIF
+TMRTICKINTV             EQU     5                                        ; Number of 0.010mSec ticks per interrupt, ie. resolution of RTC.
 ROW:                    EQU     25                                       ; Number of rows on display screen.
 SCRNSZ:                 EQU     COLW * ROW                               ; Total size, in bytes, of the screen display area.
 SCRLW:                  EQU     COLW / 8                                 ; Number of 8 byte regions in a line for hardware scroll.
@@ -100,7 +103,6 @@ TAPELOAD                EQU     1
 CTAPELOAD               EQU     2
 TAPESAVE                EQU     3
 CTAPESAVE               EQU     4
-
 
 ; Debugging
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
@@ -259,6 +261,7 @@ CTRL_Y                  EQU     019H
 CTRL_Z                  EQU     01AH
 ESC                     EQU     01BH
 CTRL_SLASH              EQU     01CH
+CTRL_LB                 EQU     01BH
 CTRL_RB                 EQU     01DH
 CTRL_CAPPA              EQU     01EH
 CTRL_UNDSCR             EQU     01FH
@@ -273,6 +276,9 @@ INSERT                  EQU     0F6H
 CLRKEY                  EQU     0F7H
 HOMEKEY                 EQU     0F8H
 BREAKKEY                EQU     0FBH
+GRAPHKEY                EQU     0FCH
+ALPHAKEY                EQU     0FDH
+
 
 ;-----------------------------------------------
 ; Rom File System variable addresses.
@@ -357,11 +363,17 @@ TZMM_TZFS4              EQU     005H                                     ; TZFS 
 TZMM_CPM                EQU     006H                                     ; CPM main memory configuration, all memory on the tranZPUter board, 64K block 4 selected. Special case for F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
 TZMM_CPM2               EQU     007H                                     ; CPM main memory configuration, F000-FFFF are on the tranZPUter board in block 4, 0040-CFFF and E800-EFFF are in block 5, mainboard for D000-DFFF (video), E000-E800 (Memory control) selected.
                                                                          ; Special case for 0000:003F (interrupt vectors) which resides in block 4, F3C0:F3FF & F7C0:F7FF (floppy disk paging vectors) which resides on the mainboard.
+TZMM_COMPAT             EQU     008H                                     ; Original mode but with main DRAM in Bank 0 to allow bootstrapping of programs from other machines such as the MZ700.
+TZMM_HOSTACCESS         EQU     009H                                     ; Mode to allow code running in Bank 0, address E800:FFFF to access host memory. Monitor ROM 0000-0FFF and Main DRAM 0x1000-0xD000, video and memory mapped I/O are on the host machine, User/Floppy ROM E800-FFFF are in tranZPUter memory. 
 TZMM_MZ700_0            EQU     00AH                                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the mainboard.
 TZMM_MZ700_1            EQU     00BH                                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_2            EQU     00CH                                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is on the tranZPUter in block 6.
 TZMM_MZ700_3            EQU     00DH                                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 0, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
 TZMM_MZ700_4            EQU     00EH                                     ; MZ700 Mode - 0000:0FFF is on the tranZPUter board in block 6, 1000:CFFF is on the tranZPUter board in block 0, D000:FFFF is inaccessible.
+TZMM_MZ800              EQU     00FH                                     ; MZ800 Mode - Tracks original hardware mode offering MZ700/MZ800 configurations.
+TZMM_FPGA               EQU     015H                                     ; Open up access for the K64F to the FPGA resources such as memory. All other access to RAM or mainboard is blocked.
+TZMM_TZPUM              EQU     016H                                     ; Everything in on mainboard, no access to tranZPUter memory.
+TZMM_TZPU               EQU     017H                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU0              EQU     018H                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 0 is selected.
 TZMM_TZPU1              EQU     019H                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 1 is selected.
 TZMM_TZPU2              EQU     01AH                                     ; Everything is in tranZPUter domain, no access to underlying Sharp mainboard unless memory management mode is switched. tranZPUter RAM 64K block 2 is selected.
@@ -446,6 +458,8 @@ TZSVC_CMD_WRITESDDRIVE: EQU     33H                                      ; Servi
 TZSVC_CMD_CPU_BASEFREQ  EQU     40H                                      ; Service command to switch to the mainboard frequency.
 TZSVC_CMD_CPU_ALTFREQ   EQU     41H                                      ; Service command to switch to the alternate frequency provided by the K64F.
 TZSVC_CMD_CPU_CHGFREQ   EQU     42H                                      ; Service command to set the alternate frequency in hertz.
+TZSVC_CMD_CPU_SETZ80    EQU     50H                                      ; Service command to switch to the external Z80 hard cpu.
+TZSVC_CMD_CPU_SETT80    EQU     51H                                      ; Service command to switch to the internal T80 soft cpu.
 TZSVC_STATUS_OK:        EQU     000H                                     ; Flag to indicate the K64F processing completed successfully.
 TZSVC_STATUS_REQUEST:   EQU     0FEH                                     ; Flag to indicate the Z80 has made a request to the K64F.
 TZSVC_STATUS_PROCESSING:EQU     0FFH                                     ; Flag to indicate the K64F is processing a command.

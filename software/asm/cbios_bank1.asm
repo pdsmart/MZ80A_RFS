@@ -51,7 +51,7 @@
             LD      B,16                                                 ; If we read the bank control reset register 15 times then this will enable bank control and then the 16th read will reset all bank control registers to default.
 CBIOS1_0:   LD      A,(BNKCTRLRST)
             DJNZ    CBIOS1_0                                             ; Apply the default number of coded latch reads to enable the bank control registers.
-            LD      A,BNKCTRLDEF                                         ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
+CBIOS1_1:   LD      A,BNKCTRLDEF                                         ; Set coded latch, SDCS high, BBMOSI to high and BBCLK to high which enables SDCLK.
             LD      (BNKCTRL),A
             NOP
             NOP
@@ -87,7 +87,7 @@ CBIOS1_0:   LD      A,(BNKCTRLRST)
 
             ; Method to reboot the machine into startup mode, ie. Monitor at MROM Bank 0, UROM at Bank 0.
 ?REBOOT:    LD      A,(MEMSWR)                                           ; Switch memory to power up state, ie. Monitor ROM at 00000H
-            JP      UROMADDR                                             ; Now run the code at the bank start which switches to bank 0, intitialises and then calls 00000H
+            JP      CBIOS1_1                                             ; Now run the code at the bank start which switches to bank 0, intitialises and then calls 00000H
             
             ;-------------------------------------------------------------------------------
             ; START OF AUDIO CONTROLLER FUNCTIONALITY
@@ -437,8 +437,10 @@ GETKY2:     LD      A,(KEYCOUNT)                                         ; No ke
             JR      ?PRCKYX
 ?PRCKY7:    CP      BREAKKEY                                             ; Break key processing.
             JR      NZ,?PRCKY8
-
-?PRCKY8:
+            JR      ?PRCKYE
+?PRCKY8:     CP      DELETE
+            JR      NZ,?PRCKYX
+            LD      A,BACKS                                              ; Map DELETE to BACKSPACE, BACKSPACE is Rubout, DELETE is echo in CPM.
 ?PRCKYX:    
 ?PRCKYE:    
             POP     HL

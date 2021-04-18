@@ -175,10 +175,16 @@ ROMFS_3:    LD      (BNKSELMROM),A                                       ; start
             ; Replacement command processor in place of the SA1510 command processor.
             ;
 MONITOR:    IN      A,(CPLDINFO)                                         ; See if a tranZPUter board is present.
-            CP      0A0H
-            JR      NC,CHKTZ1
+            AND     0E7H                                                 ; Mask out the CPLD Version and host HW.
+            LD      C,A
+            CP      020H                                                 ; Upper bits specify the version, should be at least 1.
+            JR      C,CHKTZ1
+            AND     007H                                                 ; Get Hardware, should be an MZ-80A for RFS.
+            CP      MODE_MZ80A
+            LD      A,C
+            JR      Z,CHKTZ1
             XOR     A
-CHKTZ1:     AND     00FH
+CHKTZ1:     AND     0E0H
             LD      (TZPU), A                                            ; Flag = 0 if no tranZPUter present otherwise contains version (1 - 15).
             LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             ;
