@@ -62,13 +62,21 @@ INCLUDE_ANSITERM          EQU   1                                        ; Inclu
                         ENDIF
                         IF BUILD_VERSION = 2
 BUILD_MZ80A               EQU   0
+BUILD_RFS                 EQU   1
+BUILD_RFSTZ               EQU   0
+BUILD_TZFS                EQU   0
+BUILD_80C                 EQU   0
+INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
+                        ENDIF
+                        IF BUILD_VERSION = 3
+BUILD_MZ80A               EQU   0
 BUILD_RFS                 EQU   0
 BUILD_RFSTZ               EQU   1
 BUILD_TZFS                EQU   0
 BUILD_80C                 EQU   1
 INCLUDE_ANSITERM          EQU   1                                        ; Include the Ansi terminal emulation processor in the build.
                         ENDIF
-                        IF BUILD_VERSION = 3
+                        IF BUILD_VERSION = 4
 BUILD_MZ80A               EQU   0
 BUILD_RFS                 EQU   0
 BUILD_RFSTZ               EQU   0
@@ -95,7 +103,7 @@ MAXMEM                    EQU   0CFFFH                                   ; Top o
 MAXMEM                    EQU   0CFFFH - TZSVCSECSIZE                    ; Top of RAM on a standard RFS equipped Sharp MZ80A. Top 512 bytes used by RFS SD sector buffer.
                         ENDIF
                         IF BUILD_TZFS+BUILD_RFSTZ > 0
-MAXMEM                    EQU   10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter/
+MAXMEM                    EQU   10000H - TZSVCSIZE                       ; Top of RAM on the tranZPUter
                         ENDIF
 
 ; Tape load/save modes. Used as a flag to enable common code.

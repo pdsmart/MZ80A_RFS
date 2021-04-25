@@ -39,31 +39,38 @@
 
             DB      01h                                                                                     ; Code Type, 01 = Machine Code.
 HEADER1:    IF BUILD_MZ80A = 1
-            DB      "MS-BASIC(MZ-80A)", 0DH                                                                 ; Title/Name (17 bytes).
-            DW      CODEEND - CODESTART                                                                     ; Size of program.
-            DW      CODESTART                                                                               ; Load address of program.
-            DW      CODESTART                                                                               ; Exec address of program.
+              DB    "MS-BASIC(MZ-80A)", 0DH                                                                 ; Title/Name (17 bytes).
+              DW    CODEEND - CODESTART                                                                     ; Size of program.
+              DW    CODESTART                                                                               ; Load address of program.
+              DW    CODESTART                                                                               ; Exec address of program.
             ENDIF
 
 HEADER2:    IF BUILD_RFS = 1
-            DB      "MS-BASIC(RFS)", 0DH, 0DH, 0DH, 0DH                                                     ; Title/Name (17 bytes).
-            DW      CODEEND - CODESTART                                                                     ; Size of program.
-            DW      CODESTART                                                                               ; Load address of program.
-            DW      CODESTART                                                                               ; Exec address of program.
+             IF BUILD_80C = 0
+              DB    "MS-BASIC(RFS40))", 0DH, 0DH                                                            ; Title/Name (17 bytes).
+              DW    CODEEND - CODESTART                                                                     ; Size of program.
+              DW    CODESTART                                                                               ; Load address of program.
+              DW    CODESTART                                                                               ; Exec address of program.
+             ELSE
+              DB    "MS-BASIC(RFS80))", 0DH, 0DH                                                            ; Title/Name (17 bytes).
+              DW    CODEEND - CODESTART                                                                     ; Size of program.
+              DW    CODESTART                                                                               ; Load address of program.
+              DW    CODESTART                                                                               ; Exec address of program.
+             ENDIF
             ENDIF
 
 HEADER3:    IF BUILD_RFSTZ = 1
-            DB      "MS-BASIC(RFS-TZ)", 0DH                                                                 ; Title/Name (17 bytes).
-            DW      (CODEEND - CODESTART) + (RELOCEND - RELOC) + (RELOCRFS2END - RELOCRFS2)                 ; Size of program.
-            DW      01200H                                                                                  ; Load address of program.
-            DW      RELOCRFS                                                                                ; Exec address of program.
+              DB    "MS-BASIC(RFS-TZ)", 0DH                                                                 ; Title/Name (17 bytes).
+              DW    (CODEEND - CODESTART) + (RELOCEND - RELOC) + (RELOCRFS2END - RELOCRFS2)                 ; Size of program.
+              DW    01200H                                                                                  ; Load address of program.
+              DW    RELOCRFS                                                                                ; Exec address of program.
             ENDIF
 
 HEADER4:    IF BUILD_TZFS = 1
-            DB      "MS-BASIC(TZFS)", 0DH, 0DH, 0DH                                                         ; Title/Name (17 bytes).
-            DW      (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
-            DW      01200H                                                                                  ; Load address of program.
-            DW      RELOC                                                                                   ; Exec address of program.
+              DB    "MS-BASIC(TZFS)", 0DH, 0DH, 0DH                                                         ; Title/Name (17 bytes).
+              DW    (CODEEND - CODESTART) + (RELOCEND - RELOC)                                              ; Size of program.
+              DW    01200H                                                                                  ; Load address of program.
+              DW    RELOC                                                                                   ; Exec address of program.
             ENDIF
 
             DB      00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h, 00h          ; Comment (104 bytes).
@@ -186,8 +193,6 @@ INIT80CHAR: IF BUILD_RFS = 1
               LD    A, ROMBANK0          ; Switch to 40char monitor SA-1510.
               LD    (ROMBK1),A
               LD    (BNKSELMROM),A
-              LD    A, 40                ; Set BASIC to 40 column width.
-              LD    (INITABW),A
               XOR   A                    ; As we call RFS for SD services, specifically DIR listing, we have to ensure RFS is configured for 40 column output mode.
               LD    (SCRNMODE), A
               LD    A, 0FFH
@@ -202,8 +207,6 @@ INIT80END:  LD      A,000H               ; Clear the screen buffer.
             LD      HL,ARAM
             CALL    CLR8
             ;
-            LD      A,COLW
-            LD      (LWIDTH),A           ; Setup the initial terminal width.
             CALL    MLDSP
             CALL    BEL                  ; Beep to indicate startup - for cases where screen is slow to startup.
             LD      A,0FFH
@@ -509,40 +512,40 @@ WORDTB:     DW      PEND
 
             ; Optional commands to be builtin when a tranZPUter board is present.
 OPTIONS0A:  IF BUILD_TZFS = 1
-            DW      CLOADTZ              ; Load tokenised BASIC program.
-            DW      CSAVETZ              ; Save tokenised BASIC program.
-            DW      LOAD                 ; Load ASCII text BASIC program.
-            DW      SAVE                 ; Save BASIC as ASCII text.
-            DW      SETFREQ              ; Set the CPU Frequency.    
-            DW      DIRSDCARD            ; List out the SD directory.
-            DW      SETDIR               ; Change directory for all load and save operations.
+              DW    CLOADTZ              ; Load tokenised BASIC program.
+              DW    CSAVETZ              ; Save tokenised BASIC program.
+              DW    LOAD                 ; Load ASCII text BASIC program.
+              DW    SAVE                 ; Save BASIC as ASCII text.
+              DW    SETFREQ              ; Set the CPU Frequency.    
+              DW    DIRSDCARD            ; List out the SD directory.
+              DW    SETDIR               ; Change directory for all load and save operations.
             ENDIF
 OPTIONS1A:  IF BUILD_RFSTZ = 1
-            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
+              DW    CLOAD80A             ; Load tokenised BASIC program from tape.
+              DW    CSAVE80A             ; Save tokenised BASIC program to tape.
+              DW    REM
+              DW    REM
+              DW    REM
+              DW    REM
+              DW    REM
             ENDIF
 OPTIONS2A:  IF BUILD_RFS = 1
-            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
-            DW      SDDIRCMD             ; Directory listing of the SD card.
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
+              DW    CLOAD80A             ; Load tokenised BASIC program from tape.
+              DW    CSAVE80A             ; Save tokenised BASIC program to tape.
+              DW    SDDIRCMD             ; Directory listing of the SD card.
+              DW    REM
+              DW    REM
+              DW    REM
+              DW    REM
             ENDIF
 OPTIONS3A:  IF BUILD_MZ80A = 1
-            DW      CLOAD80A             ; Load tokenised BASIC program from tape.
-            DW      CSAVE80A             ; Save tokenised BASIC program to tape.
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
-            DW      REM
+              DW    CLOAD80A             ; Load tokenised BASIC program from tape.
+              DW    CSAVE80A             ; Save tokenised BASIC program to tape.
+              DW    REM
+              DW    REM
+              DW    REM
+              DW    REM
+              DW    REM
             ENDIF
             DW      NEW
 
@@ -691,7 +694,7 @@ INITAB:     JP      WARMST               ; Warm start jump
             RET
 
             DB      1                    ; POS (x) number (1)
-INITABW:    DB      COLW                 ; Terminal width
+INITABW:    DB      0FFH                 ; Terminal width set to initial state of 255 which means unlimited width. Applicable to data output not physical screen.
             IF BUILD_80C = 1
               DB    28                   ; Width for commas (3 columns)
             ELSE
@@ -1189,9 +1192,11 @@ PUTCTL:     LD      A,B                  ; Get number of bytes in buffer
 OUTIT:      CALL    OUTC                 ; Output the character entered
             JP      MORINP               ; Get another character
 
-OUTNBS:     CALL    OUTC                 ; Output bell and back over it
-            LD      A,BACKS              ; Set back space
-            JP      OUTIT                ; Output it and get more
+OUTNBS:     CALL    PRNT                 ; Strange, get to end of line ring bell then back space???? Disabled, just ring bell. This area of code needs a new handler.
+            JP      MORINP               ; Get another character
+           ;CALL    OUTC                 ; Output bell and back over it
+           ;LD      A,BACKS              ; Set back space
+           ;JP      OUTIT                ; Output it and get more
 
 CPDEHL:     LD      A,H                  ; Get H
             SUB     D                    ; Compare with D
@@ -1821,10 +1826,10 @@ STTLIN:     LD      A,(CURPOS)           ; Make sure on new line
 
 ENDINP:     LD      (HL),0               ; Mark end of buffer
             LD      HL,BUFFER-1          ; Point to buffer
-PRNTCRLF:   LD     A,CR                 ; Load a CR
+PRNTCRLF:   LD      A,CR                 ; Load a CR
             CALL    OUTC                 ; Output character
-            LD      A,LF                 ; Load a LF
-            CALL    OUTC                 ; Output character
+           ;LD      A,LF                 ; Load a LF
+           ;CALL    OUTC                 ; Output character
 DONULL:     XOR     A                    ; Set to position 0
             LD      (CURPOS),A           ; Store it
             LD      A,(NULLS)            ; Get number of nulls
@@ -4690,7 +4695,7 @@ LDBUF:      LD      A,(TZSVC_FILE_SEC)   ; Update the virtual file sector number
             JP      NZ, SDRDER           ; Same thing, if K64F read from file returns an error, read error (SD removed or disk error!)!
             RET
 
-            ; Method to load a NASIC program which is stored as TEXT into memory. This is accomplied sector by sector, line by line,
+            ; Method to load a BASIC program which is stored as TEXT into memory. This is accomplied sector by sector, line by line,
             ; each line needs to be read, tokenised and stored. 
             ;
 LDTXT:      CALL    LDOPEN               ; Open file, read the first sector of data.
@@ -5088,8 +5093,8 @@ PRTDIR:     PUSH    BC
             PUSH    DE
             PUSH    HL
             ;
-            LD      A,(LWIDTH)                                           ; At the moment only cater for 40/80 columns.
-            CP      COLW
+            LD      A,COLW                                               ; At the moment only cater for 40/80 columns.
+            CP      80
             LD      H,47
             JR      NZ,PRTDIR0
             LD      H,93
@@ -5116,9 +5121,9 @@ PRTNOWAIT:  LD      A,E
             CP      20
             LD      A,20
             JR      C, PRTDIR2
-            LD      A,(LWIDTH)                                           ; 40 Char mode? 2 columns of filenames displayed so NL.
-            CP      0
-            JR      Z,PRTDIR1
+            LD      A,COLW                                               ; 40 Char mode? 2 columns of filenames displayed so NL.
+            CP      80
+            JR      NZ,PRTDIR1
             LD      A,L                                                  ; 80 Char mode we print 4 columns of filenames.
             CP      40
             LD      A,40
@@ -5377,8 +5382,7 @@ PRTMSGE:    POP     BC
 
             ; Method to load a cassette image (tokenised basic script).
             ;
-CLOAD80A:   CALL    CURSOROFF
-            LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
+CLOAD80A:   LD      A,CTAPELOAD          ; Set the type of operatiom into the flag var.
             LD      (TPFLAG),A
             LD      A,(HL)               ; Get byte after "CLOAD"
        ;    CP      ZTIMES               ; "*" token? ("CLOAD*")
@@ -5464,13 +5468,11 @@ CLOAD80A_2: CALL    CLRPTR               ; Initialise memory to NEW state ready 
 CMTVERF:
 CMTLOADE:   LD      HL,OKMSG             ; "Ok" message
             CALL    PRS                  ; Output string
-            CALL    CURSORON
             JP      SETPTR               ; Set up line pointers
 
             ; Method to save a cassette image (tokenised basic script).
             ;
-CSAVE80A:   CALL    CURSOROFF
-            LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
+CSAVE80A:   LD      A,CTAPESAVE          ; Set the type of operatiom into the flag var.
             LD      (TPFLAG),A
             ;
             LD      B,1                  ; Flag "CSAVE"
@@ -5524,7 +5526,6 @@ CSAVE80A_1: LD      A,(DE)               ; Copy filename into service record.
             JR      C,CMTSVER
             LD      HL,CMTMSGOK         ; 'OK!'
             CALL    PRS
-            CALL    CURSORON
             POP     DE
             POP     HL
             RET
@@ -5538,7 +5539,6 @@ OPTIONS3B:  IF BUILD_MZ80A = 1
             ;--------------------------------------
 CMTNONAM:   LD      HL,CMTBADFN          ; Must give a name for SD card load and save.
 CMTERR:     CALL    PRS
-            CALL    CURSORON
             POP     AF                   ; Waste return address.
             JP      ERRIN
 CMTFNTG:    LD      HL,CMTFNTOOG
@@ -6716,15 +6716,19 @@ MODE:       LD      HL,KEYPF
             RET     
 
             ; Method to check if a key has been pressed and stored in buffer.. 
-CHKKY:      LD      A, (KEYCOUNT)
+CHKKY:      CALL    CURSORON
+            LD      A, (KEYCOUNT)
             OR      A
             JR      Z,CHKKY2
             LD      A,0FFH
-            RET
+            JR      CHKKY3
 CHKKY2:     XOR     A
+CHKKY3:     CALL    CURSOROFF
+            OR      A
             RET
 
-GETKY:      PUSH    HL
+GETKY:      CALL    CURSORON
+            PUSH    HL
             LD      A,(KEYCOUNT)
             OR      A
             JR      Z,GETKY2
@@ -6773,6 +6777,7 @@ PRCKY8:
 PRCKYX:    
 PRCKYE:    
             POP     HL
+            CALL    CURSOROFF
             RET
 
             ;-------------------------------------------------------------------------------
@@ -6876,6 +6881,7 @@ NL:         LD      A,(DPRNT)
 
 LTNL:       LD      A,0CDH
             JR      PRNT5                   
+
 PRTT:       CALL    PRTS
             LD      A,(DPRNT)
             OR      A
@@ -6899,9 +6905,9 @@ NEWLINE:    CALL    NL
             ;
 CURSOROFF:  PUSH    HL
             DI
-            CALL    CURSRSTR                                             ; Restore character under the cursor.
             LD      HL,FLASHCTL                                          ; Indicate cursor is now off.
             RES     7,(HL)
+            CALL    CURSRSTR                                             ; Restore character under the cursor.
             EI
             POP     HL
             RET
@@ -6965,7 +6971,9 @@ PRTS:       LD      A,020H
             ; Function to print a character to the screen. If the character is a control code it is processed as necessary
             ; otherwise the character is converted from ASCII display and displayed.
             ;
-PRNT:       DI
+PRNT:       CALL    CURSOROFF                                            ; Disable the cursor before printing. 
+            DI
+            ;
             LD      (SPISRSAVE),SP                                       ; Share the interrupt stack for banked access as the BASIC stack goes out of scope.
             LD      SP,ISRSTACK                                          ; Interrupts are disabled so we can safely use this stack.
             ;
@@ -6976,13 +6984,12 @@ MEMSW4:     IF BUILD_TZFS+BUILD_RFSTZ > 0
             POP     AF
             ENDIF
             ;
-            CALL    CURSRSTR                                             ; Restore char under cursor.
             CP      00DH
             JR      Z,NEWLINE                 
             CP      00AH
             JR      Z,NEWLINE                 
             CP      07FH
-            JR      Z,DELETECHR
+            JP      Z,DELETECHR
             CP      BACKS
             JP      Z,DELETECHR
             PUSH    BC
@@ -7009,7 +7016,7 @@ PRNTSTR:    LD      A,(DE)
             JR      Z,PRNTSTR6
             INC     DE
             ;
-            CALL    CURSRSTR                                             ; Restore char under cursor.
+            CALL    CURSOROFF                                            ; Turn cursor off for any printing.
             CP      00DH
             JR      NZ,PRNTSTR2
 PRNTSTR1:   LD      A,(DPRNT)
@@ -8201,7 +8208,7 @@ ANSI_NN:    CP      "?"                                                  ; Simpl
             CP      "@"                                                  ; Is it a letter?
             JP      C,ANSIEXIT                                           ; Abandon if not letter; something wrong
 
-ANSIFOUND:  CALL    CURSRSTR                                             ; Restore any character under the cursor.
+ANSIFOUND:  CALL    CURSOROFF                                            ; Turn cursor off and restore any character under the cursor.
             LD      HL,(NUMBERPOS)                                       ; Get value of number buffer
             LD      A,(HAVELOADED)                                       ; Did we put anything in this byte?
             OR      A
@@ -8210,11 +8217,6 @@ ANSIFOUND:  CALL    CURSRSTR                                             ; Resto
 AF1:        INC      HL
             LD      A,254
             LD      (HL),A                                               ; Mark end of sequence (for unlimited length sequences)
-
-            ;Disable cursor as unwanted side effects such as screen flicker may occur.
-            LD      A,(FLASHCTL)
-            BIT     7,A
-            CALL    NZ,CURSOROFF
 
             XOR     A
             LD      (CURSORCOUNT),A                                      ; Restart count
@@ -8249,7 +8251,7 @@ AF1:        INC      HL
             CP      "u"
             JP      Z,RCP                                                ; Restore the cursor position
 
-ANSIEXIT:   CALL    CURSORON                                             ; If t
+ANSIEXIT:  ;CALL    CURSORON                                             ; If t
             LD      HL,NUMBERBUF                                         ; Numbers buffer position
             LD      (NUMBERPOS),HL
             XOR     A

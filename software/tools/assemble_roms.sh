@@ -36,7 +36,7 @@ ASM=glass.jar
 #BUILDROMLIST="MZ80AFI rfs rfs_mrom IPL monitor_SA1510 monitor_80c_SA1510 monitor_mz-1r12 quickdisk_mz-1e05 quickdisk_mz-1e14 monitor_1Z-013A monitor_80c_1Z-013A"
 BUILDROMLIST="monitor_SA1510_hiload monitor_80c_SA1510_hiload monitor_80c_SA1510 MZ80AFI monitor_SA1510 monitor_80c_SA1510 monitor_1Z-013A monitor_80c_1Z-013A IPL"
 #BUILDMZFLIST="hi-ramcheck sharpmz-test"
-BUILDMZFLIST="SA-5510_RFS MSBASIC_MZ80A MSBASIC_RFS sharpmz-test"
+BUILDMZFLIST="SA-5510_RFS MSBASIC_MZ80A MSBASIC_RFS40 MSBASIC_RFS80 sharpmz-test"
 ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
@@ -62,15 +62,18 @@ do
     if [[ ${SRCNAME} = "MSBASIC_MZ80A" ]]; then
         ASMNAME="MSBASIC.asm"
         echo "BUILD_VERSION EQU 0" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_RFS" ]]; then
+    elif [[ ${SRCNAME} = "MSBASIC_RFS40" ]]; then
         ASMNAME="MSBASIC.asm"
         echo "BUILD_VERSION EQU 1" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_RFSTZ" ]]; then
+    elif [[ ${SRCNAME} = "MSBASIC_RFS80" ]]; then
         ASMNAME="MSBASIC.asm"
         echo "BUILD_VERSION EQU 2" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_TZFS" ]]; then
+    elif [[ ${SRCNAME} = "MSBASIC_RFSTZ" ]]; then
         ASMNAME="MSBASIC.asm"
         echo "BUILD_VERSION EQU 3" > ${INCDIR}/MSBASIC_BuildVersion.asm
+    elif [[ ${SRCNAME} = "MSBASIC_TZFS" ]]; then
+        ASMNAME="MSBASIC.asm"
+        echo "BUILD_VERSION EQU 4" > ${INCDIR}/MSBASIC_BuildVersion.asm
     fi
 
     # Assemble the source.
