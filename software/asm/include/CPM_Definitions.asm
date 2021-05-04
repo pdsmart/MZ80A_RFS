@@ -437,6 +437,7 @@ CPM_SD_IMGSZ            EQU    CPM_SD_TRK * CPM_SD_SEC * SD_SECSIZE
 SD_SECSIZE              EQU     512                                      ; Default size of an SD Sector 
 SD_SECPTRK              EQU     CPM_SD_SEC                               ; Sectors of SD_SECSIZE per virtual track.
 SD_TRACKS               EQU     CPM_SD_TRK                               ; Number of virtual tracks per disk image.
+SD_RETRIES              EQU     00100H                                   ; Number of retries before giving up.
 
 
 ;-----------------------------------------------

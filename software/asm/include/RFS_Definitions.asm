@@ -411,11 +411,11 @@ SDDIR_ENTSZ             EQU     32
 ;
 ; Rom Filing System constants for the SD Card.
 ;
-SDDIR_DIRENT            EQU  256                                         ; Directory entries in the RFS directory.
-SDDIR_DIRENTSZ          EQU  32                                          ; Size of a directory entry.
-SDDIR_DIRSIZE           EQU  SDDIR_DIRENT * SDDIR_DIRENTSZ               ; Total size of the directory.
-SDDIR_BLOCKSZ           EQU  65536                                       ; Size of a file block per directory entry.
-SDDIR_IMGSZ             EQU  SDDIR_DIRSIZE + (SDDIR_DIRENT * SDDIR_BLOCKSZ) ; Total size of the RFS image.
+SDDIR_DIRENT            EQU     256                                      ; Directory entries in the RFS directory.
+SDDIR_DIRENTSZ          EQU     32                                       ; Size of a directory entry.
+SDDIR_DIRSIZE           EQU     SDDIR_DIRENT * SDDIR_DIRENTSZ            ; Total size of the directory.
+SDDIR_BLOCKSZ           EQU     65536                                    ; Size of a file block per directory entry.
+SDDIR_IMGSZ             EQU     SDDIR_DIRSIZE + (SDDIR_DIRENT * SDDIR_BLOCKSZ) ; Total size of the RFS image.
 
 OBJCD                   EQU     001H                                     ; MZF contains a binary object.
 BTX1CD                  EQU     002H                                     ; MZF contains an MZ-80K/80A BASIC program.

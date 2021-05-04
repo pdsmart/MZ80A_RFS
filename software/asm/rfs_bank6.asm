@@ -451,12 +451,13 @@ ATBL:       DB      0CCH   ; NUL '\0' (null character)
             ; Message table
             ;
             ;--------------------------------------
-MSGSON:     DB      "+ RFS ",    0ABh, "2.1 **",               00DH, 000H                      ; Version 2.x-> as we are now using the v2.x PCB with 4 devices on-board
-MSGSONTZ:   DB      "+ TZ+RFS ", 0ABh, "2.1 **",               00DH, 000H                      ; Version 2.x with version 2.1+ of tranZPUter board installed.
+MSGSONTZ:   DB      "+ TZ"                                                                     ; Version 2.x with version 2.1+ of tranZPUter board installed.
+MSGSON:     DB      "+ RFS ",    0ABh, "2.1a **",              00DH, 000H                      ; Version 2.x-> as we are now using the v2.x PCB with 4 devices on-board
 MSGNOTFND:  DB      "Not Found",                               00DH, 000H
 MSGRDIRLST: DB      "ROM Directory:",                          00DH, 000H
 MSGTRM:     DB                                                 00DH, 000H
 MSGBADCMD:  DB      "???",                                     00DH, 000H
+MSGSDINITER:DB      "SD Card Error ", 0F9H,               00DH, 000H
 MSGCDIRLST: DB      "SD Card Directory ",0F9H,":",             00DH, 000H
 MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                      000H
 MSGSDWERR:  DB      "SD Write error, Sec:",0FBH,                     000H

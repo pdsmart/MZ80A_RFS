@@ -47,12 +47,12 @@ HEADER1:    IF BUILD_MZ80A = 1
 
 HEADER2:    IF BUILD_RFS = 1
              IF BUILD_80C = 0
-              DB    "MS-BASIC(RFS40))", 0DH, 0DH                                                            ; Title/Name (17 bytes).
+              DB    "MS-BASIC(RFS40)", 0DH, 0DH                                                             ; Title/Name (17 bytes).
               DW    CODEEND - CODESTART                                                                     ; Size of program.
               DW    CODESTART                                                                               ; Load address of program.
               DW    CODESTART                                                                               ; Exec address of program.
              ELSE
-              DB    "MS-BASIC(RFS80))", 0DH, 0DH                                                            ; Title/Name (17 bytes).
+              DB    "MS-BASIC(RFS80)", 0DH, 0DH                                                             ; Title/Name (17 bytes).
               DW    CODEEND - CODESTART                                                                     ; Size of program.
               DW    CODESTART                                                                               ; Load address of program.
               DW    CODESTART                                                                               ; Exec address of program.

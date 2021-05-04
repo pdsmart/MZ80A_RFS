@@ -227,8 +227,19 @@ SIGNON2:    LD      DE,MSGSON                                            ; Sign 
 SIGNON3:    LD      HL,PRINTMSG
             CALL    BKSW0to6
 
+            ; Initialise SD card, report any errors.
             LD      HL, SDINIT                                           ; SD Card Initialisation
             CALL    BKSW0to2                                             ; Call the initialisation routine.
+            LD      A,L
+            OR      A                                                    ; 0 = No error.
+            JR      Z,ST1X
+
+            ; Place error code in C to print as a number and report with the error message.
+            ADD     A,'0'
+            LD      C,A
+            LD      DE,MSGSDINITER
+            LD      HL,PRINTMSG
+            CALL    BKSW0to6
 
             ; Command processor, table based.
             ; A line is inpt then a comparison made with entries in the table. If a match is found then the bank and function
