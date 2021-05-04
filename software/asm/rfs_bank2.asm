@@ -228,10 +228,10 @@ SDINIT:     LD      A,0FFH                                               ; CS to
             ;
             CALL    SPIINIT                                              ; Train SD with our clock.
             ;
-            XOR     A                                                    ; CS to active (low)
+            LD      A,0                                                  ; CS to active (low)
             CALL    SPICS
-            LD      BC,SD_RETRIES                                        ; Number of retries before giving up, card not responding.
             ;
+            LD      BC,SD_RETRIES                                        ; Number of retries before giving up, card not responding.
 SDINIT1:    LD      A,CMD0                                               ; Command 0
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00000H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
@@ -241,8 +241,9 @@ SDINIT1:    LD      A,CMD0                                               ; Comma
             ;
             LD      A,(SDBUF+6)                                          ; Get response code.
             DEC     A                                                    ; Set Z flag to test if response is 0x01
-            JP      Z,SDINIT2                                            ; Command response 0x01? Exit if match.
             POP     BC
+            JP      Z,SDINIT2                                            ; Command response 0x01? Exit if match.
+
             DEC     BC
             LD      A,B
             OR      C
@@ -250,8 +251,7 @@ SDINIT1:    LD      A,CMD0                                               ; Comma
             LD      A,1
             JP      SD_EXIT                                              ; Error, card is not responding to CMD0
 
-SDINIT2:    POP     BC
-            ; Now send CMD8 to get card details. This command can only be sent 
+SDINIT2:    ; Now send CMD8 to get card details. This command can only be sent 
             ; when the card is idle.
             LD      A,CMD8                                               ; CMD8 has 0x00001AA as parameter, load up registers and call command routine.
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
@@ -328,14 +328,15 @@ SDINIT12:   DEC     BC                                                   ; 6T
             LD      A,4                                                  ; Exit code, failed to initialise v1 MMC card.
             JP      SD_EXIT
 
-SDINIT13:   LD      A,CMD16                                              ; No response from the card for an ACMD41/CMD1 so try CMD16 with parameter 0x00000200
+SDINIT13:   POP     BC
+            LD      A,CMD16                                              ; No response from the card for an ACMD41/CMD1 so try CMD16 with parameter 0x00000200
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00002H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
             CALL    SDCMD
             LD      A,(SDBUF+6)
             OR      A
             JR      Z,SDINIT14
-            XOR     A
+            LD      A,0
             LD      (SDCAP),A                                            ; No capabilities on this unknown card.
 SDINIT14:   XOR     A
             JR      SD_EXIT
@@ -396,6 +397,7 @@ SDCMD2:     PUSH    HL
             ; Error as we are not receiving data.
             ;
             POP     HL
+            POP     BC
             LD      A,1                                                  ; Force return code to be error.
             LD      (SDBUF+6),A
             RET
@@ -408,6 +410,8 @@ SDCMD4:     POP     HL
             INC     HL
             POP     BC                                                   ; Get back number of expected bytes. HL = place in buffer to store response.
             DJNZ    SDCMD3
+            LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH
+            OUT     (SPI_OUT),A            
             RET
 
             ; Method to send an Application Command to the SD Card. This involves sending CMD55 followed by the required command.
@@ -426,15 +430,14 @@ SDACMD:     PUSH    AF
             POP     DE
             LD      A,(SDBUF+6)                                          ; Should be a response of 0 or 1.
             CP      2
-            JR      NC,SDACMD0
+            JR      NC,SDACMDE
             POP     AF
             CALL    SDCMD
-            LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
+SDACMD0:    LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
             OR      A
             RET
-SDACMD0:    POP     AF
-            CP      1
-            RET
+SDACMDE:    POP     AF
+            JR      SDACMD0
 
             ; Method to send Application Command 41 to the SD card. This command involves retries and delays
             ; hence coded seperately.

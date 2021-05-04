@@ -108,25 +108,27 @@ CBIOS3_0:   LD      A,(BNKCTRLRST)
             LD      A,000H                                               ; CS to low (active)
             CALL    SPICS
 
-            LD      BC,01FFFH                                            ; Number of retries before deciding card is not present.
+            LD      BC,SD_RETRIES                                        ; Number of retries before deciding card is not present.
 SD_INIT1:   LD      A,CMD0                                               ; Command 0
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00000H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
-            CALL    SDCMD
-
             PUSH    BC
+            ;
+            CALL    SDCMD
+            ;
             LD      A,(SDBUF+6)                                          ; Get response code.
             DEC     A                                                    ; Set Z flag to test if response is 0x01
-            JP      Z,SD_INIT2                                           ; Command response 0x01? Exit if match.
             POP     BC
+            JP      Z,SD_INIT2                                           ; Command response 0x01? Exit if match.
+
             DEC     BC
             LD      A,B
             OR      C
             JR      NZ,SD_INIT1                                          ; Retry for BC times.
             LD      A,1
             JP      SD_EXIT                                              ; Error, card is not responding to CMD0
-SD_INIT2:   POP     BC
-            ; Now send CMD8 to get card details. This command can only be sent 
+
+SD_INIT2:   ; Now send CMD8 to get card details. This command can only be sent 
             ; when the card is idle.
             LD      A,CMD8                                               ; CMD8 has 0x00001AA as parameter, load up registers and call command routine.
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
@@ -254,10 +256,25 @@ SDCMD1:     PUSH    BC
             POP     BC
             DJNZ    SDCMD1
             PUSH    HL
-SDCMD2:     CALL    SPIIN
+            LD      HL,SD_RETRIES
+SDCMD2:     PUSH    HL
+            CALL    SPIIN
+            POP     HL
             CP      0FFH
-            JR      Z,SDCMD2
-            JR      SDCMD4
+            JR      NZ,SDCMD4
+            DEC     HL
+            LD      A,H
+            OR      L
+            JR      NZ,SDCMD2
+            ;
+            ; Error as we are not receiving data.
+            ;
+            POP     HL
+            POP     BC
+            LD      A,1                                                  ; Force return code to be error.
+            LD      (SDBUF+6),A
+            RET            
+
 SDCMD3:     PUSH    BC
             PUSH    HL
             CALL    SPIIN                                                ; 
@@ -286,15 +303,14 @@ SDACMD:     PUSH    AF
             POP     DE
             LD      A,(SDBUF+6)                                          ; Should be a response of 0 or 1.
             CP      2
-            JR      NC,SDACMD0
+            JR      NC,SDACMDE
             POP     AF
             CALL    SDCMD
-            LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
+SDACMD0:    LD      A,(SDBUF+6)                                          ; Should be a response of 0 whereby the card has left idle.
             OR      A
             RET
-SDACMD0:    POP     AF
-            CP      1
-            RET
+SDACMDE:    POP     AF
+            JR      SDACMD0
 
             ; Method to send Application Command 41 to the SD card. This command involves retries and delays
             ; hence coded seperately.
