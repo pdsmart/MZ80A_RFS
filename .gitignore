@@ -4,6 +4,7 @@
 /Releases
 /.nb-gradle/
 *.dmp
+*.bin
 *.elf
 *.lss
 *.map
