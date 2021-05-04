@@ -3,7 +3,6 @@
 .gradle
 /Releases
 /.nb-gradle/
-*.bin
 *.dmp
 *.elf
 *.lss
@@ -165,4 +164,13 @@ software/roms/SHARP_MZ80A_RFS_IMAGE_6.img
 software/roms/SHARP_MZ80A_RFS_IMAGE_7.img
 software/roms/SHARP_MZ80A_RFS_IMAGE_8.img
 software/roms/SHARP_MZ80A_RFS_IMAGE_9.img
-
+software/roms/MROM_128.bin
+software/roms/USER_ROM_128.bin
+software/roms/USER_ROM_III_128.bin
+software/roms/USER_ROM_III_256.bin
+software/roms/USER_ROM_II_128.bin
+software/roms/USER_ROM_II_256.bin
+software/asm/ramcbios/
+software/asm/wt.asm
+software/dis/SA-5510/SA-5510.bin
+software/dis/XPATCH/XPATCH-5510.bin
