@@ -205,7 +205,8 @@ SD_INIT12:  DEC     BC                                                   ; 6T
             LD      A,4                                                  ; Exit code, failed to initialise v1 MMC card.
             JR      SD_EXIT
 
-SD_INIT13:  LD      A,CMD16                                              ; No response from the card for an ACMD41/CMD1 so try CMD16 with parameter 0x00000200
+SD_INIT13:  POP     BC
+            LD      A,CMD16                                              ; No response from the card for an ACMD41/CMD1 so try CMD16 with parameter 0x00000200
             LD      HL,00000H                                            ; NB. Important, HL should be coded as LH due to little endian and the way it is used in SDCMD.
             LD      DE,00002H                                            ; NB. Important, DE should be coded as ED due to little endian and the way it is used in SDCMD.
             CALL    SDCMD
@@ -215,6 +216,7 @@ SD_INIT13:  LD      A,CMD16                                              ; No re
             LD      A,0
             LD      (SDCAP),A                                            ; No capabilities on this unknown card.
 SD_INIT14:  XOR     A
+            JR      SD_EXIT
 SD_EXIT:    OR      A                                                    ; Return value is in A.
             RET
 
@@ -283,8 +285,10 @@ SDCMD4:     POP     HL
             INC     HL
             POP     BC                                                   ; Get back number of expected bytes. HL = place in buffer to store response.
             DJNZ    SDCMD3
-            LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH
-            OUT     (SPI_OUT),A
+            IF HW_SPI_ENA = 0
+             LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH
+             OUT     (SPI_OUT),A
+            ENDIF
             RET
 
             ; Method to send an Application Command to the SD Card. This involves sending CMD55 followed by the required command.
@@ -563,7 +567,8 @@ LBATOADDR:  LD      HL,(SDSTARTSEC+1)
             ;                      HL: Address where to store data read from sector.
             ; Output: A = 0 - All ok. A > 0 - error occurred.
             ;
-?SD_READ:   PUSH    HL                                                   ; Store the load address.
+?SD_READ:   DI 
+            PUSH    HL                                                   ; Store the load address.
             LD      A,000H
             CALL    SPICS                                                ; Set CS low (active).
 
@@ -626,6 +631,7 @@ SD_READ5:   PUSH    AF
             LD      A,0FFH                                               ; Disable CS therefore deselecting the SD Card.
             CALL    SPICS
             POP     AF
+     EI
             RET
 SD_READ6:   POP     HL
             LD      A,1
@@ -884,5 +890,8 @@ SDC_WRITE1: RET
             ; END OF SD CARD CONTROLLER FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
+            ; Align to end of bank.
+            ALIGN   UROMADDR + 07F8h
+            ORG     UROMADDR + 07F8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh
 
-            ALIGN_NOPS    UROMADDR + 0800h

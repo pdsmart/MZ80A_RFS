@@ -41,6 +41,9 @@ HW_SPI_ENA              EQU     1                                        ; Set t
 SW_SPI_ENA              EQU     0                                        ; Set to 1 if software SPI is present on the RFS PCB v2 board.
 PP_SPI_ENA              EQU     0                                        ; Set to 1 if using the SPI interface via the Parallel Port, ie. for RFS PCB v1 which doesnt have SPI onboard.
 
+; Debugging
+ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable
+
 ;-----------------------------------------------
 ; Entry/compilation start points.
 ;-----------------------------------------------
@@ -160,9 +163,6 @@ CKSUM:                  EQU     0071AH
 GAP:                    EQU     0077AH
 WTAPE:                  EQU     00485H
 MSTOP:                  EQU     00700H
-
-; Debugging
-ENADEBUG                EQU     1                                        ; Enable debugging logic, 1 = enable, 0 = disable
 
 ;-----------------------------------------------
 ; Memory mapped ports in hardware.

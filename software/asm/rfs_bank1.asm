@@ -339,7 +339,7 @@ L01C0:     CALL     L0249                                                    ; S
            PUSH     IX                                                       ; Save 1008H
            LD       IX, 0F3FEH                                               ; As below. L03FE
            LD       IY,L01DF                                                 ; Read sector into memory.
-           DI      
+          ;DI      
            LD       A,094H                                                   ; Latest FDC command byte
            CALL     L028A
 L01DB:     LD       B,000H
@@ -493,7 +493,7 @@ L02D2:     PUSH     AF
            LD       A,(0119CH)
            CP       0F0H
            JR       NZ,L02DB                                                 ; (+001h)
-           EI      
+          ;EI      
 L02DB:     POP      AF
            RET     
 
@@ -531,5 +531,6 @@ PRMBLK:    DB       000H, 000H, 000H, 000H, 001H, 000H, 0CEH, 000H, 000H, 000H, 
 
 L03FE:     JP       (IY)
 
-           ALIGN    0EFFFh
-           DB       0FFh
+           ALIGN    0EFF8h
+           ORG      0EFF8h
+           DB       0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

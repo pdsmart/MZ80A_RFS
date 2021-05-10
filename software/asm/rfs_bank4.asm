@@ -210,7 +210,7 @@ LOADTAPE6:  LD      DE,MSGCMTDATA
             ; SA1510 Routine to write a tape header. Copied into the RFS and modified to merge better
             ; with the RFS interface.
             ;
-CMTWRI:     DI      
+CMTWRI:    ;DI      
             PUSH    DE
             PUSH    BC
             PUSH    HL
@@ -244,7 +244,7 @@ CMTWRI2:    POP     HL
             LD      A,(TIMFG)
             CP      0F0H
             JR      NZ,CMTWRI3                
-            EI      
+           ;EI      
 CMTWRI3:    POP     AF
             RET     
 
@@ -330,5 +330,6 @@ SGX:        LD      A,(SWRK)
             ;
             ;--------------------------------------
 
-            ALIGN   0EFFFh
-            DB      0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

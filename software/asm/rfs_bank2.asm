@@ -410,8 +410,10 @@ SDCMD4:     POP     HL
             INC     HL
             POP     BC                                                   ; Get back number of expected bytes. HL = place in buffer to store response.
             DJNZ    SDCMD3
-            LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH
-            OUT     (SPI_OUT),A            
+            IF HW_SPI_ENA = 0
+             LD      A,DOUT_HIGH | CLOCK_LOW  | CS_HIGH
+             OUT     (SPI_OUT),A            
+            ENDIF
             RET
 
             ; Method to send an Application Command to the SD Card. This involves sending CMD55 followed by the required command.
@@ -1017,9 +1019,9 @@ GETSDDIRENT:PUSH    BC
             LD      (SDLOADSIZE),BC
             LD      HL,(SDLOADADDR)
             ;
-            DI
+           ;DI
             CALL    SD_READ                                              ; Read the sector.
-            EI
+           ;EI
             ;
             OR      A
             JR      NZ,DIRSDERR
@@ -1086,9 +1088,9 @@ WRSDDIRENT: LD      A,(DIRSECBUF)                                        ; Get t
             LD      HL,SECTORBUF                                         ; Address of the sector.
             LD      BC,SD_SECSIZE                                        ; Set the size as one full sector.
             ;
-            DI
+           ;DI
             CALL    SD_WRITE
-            EI
+           ;EI
             ;
             OR      A
             JR      NZ,DIRSDWERR
@@ -1123,7 +1125,7 @@ DIRSDCARD:  LD      A,1                                                  ; Setup
             ADD     A,'0'
 DIRSDP:     LD      C,A                                                  ; C is printed as a character embedded in the message.
             LD      DE,MSGCDIRLST                                        ; Print out header.
-            CALL    SDPRINT                                              ; Print out the filename.
+            CALL    SDPRINT                                              ; Print out the header.
             ;
 DIRSD0:     LD      E,0                                                  ; Directory entry number
             LD      D,0                                                  ; Directory file number (incr when a valid dirent is found).
@@ -1373,9 +1375,9 @@ LOADSD11:   LD      A,(SDLOADSIZE+1)
             JR      NC,LOADSD12
             LD      BC,(SDLOADSIZE)                                      ; Get remaining bytes size.
 LOADSD12:   LD      HL,(SDLOADADDR)
-            DI
+           ;DI
             CALL    SD_READ                                              ; Read the sector.
-            EI
+           ;EI
             OR      A
             RET     NZ                                                   ; Failure to read a sector, abandon with error message.
             LD      (SDLOADADDR),HL                                      ; Save the updated address.
@@ -1544,9 +1546,9 @@ SAVESD5:    LD      A,(SDLOADSIZE+1)
             JR      NC,SAVESD6
             LD      BC,(SDLOADSIZE)                                      ; Get remaining bytes size.
 SAVESD6:    LD      HL,(SDLOADADDR)
-            DI
+           ;DI
             CALL    SD_WRITE                                             ; Write the sector.
-            EI
+           ;EI
             OR      A
             JR      NZ,SAVESD9                                           ; Failure to read a sector, abandon with error message.
             LD      (SDLOADADDR),HL                                      ; Save the updated address.
@@ -1598,5 +1600,6 @@ SAVESD9:    LD      DE,MSGSVFAIL                                         ; Fail,
             ;
             ;--------------------------------------
 
-            ALIGN   0EFFFh
-            DB      0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

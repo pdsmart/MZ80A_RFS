@@ -372,18 +372,17 @@ INIT3:      LD      A,(BNKCTRLRST)
             ;
             ; Initialise the SD Card subsystem (if connected).
             ;
-            CALL    ?SDINIT
+        ;    CALL    ?SDINIT
             LD      A,0                                                  ; No drives yet detected so zero available mask.
-            JR      NZ,STRT2
-            SET     2,A                                                  ; Assume the SD Card is present.
+        ;    JR      NZ,STRT2
+            SET     2,A                                                  ; Assume the SD Card is present if it initialised.
             ;
             LD      DE,SDAVAIL
-            CALL    PRTSTRTMSG
+            CALL    PRTSTRTMSG                                           ; Print message and store Drive Availability flag in A
             ;
-            ; Locate the CPM Image and store the Bank/Block to speed up warm boot.
 STRT2:      LD      (DRVAVAIL),A
             ;
-            ; Find the CPM binary in the ROM, used for Warm restart CCP/BDOS reload.
+            ; Locate the CPM binary Image in the ROM and store the Bank/Block to speed up warm boot.used for Warm restart CCP/BDOS reload. 
             LD      HL,CPMROMFNAME                                       ; Name of CPM File in rom.
             CALL    FINDMZF
             JP      NZ,ROMFINDERR                                        ; Failed to find CPM in the ROM! This shouldnt happen even if we boot from SD card, a copy needs to be in the ROM.
@@ -395,7 +394,7 @@ STRT4:      CALL    ?DSKINIT                                             ; Initi
             SET     0,A                                                  ; Indicate Floppy drives are available.
 
             LD      DE,FDCAVAIL
-            CALL    PRTSTRTMSG
+            CALL    PRTSTRTMSG                                           ; Print message and store Drive Availability flag in A
             ;
 STRT5:      LD      DE,CBIOSIGNEND                                       ; Terminate the signon message which now includes list of drives detected.
             CALL    MONPRTSTR
@@ -920,19 +919,11 @@ ALLOC2:     LD      (RSFLAG), A                                          ; rsfla
 SELUSRBNK:  DI
             PUSH    BC
             PUSH    AF
-            ; Reset to a known state to allow for spurious read/writes to control area clocking the up counter.
+            ; Use a fixed number of reads to enable the control registers.
             LD      B,16
-SELUSRBNK0: LD      A,(BNKCTRLDIS)
+SELUSRBNK0: LD      A,(BNKCTRLRST)
             DJNZ    SELUSRBNK0
-            ; Now loop for the correct up counter required to enable the latches.
-            LD      B,15                                                 ; Set value to B for loop.
-            LD      A,(BNKCTRL)
-            LD      C,A
-SELUSRBNK1: CP      C
-            JR      NZ,SELUSRBNK2
-            LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
-            DJNZ    SELUSRBNK1
-SELUSRBNK2: POP     AF
+            POP     AF
             POP     BC
             LD      (BNKSELUSER),A                                       ; Select the required bank.
             LD      A,(ROMCTL)
@@ -941,6 +932,32 @@ SELUSRBNK2: POP     AF
             LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
 SELUSRBNK3: EI
             RET
+
+;            EXX
+;            EX      AF,AF'
+;            LD      A,(ROMCTL)                                           ; Get current setting for the coded latch, ie. number of reads needed to enable it.
+;            LD      C,A
+;            RRA
+;            RRA
+;            CPL
+;            AND     00FH                                                 ; Preserve bits 3-1, bit 0 is always 0 on the 74HCT191 latch.
+;            LD      B,A                                                  ; Set value to B for loop.
+;            LD      A,(BNKCTRLDIS)                                       ; Do a reset for the case where the above read enabled the latch, possible if external programs are reading/writing the latch area.
+;            LD      A,(BNKCTRL)                                          ; Sample latch at start to detect change.
+;            LD      E,A
+;SELUSRBNK1: LD      A,(BNKCTRL)                                          ; Read the latch and compare with sample. Either we reach the count limit or the read differs indicating latch control.
+;            CP      E
+;            JR      NZ,SELUSRBNK2
+;            DJNZ    SELUSRBNK1
+;SELUSRBNK2: LD      A,C
+;            LD      (BNKCTRL),A
+;            EX      AF,AF'
+;            LD      (BNKSELUSER),A                                       ; Select the required bank.
+;            EXX
+;            JR      C,SELUSRBNK3                                         ; If Carry is set by caller then leave the control registers active.
+;            LD      (BNKCTRLDIS),A                                       ; Disable the control registers, value of A is not important.
+;SELUSRBNK3: EI
+;            RET
 
 
             ; Helper method to set up a Disk Parameter Block.

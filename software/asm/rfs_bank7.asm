@@ -271,7 +271,7 @@ TIMERTST:   CALL    NL
             CALL    TIMERTST1
 NDE:        JP      NDE
             JP      ST1X
-TIMERTST1:  DI      
+TIMERTST1: ;DI      
             PUSH    BC
             PUSH    DE
             PUSH    HL
@@ -399,7 +399,7 @@ CDEF:       POP     DE
             LD      (HL),07BH
             INC     HL
 
-L0336H:      PUSH    AF
+L0336H:     PUSH    AF
             PUSH    BC
             PUSH    DE
             PUSH    HL
@@ -464,7 +464,7 @@ L0340:      CALL    DPCT
             POP     HL
             POP     DE
             POP     BC
-            EI      
+           ;EI      
             RET   
             ;-------------------------------------------------------------------------------
             ; END OF TIMER TEST FUNCTIONALITY
@@ -491,5 +491,6 @@ MSG_TIMERVAL2:
 MSG_TIMERVAL3:
             DB      "READ DONE.", 0Dh, 00h
 
-            ALIGN   0EFFFh
-            DB      0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh            
