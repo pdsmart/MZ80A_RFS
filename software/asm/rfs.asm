@@ -347,12 +347,12 @@ CMDTABLE:   DB      000H | 000H | 000H | 002H                            ; Bit 2
             DB      000H | 000H | 000H | 002H
             DB      "80"                                                 ; 80 Char screen mode.
             DW      SETMODE80
-            DB      000H | 000H | 000H | 004H
-            DB      "7008"                                               ; Switch to 80 column MZ700 mode.
-            DW      SETMODE7008
-            DB      000H | 000H | 000H | 003H
-            DB      "700"                                                ; Switch to 40 column MZ700 mode.
-            DW      SETMODE700
+           ;DB      000H | 000H | 000H | 004H
+           ;DB      "7008"                                               ; Switch to 80 column MZ700 mode.
+           ;DW      SETMODE7008
+           ;DB      000H | 000H | 000H | 003H
+           ;DB      "700"                                                ; Switch to 40 column MZ700 mode.
+           ;DW      SETMODE700
             DB      000H | 000H | 000H | 005H
             DB      "BASIC"                                              ; Load and run BASIC SA-5510.
             DW      LOADBASIC
@@ -362,6 +362,9 @@ CMDTABLE:   DB      000H | 000H | 000H | 002H                            ; Bit 2
             DB      000H | 000H | 000H | 003H
             DB      "CPM"                                                ; Load and run CPM.
             DW      LOADCPM
+            DB      000H | 000H | 018H | 002H
+            DB      "CP"                                                 ; Copy Memory.
+            DW      MCOPY
             DB      000H | 000H | 018H | 001H
             DB      'C'                                                  ; Clear Memory.
             DW      INITMEMX
@@ -530,34 +533,33 @@ SETCLR_1:   LD      (DE),A
             
             ; Command to switch to the MZ700 compatibility mode with 80 column display.
             ;
-SETMODE7008:LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
-            OR      A
-            JR      Z,NOTZPU
-            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
-            LD      A, 128                                               ; Setup for 80char display.
-            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
-            LD      (HL), A
-            CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
-            LD      A,ROMBANK5                                           ; Select the 80 column version of the 1Z-013A ROM.
-SETMODE_2:  LD      (ROMBK1),A
-            LD      (BNKSELMROM),A
-            LD      A,MODE_MZ700                                         ; Set the CPLD compatibility mode.
-SETMODE_3:  OUT     (CPLDCFG),A
-            JP      MONIT                                                ; Cold start the monitor.
+;SETMODE7008:LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
+;            OR      A
+;            JR      Z,NOTZPU
+;            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
+;            LD      A, 128                                               ; Setup for 80char display.
+;            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+;            LD      (HL), A
+;            CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
+;            LD      A,ROMBANK5                                           ; Select the 80 column version of the 1Z-013A ROM.
+;SETMODE_2:  LD      (ROMBK1),A
+;            LD      (BNKSELMROM),A
+;            LD      A,MODE_MZ700                                         ; Set the CPLD compatibility mode.
+;SETMODE_3:  OUT     (CPLDCFG),A
+;            JP      MONIT                                                ; Cold start the monitor.
 
             ; Command to switch to the MZ700 compatibility mode with original 40 column display.
             ;
-SETMODE700: LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
-            OR      A
-            JR      Z,NOTZPU
-            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
-            LD      A, 0                                                 ; Setup for 40char display.
-            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
-            LD      (HL), A
-            CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
-            LD      A,ROMBANK4                                           ; Select the 40 column version of the 1Z-013A ROM.
-            JR      SETMODE_2
-
+;SETMODE700: LD      A,(TZPU)                                             ; Check there is a tranZPUter card installed.
+;            OR      A
+;            JR      Z,NOTZPU
+;            LD      HL,DSPCTL                                            ; Setup address of display control register latch.
+;            LD      A, 0                                                 ; Setup for 40char display.
+;            LD      E,(HL)                                               ; Dummy operation to enable latch write via multivibrator.
+;            LD      (HL), A
+;            CALL    SETMODECLR                                           ; Set memory mode and clear variable area.
+;            LD      A,ROMBANK4                                           ; Select the 40 column version of the 1Z-013A ROM.
+;            JR      SETMODE_2
 
             ;====================================
             ;
@@ -629,6 +631,8 @@ _PRTDBG:    IF ENADEBUG = 1
             CALL    PRNT
             LD      A, ' '
             CALL    PRNT
+      ;     CALL    NL
+      ; CALL GETKY
             LD      A,(WRKROMBK1)
             LD      (BNKSELMROM),A                                       ; Set the MROM bank back to scanned bank.
             POP     AF
@@ -720,7 +724,7 @@ PRTMZF4:    OR      A
 
             ; Method to list the directory of the ROM devices.
             ;
-DIRROM:     DI                                                           ; Disable interrupts as we are switching out the main rom.
+DIRROM:    ;DI                                                           ; Disable interrupts as we are switching out the main rom.
             ;
             LD      A,1                                                  ; Account for the title.
             LD      (TMPLINECNT),A
@@ -739,7 +743,6 @@ DIRROM:     DI                                                           ; Disab
             LD      (WRKROMBK1),A
             LD      (BNKSELMROM),A
             CALL    DIRMROM
-
             ;
             ; Scan MROM Bank
             ; B = Bank Page
@@ -751,6 +754,7 @@ DIRROM:     DI                                                           ; Disab
 DIRNXTPG:   LD      A,B
             LD      (WRKROMBK1), A
             LD      (BNKSELMROM),A                                       ; Select bank.
+
             PUSH    BC                                                   ; Preserve bank count/block number.
             PUSH    DE                                                   ; Preserve file numbering.
             LD      A,C
@@ -785,7 +789,7 @@ DIRNXTPG2:  LD      A,B
 
 DIRNXTPGX:  LD      A,(ROMBK1)
             LD      (BNKSELMROM),A                                       ; Set the MROM bank back to original.
-            EI                                                           ; No need to block interrupts now as MROM bank restored.
+           ;EI                                                           ; No need to block interrupts now as MROM bank restored.
             RET                                                          ; End of scan, return to monitor
 
 
@@ -888,7 +892,7 @@ FINDMZFNO:  PUSH    AF
 LOADROMNX:  LD      L,0FFH
             JR      LOADROM1
 LOADROM:    LD      L,000H
-LOADROM1:   DI
+LOADROM1:  ;DI
             PUSH    HL                                                   ; Preserve execute flag.
             EX      DE,HL                                                ; User ROM expects HL to have the filename pointer.
 
@@ -931,7 +935,7 @@ LROMNTFND:  POP     HL                                                   ; Dont 
             LD      HL,PRINTMSG
             LD      DE,MSGNOTFND                                         ; Not found
             CALL    BKSW0to6
-LOADROMEND: EI
+LOADROMEND:;EI
             RET
 
             ;
@@ -1036,7 +1040,7 @@ LROMLOAD5:  POP     HL                                                   ; Retri
             CP      0FFh
             JP      Z,LROMLOAD9                                          ; Go back to monitor if it has been, else execute.
             LD      HL,(EXADR)
-            EI                                                           ; No need to block interrupts now as MROM bank restored.
+           ;EI                                                           ; No need to block interrupts now as MROM bank restored.
             JP      (HL)                                                 ; Execution address.
 LROMLOAD9:  RET
 
@@ -1320,8 +1324,9 @@ DEFAULTFNE: EQU     $
             ;
             ; Ensure we fill the entire 2K by padding with FF's.
             ;
-            ALIGN    0EFFFh
-            DB       0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh
 
 MEND:
 

@@ -222,6 +222,27 @@ MCRX3:      LD      H,B                                                  ; memor
             LD      L,C
             JR      MCORX1
 
+            ; Memory copy command 'CPY'
+            ; Parameters: XXXYYYZZZ - XXXX = Source, YYYY = Destination, ZZZZ = Size
+MCOPY:      CALL    READ4HEX                                             ; Source
+            JR      C,MCOPYER1
+            PUSH    HL
+            CALL    READ4HEX                                             ; Destination
+            JR      C,MCOPYER2
+            PUSH    HL
+            CALL    READ4HEX                                             ; Size
+            JR      C,MCOPYER3
+            PUSH    HL
+            POP     BC                                                   ; Size
+            POP     DE                                                   ; Destination
+            POP     HL                                                   ; Source
+            LDIR
+            RET
+            ;
+MCOPYER3:   POP     HL
+MCOPYER2:   POP     HL
+MCOPYER1:   RET
+
 
             ; Dump method when called interbank as HL cannot be passed.
             ;
@@ -391,7 +412,7 @@ READ4HEX:   CALL    HLHEX
             OR      A                                                    ; Clear carry flag.
             RET
 READ4HEXERR:LD      DE,MSGREAD4HEX                                       ; Load up error message, print and exit.
-            LD      HL,PRINTMSG
+READ4HEXPRE:LD      HL,PRINTMSG
             CALL    BKSW1to6
             SCF
             RET
@@ -522,5 +543,6 @@ SLPT:       DB      01H                                                  ; TEXT 
             ;
             ;--------------------------------------
 
-            ALIGN   0EFFFh
-            DB      0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

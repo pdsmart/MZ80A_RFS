@@ -279,14 +279,17 @@ PRTSTRE:    POP     DE
 
             ; Help text. Use of lower case, due to Sharp's non standard character set, is not easy, you have to manually code each byte
             ; hence using upper case.
+            ;        1                                      40
 HELPSCR:    DB      "0..9  - select RFS Drive.",                            00DH
             DB      "40    - 40 col mode.",                                 00DH
             DB      "80    - 80 col mode.",                                 00DH
-            DB      "700   - Select MZ-700 Mode.",                          00DH
-            DB      "7008  - Select MZ-700 80 col Mode.",                   00DH            
+           ;DB      "700   - Select MZ-700 Mode.",                          00DH
+           ;DB      "7008  - Select MZ-700 80 col Mode.",                   00DH            
             DB      "B     - toggle keyboard bell.",                        00DH
             DB      "BASIC - Load BASIC SA-5510.",                          00DH            
             DB      "C     - clear memory $1200-$D000.",                    00DH
+            DB      "CPXXXXYYYYZZZZ - copy memory",                         00DH
+            DB      "        XXXX=src,YYYY=dst,ZZZZ=size",                  00DH
             DB      "CPM   - Load CPM.",                                    00DH
             DB      "DXXXX[YYYY] - dump mem XXXX to YYYY.",                 00DH
             DB      "EC[FN]- erase file, FN=No, or Filename",               00DH
@@ -457,12 +460,12 @@ MSGNOTFND:  DB      "Not Found",                               00DH, 000H
 MSGRDIRLST: DB      "ROM Directory:",                          00DH, 000H
 MSGTRM:     DB                                                 00DH, 000H
 MSGBADCMD:  DB      "???",                                     00DH, 000H
-MSGSDINITER:DB      "SD Card Error ", 0F9H,               00DH, 000H
+MSGSDINITER:DB      "SD Card Error ", 0F9H,                    00DH, 000H
 MSGCDIRLST: DB      "SD Card Directory ",0F9H,":",             00DH, 000H
-MSGSDRERR:  DB      "SD Read error, Sec:",0FBH,                      000H
-MSGSDWERR:  DB      "SD Write error, Sec:",0FBH,                     000H
-MSGSVFAIL:  DB      "SD Error, save failed.",                  00DH, 000H
-MSGERAFAIL: DB      "SD Dir update failed.",                   00DH, 000H
+MSGSDRERR:  DB      "Read error, Sec:",0FBH,                         000H
+MSGSDWERR:  DB      "Write error, Sec:",0FBH,                        000H
+MSGSVFAIL:  DB      "Error, save failed.",                     00DH, 000H
+MSGERAFAIL: DB      "Dir update failed.",                      00DH, 000H
 MSGSVDIRENT:DB      "Saving into dir entry:",0FBH,             00DH, 000H
 MSGERASEDIR:DB      "Deleted dir entry:",0FBH,                       000H
 MSGCMTDATA: DB      "Load:",0FEH,",Exec:",0FFH, ",Size:",0FBH, 00DH, 000H
@@ -487,7 +490,8 @@ MSGSD2TOK:  DB      "Success, SD to Tape done.",               00DH, 000H
 MSGNOTZINST:DB      "No tranZPUter >=v2 card installed.",      00DH, 000H
 MSGNOCMTDIR:DB      "CMT has no directory.",                   00DH, 000H
 MSGINVDRV:  DB      "Invalid drive, SD=0..9 or C=CMT",         00DH, 000H
-MSGNOVERIFY:DB      "No Verify for SD drive.",                 00DH, 000H
+MSGNOVERIFY:DB      "No Verify for SD!",                       00DH, 000H
 
-            ALIGN   0EFFFh
-            DB      0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

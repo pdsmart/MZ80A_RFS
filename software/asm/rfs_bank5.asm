@@ -205,6 +205,6 @@ SHARPTOASC: DB      000H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H
             DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xEF
             DB      020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H,  020H ; 0xFF
 
-
-            ALIGN   0EFFFh
-            DB      0FFh
+            ALIGN   0EFF8h
+            ORG     0EFF8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

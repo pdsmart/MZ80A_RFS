@@ -103,6 +103,7 @@ CBIOS1_0:   LD      A,(BNKCTRLRST)
 ?SETDRVMAP: PUSH    HL
             PUSH    DE
             PUSH    BC
+
             ; Zero out the map.
             LD      B,MAXDISKS
             LD      HL,DISKMAP
@@ -634,4 +635,7 @@ RETRIESMSG: DB      "DISK ERROR - RETRIES",         CR, NUL
 DATAOVRMSG: DB      "DISK ERROR - DATA OVERRUN",    CR, NUL
 CRCERRMSG:  DB      "DISK ERROR - CRC ERROR",       CR, NUL
 
-            ALIGN_NOPS    UROMADDR + 0800h
+            ; Align to end of bank.
+            ALIGN   UROMADDR + 07F8h
+            ORG     UROMADDR + 07F8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh

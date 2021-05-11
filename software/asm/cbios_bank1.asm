@@ -450,7 +450,7 @@ GETKY2:     LD      A,(KEYCOUNT)                                         ; No ke
             ; END OF KEYBOARD FUNCTIONALITY
             ;-------------------------------------------------------------------------------
 
-
-
-
-            ALIGN_NOPS    UROMADDR + 0800h
+            ; Align to end of bank.
+            ALIGN   UROMADDR + 07F8h
+            ORG     UROMADDR + 07F8h
+            DB      0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh,0FFh
