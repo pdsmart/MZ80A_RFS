@@ -735,9 +735,9 @@ LROMLOAD5: PUSH     AF
            USE_ISNUMERIC:    EQU   1
            USE_CNVSTRTONUM:  EQU   1
            ;
-           INCLUDE "Macros.asm"
-          ;INCLUDE "RFS_Definitions.asm"
-           INCLUDE "RFS_Utilities.asm"
+           INCLUDE "macros.asm"
+          ;INCLUDE "rfs_definitions.asm"
+           INCLUDE "rfs_utilities.asm"
 
            ; Ensure we fill the entire 4K by padding with FF's.
            ALIGN    1000H

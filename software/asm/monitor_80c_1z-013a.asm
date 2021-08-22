@@ -4,4 +4,4 @@ ROW:    EQU     25                      ; Number of rows on display screen.
 SCRNSZ: EQU     COLW * ROW              ; Total size, in bytes, of the screen display area.
 MODE80C:EQU     1
 
-		INCLUDE "1Z-013A.asm"
+		INCLUDE "1z-013a.asm"

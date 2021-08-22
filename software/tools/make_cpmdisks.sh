@@ -232,10 +232,10 @@ do
         CPMIMAGE=""
         echo "ALERT! ALERT! Couldnt find CPM image:${f}.RAW, not creating MZF file!"
     fi
-
     if [ "${CPMIMAGE}" != "" ]; then
         # Building is just a matter of concatenating together the heaader and the rom image.
-        cat "${HDRDIR}/${f}.HDR" "${CPMIMAGE}" > "${MZFDIR}/${f}.MZF"
+        #echo "cat \"${HDRDIR}/${f}.hdr\" \"${CPMIMAGE}\" > \"${MZFDIR}/${f}.mzf\""
+        cat "${HDRDIR}/${f}.hdr" "${CPMIMAGE}" > "${MZFDIR}/${f}.mzf"
 
         # Place the name of the file into the MZF list so that we create an MZF format binary from this image.
         (cd ${MZFDIR}; ls -l ${f}.MZF ${f}.mzf 2>/dev/null | sed 's/  / /g' | sed 's/  / /g' | cut -d' ' -f5,9- >> /tmp/filelist 2>/dev/null)
@@ -247,7 +247,7 @@ IFS=' '; while read -r FSIZE FNAME;
 do
   TNAME=`echo $FNAME | sed 's/mzf/MZF/g'`
   if [ "$FNAME" != "$TNAME" ]; then
-      mv "$FNAME" "$TNAME"
+      mv "${MZFDIR}/$FNAME" "${MZFDIR}/$TNAME"
   fi
   for BLOCKSIZE in ${BLOCKSIZELIST}
   do

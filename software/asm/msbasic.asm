@@ -28,9 +28,9 @@
 
 
             ; Bring in additional resources.
-            INCLUDE "MSBASIC_BuildVersion.asm"
-            INCLUDE "MSBASIC_Definitions.asm"
-            INCLUDE "Macros.asm"
+            INCLUDE "msbasic_buildversion.asm"
+            INCLUDE "msbasic_definitions.asm"
+            INCLUDE "macros.asm"
 
             ; Sharp MZ-80A Tape Format Header - used by all software including RFS/TZFS 
             ; in processing/loading of this file.

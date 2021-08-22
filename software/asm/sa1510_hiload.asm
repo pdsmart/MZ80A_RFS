@@ -2727,7 +2727,7 @@ GAPCK3: JP      RET3
         ALIGN_NOPS 0D000H
 
         ; Bring in additional macros.
-        INCLUDE "Macros.asm"
+        INCLUDE "macros.asm"
 
         ;    MONITOR WORK AREA
         ;    (MZ700)

@@ -64,7 +64,7 @@ function addFileToImage
     # Use the File Type and ROM File List to filter out duplicates.
     #
     if [[ ${FILETYPE} == $ft ]] || [[ ${FORMAT} -eq 1 ]]; then
-        grep `basename "${FILENAME}" .MZF` ${ROM_LIST_FILE} > /dev/null
+        grep `basename "${FILENAME}" .mzf` ${ROM_LIST_FILE} > /dev/null
         if [ $? -eq 1 -o ${FILTER} -eq 0 ]; then
 
             # Filter out CPM ROM Drive images.
@@ -115,7 +115,7 @@ function addMachineFiles
     elif [[ ${FORMAT} -eq 1 ]] && [[ "${SRCDIR}" == "BAS"  ]]; then
         FILELIST=`(cd ${MZF_PATH}/${SRCDIR}; ls *.bas)`
     else
-        FILELIST=`(cd ${MZF_PATH}/${SRCDIR}; ls *.MZF)`
+        FILELIST=`(cd ${MZF_PATH}/${SRCDIR}; ls *.mzf)`
     fi
 
     for f in ${FILELIST}

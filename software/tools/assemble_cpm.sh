@@ -43,7 +43,7 @@ BLOCKSIZELIST="128 256"
 
 # Go through list and build images.
 #
-for f in ${BUILDROMLIST} ${BUILDMZFLIST}
+for f in ${BUILDROMLIST}
 do
     echo "Assembling: $f..."
 
@@ -59,7 +59,8 @@ do
         if [[ ${BUILDROMLIST} = *"${f}"* ]]; then
             echo "Copy ${ASMDIR}/${f}.obj to ${ROMDIR}/${f}.rom"
             cp ${ASMTMPDIR}/${f}.obj ${ROMDIR}/${f}.rom
-        else
+        fi
+        if [[ ${BUILDMZFLIST} = *"${f}"* ]]; then
             # Build standard MZF files for inclusion in the SD Drive.
             echo "Copy ${ASMDIR}/${f}.obj to ${MZFDIR}/${f}.mzf"
             cp ${ASMTMPDIR}/${f}.obj ${MZFDIR}/${f}.mzf

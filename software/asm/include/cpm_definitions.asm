@@ -41,8 +41,8 @@ PP_SPI_ENA              EQU     0                                        ; Set t
 
 ; Build time options, only set to '1' to build, '0' to disable, only 1 can be set to '1'.
 ;                        IF BUILD_VERSION = 0
-BUILD_80C               EQU     0                                        ; Build for an MZ-80A with a 40/80 column card.
-BUILD_40C               EQU     1                                        ; Build for a standard 40 column MZ-80A.
+BUILD_80C               EQU     1                                        ; Build for an MZ-80A with a 40/80 column card.
+BUILD_40C               EQU     0                                        ; Build for a standard 40 column MZ-80A.
 ;                        ENDIF
 ;                        IF BUILD_VERSION = 1
 ;BUILD_80C               EQU     0                                        ; Build for an MZ-80A with a 40/80 column card.

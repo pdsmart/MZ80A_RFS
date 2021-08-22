@@ -34,9 +34,9 @@ TOOLDIR=${ROOTDIR}/software/tools
 JARDIR=${ROOTDIR}/software/tools
 ASM=glass.jar
 #BUILDROMLIST="MZ80AFI rfs rfs_mrom IPL monitor_SA1510 monitor_80c_SA1510 monitor_mz-1r12 quickdisk_mz-1e05 quickdisk_mz-1e14 monitor_1Z-013A monitor_80c_1Z-013A"
-BUILDROMLIST="monitor_SA1510_hiload monitor_80c_SA1510_hiload monitor_80c_SA1510 MZ80AFI monitor_SA1510 monitor_80c_SA1510 monitor_1Z-013A monitor_80c_1Z-013A IPL"
+BUILDROMLIST="monitor_sa1510_hiload monitor_80c_sa1510_hiload monitor_80c_sa1510 mz80afi monitor_sa1510 monitor_80c_sa1510 monitor_1z-013a monitor_80c_1z-013a ipl"
 #BUILDMZFLIST="hi-ramcheck sharpmz-test"
-BUILDMZFLIST="SA-5510_RFS MSBASIC_MZ80A MSBASIC_RFS40 MSBASIC_RFS80 sharpmz-test"
+BUILDMZFLIST="sa-5510_rfs msbasic_mz80a msbasic_rfs40 msbasic_rfs80 sharpmz-test"
 ASMDIR=${ROOTDIR}/software/asm
 ASMTMPDIR=${ROOTDIR}/software/tmp
 INCDIR=${ROOTDIR}/software/asm/include
@@ -59,20 +59,20 @@ do
     MZFNAME=${f}.MZF
 
     # Special handling for the 4 version of MS BASIC.
-    if [[ ${SRCNAME} = "MSBASIC_MZ80A" ]]; then
-        ASMNAME="MSBASIC.asm"
+    if [[ ${SRCNAME} = "msbasic_mz80a" ]]; then
+        ASMNAME="msbasic.asm"
         echo "BUILD_VERSION EQU 0" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_RFS40" ]]; then
-        ASMNAME="MSBASIC.asm"
+    elif [[ ${SRCNAME} = "msbasic_rfs40" ]]; then
+        ASMNAME="msbasic.asm"
         echo "BUILD_VERSION EQU 1" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_RFS80" ]]; then
-        ASMNAME="MSBASIC.asm"
+    elif [[ ${SRCNAME} = "msbasic_rfs80" ]]; then
+        ASMNAME="msbasic.asm"
         echo "BUILD_VERSION EQU 2" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_RFSTZ" ]]; then
-        ASMNAME="MSBASIC.asm"
+    elif [[ ${SRCNAME} = "msbasic_rfstz" ]]; then
+        ASMNAME="msbasic.asm"
         echo "BUILD_VERSION EQU 3" > ${INCDIR}/MSBASIC_BuildVersion.asm
-    elif [[ ${SRCNAME} = "MSBASIC_TZFS" ]]; then
-        ASMNAME="MSBASIC.asm"
+    elif [[ ${SRCNAME} = "msbasic_tzfs" ]]; then
+        ASMNAME="msbasic.asm"
         echo "BUILD_VERSION EQU 4" > ${INCDIR}/MSBASIC_BuildVersion.asm
     fi
 
