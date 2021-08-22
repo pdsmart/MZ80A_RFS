@@ -61,7 +61,7 @@ do
     do
       FDIRNAME=`dirname ${FNAME}`
       FILENAME=`basename ${FNAME}`
-      TNAME=`echo $FILENAME | sed 's/mzf/MZF/g'`
+      TNAME=`echo $FILENAME | sed 's/MZF/mzf/g'`
       if [ "${FILENAME}" != "${TNAME}" ]; then
           mv "${FILENAME}" "${TNAME}"
       fi
@@ -70,7 +70,7 @@ do
       do
           for SECTORSIZE in `seq -s ' ' ${BLOCKSIZE} ${BLOCKSIZE} 524288`
           do
-            BASE=`basename "$TNAME" .MZF`
+            BASE=`basename "$TNAME" .mzf`
             if [ `echo ${FSIZE} - ${SECTORSIZE}   | bc` -le 0 ];
             then
                 echo $BASE $TNAME $SECTORSIZE

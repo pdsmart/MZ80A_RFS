@@ -9,9 +9,9 @@
 ;**************************************************************
 
            ; Bring in definitions and macros.
-           INCLUDE "CPM_BuildVersion.asm"
-           INCLUDE "CPM_Definitions.asm"
-           INCLUDE "Macros.asm"
+           INCLUDE "cpm_buildversion.asm"
+           INCLUDE "cpm_definitions.asm"
+           INCLUDE "macros.asm"
 ;
 ;   Set memory limit here. This is the amount of contigeous
 ; ram starting from 0000. CP/M will reside at the end of this space.

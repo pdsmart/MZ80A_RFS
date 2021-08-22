@@ -38,7 +38,7 @@
 ;--------------------------------------------------------------------------------------------------------
 
             ; Bring in additional resources.
-            INCLUDE "RFS_Definitions.asm"
+            INCLUDE "rfs_definitions.asm"
 
 
             ;============================================================
@@ -1319,8 +1319,8 @@ DEFAULTFNE: EQU     $
             USE_ISNUMERIC:    EQU   1
             USE_CNVSTRTONUM:  EQU   1
             ;
-            INCLUDE "Macros.asm"
-            INCLUDE "RFS_Utilities.asm"
+            INCLUDE "macros.asm"
+            INCLUDE "rfs_utilities.asm"
             ;
             ; Ensure we fill the entire 2K by padding with FF's.
             ;
