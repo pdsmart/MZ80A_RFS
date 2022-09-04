@@ -57,6 +57,10 @@ MZFDC2_PRJ      = mzfdc2
 MZFDC2_SRC      = mz-fdc2.c
 MZFDC2_OBJ      = $(COMMON_OBJ) $(patsubst %.c,$(BUILD_DIR)/%.o,$(MZFDC2_SRC))
 
+MZFDC3_PRJ      = mzfdc3
+MZFDC3_SRC      = mz-fdc3.c
+MZFDC3_OBJ      = $(COMMON_OBJ) $(patsubst %.c,$(BUILD_DIR)/%.o,$(MZFDC3_SRC))
+
 # Commandline options for each tool.
 OPTS            = 
 
@@ -70,7 +74,7 @@ ASFLAGS         = -I. -I$(COMMON_DIR) -I$(INCLUDE_DIR) -I$(STARTUP_DIR)
 #
 
 # Our target.
-all: clean $(BUILD_DIR) $(SDTOOL_PRJ)  $(MZFDC2_PRJ)
+all: clean $(BUILD_DIR) $(SDTOOL_PRJ)  $(MZFDC2_PRJ) $(MZFDC3_PRJ)
 
 install: all
 	cp $(SDTOOL_PRJ) $(MZFDC2_PRJ) $(INSTALLDIR)
@@ -81,6 +85,8 @@ clean:
 $(SDTOOL_PRJ): $(SDTOOL_PRJ).elf $(SDTOOL_PRJ).dmp $(SDTOOL_PRJ).lss
 
 $(MZFDC2_PRJ): $(MZFDC2_PRJ).elf $(MZFDC2_PRJ).dmp $(MZFDC2_PRJ).lss
+
+$(MZFDC3_PRJ): $(MZFDC3_PRJ).elf $(MZFDC3_PRJ).dmp $(MZFDC3_PRJ).lss
 
 # Convert ELF binary to bin file.
 %.bin: %.elf
@@ -107,11 +113,18 @@ $(MZFDC2_PRJ): $(MZFDC2L_OBJ)
 	$(CC) $(LFLAGS) $(MZFDC2_OBJ) -o $@ $(LIBS)
 	chmod +x $@
 
+$(MZFDC3_PRJ): $(MZFDC3L_OBJ)
+	$(CC) $(LFLAGS) $(MZFDC3_OBJ) -o $@ $(LIBS)
+	chmod +x $@
+
 # Link - this produces an ELF binary.
 $(SDTOOL_PRJ).elf: $(SDTOOL_OBJ)
 	$(LD) $(LFLAGS) -o $@ $+ $(LIBS)
 
 $(MZFDC2_PRJ).elf: $(MZFDC2_OBJ)
+	$(LD) $(LFLAGS) -o $@ $+ $(LIBS)
+
+$(MZFDC3_PRJ).elf: $(MZFDC3_OBJ)
 	$(LD) $(LFLAGS) -o $@ $+ $(LIBS)
 
 $(BUILD_DIR)/%.o: %.c Makefile
