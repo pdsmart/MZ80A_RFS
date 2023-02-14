@@ -12,7 +12,7 @@
 ##                  Credit goes to Grant Searle for the CPM_MC series of disks which can be found on his
 ##                  multicomputer project and to the various CPM archives on the net.
 ## Credits:         
-## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2020-2023 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         Jan 2020 - Initial script written.
 ##                  May 2020 - Updated to allow 240/320K Rom RFS images to be built

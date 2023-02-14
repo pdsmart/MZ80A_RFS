@@ -23,7 +23,7 @@
 ; Original source is: (C) 1978 Microsoft
 ; Updates (some reversed out): Grant Searle, http://searle.hostei.com/grant/index.html
 ;                                            eMail: home.micros01@btinternet.com
-; All other updates (C) Philip Smart, 2020-21. http://www.eaw.app philip.smart\@net2net.org
+; All other updates (C) Philip Smart, 2020-23. http://www.eaw.app philip.smart\@net2net.org
 ;-----------------------------------------------------------------------------------------------
 
 

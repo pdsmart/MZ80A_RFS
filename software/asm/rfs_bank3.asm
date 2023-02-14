@@ -8,7 +8,7 @@
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2023 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         July 2019 - Merged 2 utilities to create this compilation.
 ;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded

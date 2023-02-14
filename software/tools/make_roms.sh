@@ -11,7 +11,7 @@
 ##                  and flash the images created into the Flast ROMS.
 ##
 ## Credits:         
-## Copyright:       (c) 2020-21 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2020-23 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         January 2020   - Initial script written.
 ##                  March 2021     - Updates for the RFS v2.1 board.

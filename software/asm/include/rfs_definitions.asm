@@ -7,7 +7,7 @@
 ;-                  Definitions for the RFS including SA1510 locations.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019-21 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-23 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Sep 2019  - Initial version.
 ;-                  May 2020  - Advent of the new RFS PCB v2.0, quite a few changes to accommodate the
@@ -40,6 +40,7 @@
 HW_SPI_ENA              EQU     1                                        ; Set to 1 if hardware SPI is present on the RFS PCB v2 board.
 SW_SPI_ENA              EQU     0                                        ; Set to 1 if software SPI is present on the RFS PCB v2 board.
 PP_SPI_ENA              EQU     0                                        ; Set to 1 if using the SPI interface via the Parallel Port, ie. for RFS PCB v1 which doesnt have SPI onboard.
+FUSIONX_ENA             EQU     1                                        ; Set to 1 if using RFS on the tranZPUter FusionX board.
 
 ; Debugging
 ENADEBUG                EQU     0                                        ; Enable debugging logic, 1 = enable, 0 = disable

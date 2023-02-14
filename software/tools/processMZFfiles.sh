@@ -11,7 +11,7 @@
 ##                  according to its configuration.
 ##
 ## Credits:         
-## Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2020-2023 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         January 2020   - Initial script written.
 ##                  March 2021     - Small updates to pull programs from machine model sorted directories.

@@ -8,7 +8,7 @@
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2023 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         July 2019 - Merged 2 utilities to create this compilation.
 ;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded
@@ -174,17 +174,21 @@ ROMFS_3:    LD      (BNKSELMROM),A                                       ; start
             ;
             ; Replacement command processor in place of the SA1510 command processor.
             ;
-MONITOR:    IN      A,(CPLDINFO)                                         ; See if a tranZPUter board is present.
-            AND     0E7H                                                 ; Mask out the CPLD Version and host HW.
-            LD      C,A
-            CP      020H                                                 ; Upper bits specify the version, should be at least 1.
-            JR      C,CHKTZ1
-            AND     007H                                                 ; Get Hardware, should be an MZ-80A for RFS.
-            CP      MODE_MZ80A
-            LD      A,C
-            JR      Z,CHKTZ1
-            XOR     A
-CHKTZ1:     AND     0E0H
+MONITOR:    IF FUSIONX_ENA = 0
+              IN      A,(CPLDINFO)                                         ; See if a tranZPUter board is present.
+              AND     0E7H                                                 ; Mask out the CPLD Version and host HW.
+              LD      C,A
+              CP      020H                                                 ; Upper bits specify the version, should be at least 1.
+              JR      C,CHKTZ1
+              AND     007H                                                 ; Get Hardware, should be an MZ-80A for RFS.
+              CP      MODE_MZ80A
+              LD      A,C
+              JR      Z,CHKTZ1
+              XOR     A
+CHKTZ1:       AND     0E0H
+            ELSE
+              XOR     A
+            ENDIF
             LD      (TZPU), A                                            ; Flag = 0 if no tranZPUter present otherwise contains version (1 - 15).
             LD      HL,DSPCTL                                            ; Setup address of display control register latch.
             ;
@@ -226,6 +230,7 @@ SIGNON1:    CALL    DPCT
 SIGNON2:    LD      DE,MSGSON                                            ; Sign on message,
 SIGNON3:    LD      HL,PRINTMSG
             CALL    BKSW0to6
+        ; JR ST1X
 
             ; Initialise SD card, report any errors.
             LD      HL, SDINIT                                           ; SD Card Initialisation

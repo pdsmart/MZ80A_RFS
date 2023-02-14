@@ -10,7 +10,7 @@
 ;-                  the RFS can read the User Banks and extract required programs.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2023 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         Sep 2019  - Initial version.
 ;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded

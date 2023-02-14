@@ -8,7 +8,7 @@
 ##                  This script builds a CPM version compatible with the MZ-80A RFS system.
 ##
 ## Credits:         
-## Copyright:       (c) 2020-21 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2020-23 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         January 2020   - Initial script written.
 ##

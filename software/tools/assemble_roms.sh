@@ -9,7 +9,7 @@
 ##                  into a ROM file using the GLASS Z80 assembler.
 ##
 ## Credits:         
-## Copyright:       (c) 2018-21 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2018-23 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         August 2018   - Initial script written.
 ##                  March 2021    - Updated to compile different versions of Microsoft BASIC.

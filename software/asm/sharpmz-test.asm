@@ -14,7 +14,7 @@
 ;-                      4. Graphics RAM Test
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2023 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         October 2018 - Merged 2 utilities to create this compilation.
 ;-

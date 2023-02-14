@@ -10,12 +10,13 @@
 ##                  Also useful to add headers to homegrow machine code programs.
 ##
 ## Credits:         
-## Copyright:       (c) 2018-2021 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2018-2023 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         August 2018   - Initial script written.
 ##                  March 2021    - Updated to fix MZF header files. Some programs have encoded ASCII
 ##                                  into the header along with other strange characters, these need to 
 ##                                  be in Sharp ASCII format.
+##                  February 2023 - POSIX::tmpnam obsolete, using File::Temp::tmpnam
 ##
 #########################################################################################################
 ## This source file is free software: you can redistribute it and#or modify
@@ -46,7 +47,7 @@ use IO::File;
 use File::stat;
 use File::Copy;
 use Time::localtime;
-use POSIX qw(tmpnam);
+use File::Temp qw(tmpnam);
 use Env qw(KPLUSHOME3 SYBASE SYBASE_OCS DSQUERY);
 use sigtrap qw(die normal-signals);
 

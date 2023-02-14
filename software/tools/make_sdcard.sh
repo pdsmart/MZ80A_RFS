@@ -10,7 +10,7 @@
 ##                  ie. <RFS IMAGE> + <CPM DISK IMAGE 0> .. <CPM DIK IMAGE n>.
 ##
 ## Credits:         
-## Copyright:       (c) 2020-21 Philip Smart <philip.smart@net2net.org>
+## Copyright:       (c) 2020-23 Philip Smart <philip.smart@net2net.org>
 ##
 ## History:         March 2020   - Initial script written.
 ##                  March 2021   - Updated the file list and filter out files stored in the ROM Drives.

@@ -8,7 +8,7 @@
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2018-2020 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2018-2023 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         July 2019 - Merged 2 utilities to create this compilation.
 ;                   May 2020  - Bank switch changes with release of v2 pcb with coded latch. The coded
@@ -388,7 +388,7 @@ SDCMD2:     PUSH    HL
             CALL    SPIIN
             POP     HL
             CP      0FFH
-            JR      NZ,SDCMD4
+            JR      NZ,SDCMD4                                            ; If != 0xFF then byte received is response R1.
             DEC     HL
             LD      A,H
             OR      L
@@ -689,7 +689,7 @@ SD_READ1:   ; A = ACMD to send
             CALL    SDCMDNP                                              ; Execute SD Command, parameters already loaded into command buffer.
             LD      A,(SDBUF+6)                                          ; Fetch result and store.
             AND     A
-            JP      NZ,SD_READ6
+            JP      NZ,SD_READ6                                          ; If R1 is positive then an error occurred, get out.
 
             LD      HL,1000                                              ; Sit in a tight loop waiting for the data packet arrival (ie. not 0xFF).
 SD_READ2:   PUSH    HL

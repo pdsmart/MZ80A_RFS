@@ -8,7 +8,7 @@
 ;-                  the MZ-80A RFS hardware upgrade.
 ;-
 ;- Credits:         
-;- Copyright:       (c) 2019-20 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2019-23 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         September 2018 - Merged 2 utilities to create this compilation.
 ;-

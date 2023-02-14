@@ -10,7 +10,7 @@
 ;-
 ;- Credits:         Some of the comments and parts of the deblocking/blocking algorithm come from the
 ;                   Z80-MBC2 project, (C) SuperFabius.
-;- Copyright:       (c) 2020 Philip Smart <philip.smart@net2net.org>
+;- Copyright:       (c) 2020-2023 Philip Smart <philip.smart@net2net.org>
 ;-
 ;- History:         January 2020 - Initial creation.
 ;-
