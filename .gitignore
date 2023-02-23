@@ -175,3 +175,4 @@ software/asm/ramcbios/
 software/asm/wt.asm
 software/dis/SA-5510/SA-5510.bin
 software/dis/XPATCH/XPATCH-5510.bin
+software.moved.to.RFS/

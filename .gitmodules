@@ -1,0 +1,3 @@
+[submodule "software/RFS"]
+	path = software/RFS
+	url = https://github.com/pdsmart/RFS.git
